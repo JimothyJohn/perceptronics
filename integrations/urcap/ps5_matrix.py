@@ -249,7 +249,7 @@ x-ursim: &ursim
   cap_add:
     - NET_BIND_SERVICE
   volumes:
-    - ${PS5_URCAPS_DIR:-./target/ps5-matrix/urcaps}:/urcaps:ro
+    - ${PS5_URCAPS_DIR:-../../target/ps5-matrix/urcaps}:/urcaps:ro
   healthcheck:
     test:
       [
