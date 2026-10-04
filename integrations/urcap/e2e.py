@@ -563,7 +563,7 @@ def browser_checks(checks: Checks, port: int, cockpit_port: int, shots: Path | N
                 if nav.is_visible():
                     break
             nav.click(timeout=30_000)
-            page.get_by_text("Perceptronic").first.click(timeout=60_000)
+            page.get_by_text("Perceive", exact=True).first.click(timeout=60_000)
             page.wait_for_selector(TAG, state="attached", timeout=60_000)
 
         def shot(name: str) -> None:
@@ -573,9 +573,7 @@ def browser_checks(checks: Checks, port: int, cockpit_port: int, shots: Path | N
         try:
             open_node()
             node = page.locator(TAG)
-            checks.expect(
-                "Perceptronic" in node.inner_text(timeout=30_000), "node renders", "i18n title shown"
-            )
+            checks.expect("Perceive" in node.inner_text(timeout=30_000), "node renders", "i18n title shown")
             url_box = node.locator('[data-rsp="url"]')
             url_box.fill(cockpit)
             node.locator('[data-rsp="save"]').click()
