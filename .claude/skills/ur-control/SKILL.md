@@ -18,7 +18,7 @@ This repo talks to a UR e-Series controller — URSim in Docker by default, or a
 real robot at an IP — over its native network protocols. The reusable layer is
 `urctl/` (a `Robot` facade + safety envelope + audit log), surfaced three ways
 that all sit on the same `Robot`: the `urctl` CLI, the agent tool registry
-(`urctl.tools`), and the `urctl-mcp` MCP server.
+(`urctl.tools`), and the `perceptronics-mcp` MCP server.
 
 **Read `CLAUDE.md` for the protocol/format reference** (port map, Dashboard
 cheat sheet, `.urp` schema, URScript dialect gotchas). This skill is the
@@ -188,8 +188,7 @@ off** — so the reliable sequence is:
 urctl load MotionDemo && urctl bring-up && urctl play
 ```
 
-(The standalone `scripts/e2e_drive.py` does exactly this load→re-arm→play dance
-end to end; read it if you need a worked reference.) A program built with
+A program built with
 `runOnlyOnce="false"` loops forever and never reaches `STOPPED` — regenerate
 the `.urp` without `--loop` if you need it to terminate (see urp authoring).
 

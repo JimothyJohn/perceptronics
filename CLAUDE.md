@@ -28,7 +28,7 @@ urctl/                      Host-side control library + CLI + MCP server + agent
 perceptronics/              RGB-D cockpit, detector, pick server, cells (+ README.md = the RealSense notes, ARCHITECTURE.md, cell.html)
 integrations/urcap/         The Perceptronic URCaps (PolyScope 5 + X), their tooling, dist/ and the PS5 matrix compose file;
                             other robot embeds/apps go beside it under integrations/
-deploy/                     pi/ (pick PC installer, image, PI.md, PLUG-AND-PLAY.md), windows/ (Setup.cmd, Start.cmd, compose), Dockerfile.perceptronics
+deploy/                     pi/ (pick PC installer, image, PI.md, PLUG-AND-PLAY.md)
 hardware/                   BOM + the D435 tool bracket
 site/                       perceptronics.advin.io (the only published pages; docs/ and GitHub Pages are gone, 2026-10-04)
 requirements/               dev.{in,txt}, vision.{in,txt} (hashed; CI + `make install-dev`)
@@ -40,7 +40,7 @@ tests/                      pytest suite (unit + URSim integration); tests/fixtu
 the Dashboard + Primary clients), a `SafetyEnvelope` (pre-execution
 validation), an `AuditLog` (structured JSON action log), a JSON-schema'd tool
 registry (`urctl.tools`) for agent frameworks (OpenClaw/ROSClaw, MCP, plain
-function-calling), an `urctl` CLI, and an `urctl-mcp` MCP server. The older
+function-calling), an `urctl` CLI, and the JSON-RPC loop `perceptronics-mcp` serves them through. The older
 `scripts/` are kept as standalone shell/Python helpers; `scripts/urp_convert.py`
 is the single source of truth for the converter (vendored into the wheel as
 `urctl/_urp_convert.py`).
@@ -61,7 +61,7 @@ what the operator can load. All three are also agent tools
 (`ur_rtde_state`/`ur_system_snapshot`/`ur_list_programs`) and therefore MCP
 tools.
 
-**Portability:** the runtime — `urctl`, the GUI, and `urctl-mcp` (rewritten
+**Portability:** the runtime — `urctl`, the GUI, and `perceptronics-mcp` (rewritten
 as stdlib JSON-RPC/stdio; the `mcp` extra is now an empty no-op) — has **zero
 dependencies** and runs on Windows/macOS/Linux, amd64/arm64 (CI tests all
 four). External binaries are only reached for by the *filesystem* layer and
@@ -89,8 +89,7 @@ via ffmpeg (`perceptronics/views.py`; macOS picks devices by AVFoundation name; 
 from a local Terminal — SSH sessions are denied camera access by TCC). **macOS needs `sudo`** to open the camera (libusb
 must detach Apple's UVC driver — `failed to set power state` otherwise); Linux
 needs the udev rules. `--fake` runs everything on a synthetic scene. The
-target compute is a Jetson Orin next to the robot: `deploy/Dockerfile.perceptronics` +
-`docker compose --profile perceptronics`. The camera mounts on the tool flange via
+shipped compute is the pick PC (`deploy/pi/`; the Jetson container was dropped 2026-10-04). The camera mounts on the tool flange via
 `hardware/d435-tool-bracket/` (parametric CadQuery, STL/STEP, spec in its
 README; nominal `T_flange_camera` seed in §3).
 
@@ -113,8 +112,7 @@ found by identity, trimmed) and clicks every view into the cockpit's session;
 `--apply` saves it (`perceptronics/orbitcal.py`, `perceptronics/README.md` §Hand-eye
 without a mark; unverified on hardware as of 2026-09-26). `perceptronics-mcp` (`.mcp.json`)
 serves robot + `cam_*`/`cell_*` tools; the camera tools proxy the running
-cockpit because one process owns the USB camera. Windows bring-up:
-`scripts/setup-windows.ps1` + `scripts/cockpit.ps1`. **Keep
+cockpit because one process owns the USB camera. **Keep
 `perceptronics/cell.html` current** — it is the demo/explainer and has a dated
 field log; append to it when something is verified or changes.
 
@@ -548,7 +546,7 @@ go with this reference doc — use them, don't re-derive:
   conventions, URScript dialect traps, and the movej blend-radius pitfall.
 
 **Connection target is configurable, not hardcoded.** Nothing in `urctl/` (or
-`poweron.sh` / `e2e_drive.py`) bakes in `localhost` — they default to it for
+`poweron.sh`) bakes in `localhost` — they default to it for
 dev but read `UR_HOST` / `UR_DASH_PORT` / `UR_PRIMARY_PORT` / `UR_TIMEOUT_S`
 (and `RobotConfig.from_env(host=...)` / `--host`) so the same code drives a
 real robot at an IP. The only `localhost` references that *should* stay are the
@@ -1117,7 +1115,7 @@ use `JimothyJohn/perceptronics` only).
 
 **`perceptronics doctor` exits 1 when the verdict is NOT READY** — the right answer on a machine
 with no robot, so a script or CI step must not treat that exit code as a crash: look for the
-`verdict:` line (the Windows CI step does; `scripts/setup-windows.ps1` ends with its own `exit 0`).
+`verdict:` line.
 `doctor | head; echo $?` reports `head`'s 0, which is how this was misread once.
 
 Unit tests assume a clean shell: with `UR_CELL` (or `PERCEPTRONICS_*`) exported,
@@ -1149,9 +1147,8 @@ the same for the `vision` extra). CI installs with `pip install --require-hashes
 lockfile rule, kept) and builds with `python -m build --no-isolation` so hatchling is the
 pinned one. Dependabot's `pip` ecosystem updates the pins and their hashes; a bump that needs a
 *new* transitive package fails the hash check in CI — add it to the `.txt` by hand (name,
-version, `--hash` lines from PyPI). Windows: `scripts/setup-windows.ps1` installs Python with
-winget when none is found (`scripts/_python.ps1` finds it, skipping the Microsoft Store stub);
-the Windows CI leg runs `cockpit.ps1 -Doctor` and `deploy/windows/Setup.cmd` under Windows PowerShell 5.1.
+version, `--hash` lines from PyPI). The Windows launchers and the Windows Docker path were dropped 2026-10-04
+(the pick PC is the cell's computer); the Windows unit-test leg stays because the runtime is portable.
 
 ```bash
 make install-dev                              # .venv + the pinned dev tools (pip, hash-checked)
@@ -1169,7 +1166,7 @@ urctl move-joints 0 -1.57 0 -1.57 0 0    # safety-validated movej
 urctl move-tcp 0 0.05 0 0 0 0 --relative # safety-validated movel: +50mm base +Y
 urctl --dry-run move-joints 99 0 0 0 0 0 # validate + audit, send nothing
 urctl tools                              # dump the agent tool schemas (JSON)
-urctl-mcp --host 10.0.0.5                # serve the same tools over MCP
+perceptronics-mcp --cell ur3             # serve the same tools (+ the camera's) over MCP
 ```
 
 When adding a new robot capability, add it in one place — a `Robot` method —

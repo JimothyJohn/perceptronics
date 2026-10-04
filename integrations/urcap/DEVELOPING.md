@@ -237,5 +237,5 @@ URCap, CORS for the pendant's origin. The alternative the SDK offers is a
 **backend container** declared in the manifest (`containers:` with
 `devices: [{type: video}]` hot-plug hooks and `services: [urcontrol-primary]`),
 which would put the cockpit inside PolyScope's Docker and reach the controller
-on `urcontrol-primary:30001`; that is a packaging step on top of
-`deploy/Dockerfile.perceptronics`, not a rewrite.
+on `urcontrol-primary:30001`; that is a packaging step (a container around the
+cockpit; the pick PC's `deploy/pi/install.sh` is the reference for the build), not a rewrite.

@@ -19,7 +19,6 @@ import math
 import os
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -392,51 +391,6 @@ class TestLiveReloadPublish:
             text=True,
         )
         assert out.stdout.strip() == "2", out.stdout
-
-
-class TestE2EDrive:
-    """Run scripts/e2e_drive.py end to end against the simulator.
-
-    This is the highest-value integration test: it exercises both backend
-    ports, the URP converter, the Dashboard load/play state machine, and
-    the round-trip from URScript submission to motion verification.
-    """
-
-    def test_drive_runs_all_phases(self, ursim_ready, docker_ready):
-        # Full power-cycle to guarantee a clean controller state. Prior tests
-        # in the same session can leave PolyScope in an odd control mode or
-        # with a half-executed program; an explicit `stop` + `power off` +
-        # `poweron.sh` gives us a known starting point. Costs ~15 s but is
-        # the only reliable reset path on URSim.
-        from _ursim import wait_for_dash
-
-        dash("stop")
-        time.sleep(1)
-        dash("power off")
-        wait_for_dash(lambda r: "POWER_OFF" in r, timeout=30.0)
-        subprocess.run([str(SCRIPTS_DIR / "poweron.sh")], check=True, capture_output=True, timeout=180)
-        wait_for_dash(lambda r: "RUNNING" in r, timeout=60.0)
-
-        r = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "e2e_drive.py"), "--host", URSIM_HOST, "--json"],
-            capture_output=True,
-            text=True,
-            timeout=240,
-        )
-        # Parse the JSON phase records from stdout — one per line.
-        import json
-
-        phases = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
-        names = [p["phase"] for p in phases]
-        failed = [p for p in phases if not p["ok"]]
-        # Every phase must pass — the failure detail goes into the assertion
-        # message so a CI log shows exactly which sub-step regressed.
-        assert not failed, (
-            f"e2e_drive failed phases: {[p['phase'] for p in failed]}\ndetails: {failed}\nstderr: {r.stderr}"
-        )
-        # And we expect at least Phase 1 through Phase 6.
-        assert sum("Phase 1" in n for n in names) == 1
-        assert any("Phase 6" in n for n in names)
 
 
 class TestPrimaryInterface:

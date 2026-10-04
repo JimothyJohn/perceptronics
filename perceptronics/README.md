@@ -15,7 +15,7 @@ perceptronics --segment-backend sam gui     # Segment Anything instead of region
 
 | Option | Status | Notes |
 | --- | --- | --- |
-| **Jetson Orin next to the robot** (target) | designed for; container in `deploy/Dockerfile.perceptronics` | Camera on the tool flange (`hardware/d435-tool-bracket/`), USB back to the Jetson, this package runs as a service there (`compose --profile perceptronics`). The Jetson also runs `urctl` against the controller over the network, so one box owns perception *and* motion. |
+| **Pick PC (Raspberry Pi class) next to the robot** (shipped) | `deploy/pi/`, the `perceptronics-cockpit` service (the Jetson container was dropped 2026-10-04) | Camera on the tool flange (`hardware/d435-tool-bracket/`), USB back to the Jetson, this package runs as a service there (`compose --profile perceptronics`). The Jetson also runs `urctl` against the controller over the network, so one box owns perception *and* motion. |
 | **Laptop (this Mac)** | works with the lean open | `brew install librealsense`; the SDK needs **root to claim the USB interface on macOS** (libusb has to detach Apple's UVC driver): `sudo python3 -m perceptronics --cell ur3 gui --rs-lean`. The default open loses the claim race to Apple's UVC daemon (*Troubleshooting*); the **lean open** (`--rs-lean`) streamed on 2026-09-25 — the first open still errors once, the cockpit's back-off re-opens and the stream then holds. Launch from a local Terminal: the extra webcam views go through TCC, which silently denies SSH sessions. |
 | **On the UR controller itself** | not attempted | The CB is a Debian box with USB, so librealsense *could* be built there, but it shares the CPU with URControl's real-time loop, UR re-images it on update, and there is no supported way to ship a service with the robot. The URSim container cannot see USB at all (Docker Desktop on macOS has no USB passthrough). Deferred; the Jetson makes it unnecessary. |
 
@@ -82,20 +82,6 @@ of a grasp (top-down, close across the minor axis). Turning that into a base-
 frame pick needs the hand-eye transform — the bracket spec gives a nominal
 `T_flange_camera` seed, and `urctl` supplies the flange pose.
 
-## Running it on the Jetson (container)
-
-```bash
-docker compose --profile perceptronics build      # builds librealsense (RSUSB backend) from source
-docker compose --profile perceptronics up -d      # privileged for USB; cockpit on :7621, bound 0.0.0.0
-```
-
-Verified 2026-09-02: the image builds for `linux/arm64` (librealsense v2.58.4,
-RSUSB backend, ~10 min on Apple Silicon), the SDK loads inside it, and
-`perceptronics rs-info` / `rs-capture --fake` run. USB itself was not exercised
-(Docker Desktop on macOS cannot pass the camera through).
-
-The container has no auth — it is a cell-network cockpit.
-Keep it off routable networks or put it behind the Jetson's firewall.
 
 ## Click or drag to segment
 
@@ -247,15 +233,9 @@ and the command to start one, and the robot tools keep working. An unreachable
 controller is likewise reported in-band (`robot unreachable at …`), not as a
 server crash.
 
-**Windows laptop** (today's brain): `scripts\setup-windows.ps1` installs Python when none
-is found (winget `Python.Python.3.13`), downloads and runs the Intel RealSense SDK 2.0
-installer from the librealsense GitHub release (`RealSense.SDK-WIN10-<ver>.exe`
-— the default install puts `realsense2.dll` under
-`C:\Program Files (x86)\Intel RealSense SDK 2.0\bin\x64\`, and the script
-sets `REALSENSE_LIB` to it) and runs the doctor. Then
-`scripts\cockpit.ps1 -Cell ur20` is the pilot's seat. No `sudo` story on
-Windows: librealsense uses the native backend there. **Not yet run on the
-laptop** as of 2026-09-12 — the first run is the verification.
+**Windows**: the runtime is portable (the CI unit leg runs on Windows) and librealsense's native
+backend needs no `sudo` there, but the Windows launchers and the Windows Docker path were
+dropped on 2026-10-04: the pick PC (`deploy/pi/`) is the cell's computer.
 
 ## Hand-eye calibration (touch-and-click)
 

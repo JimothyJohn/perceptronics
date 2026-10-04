@@ -21,7 +21,7 @@ export ROBOT_TYPE HOST_ARCH
 
 # Controller connection target. Defaults to the local URSim container; override
 # to drive a real robot, e.g. `make sim-poweron UR_HOST=10.0.0.5`. Exported so
-# the host-side scripts (poweron.sh, e2e_drive.py, urctl) pick it up.
+# the host-side scripts (poweron.sh, urctl) pick it up.
 UR_HOST ?= localhost
 export UR_HOST
 
@@ -29,7 +29,7 @@ export UR_HOST
         simx-up simx-down simx-logs simx-shell urcap-package urcap-install urcap-cockpit \
         urcap-track urcap-compat urcap-e2e urcapx-matrix \
         urcap5-sdk urcap5-package urcap5-install \
-        rs-info rs-gui rs-gui-fake rs-test perceptronics-build perceptronics-up perceptronics-down \
+        rs-info rs-gui rs-gui-fake rs-test \
         doctor cockpit cockpit-dry mcp \
         test test-unit test-integration test-all \
         lint lint-py lint-sh fmt regen-urps install-dev
@@ -54,9 +54,6 @@ sim-shell:  ## Open a shell inside the URSim container.
 
 sim-poweron:  ## Power on the robot (POWER_OFF -> RUNNING).
 	./scripts/poweron.sh
-
-sim-e2e:  ## Drive the robot end to end (poweron -> motion -> load -> play).
-	./scripts/poweron.sh && ./scripts/e2e_drive.py
 
 # ---- PolyScope X simulator (separate product, web UI) -----------------------
 
@@ -149,15 +146,6 @@ rs-gui-fake:  ## RGB-D cockpit on a synthetic scene (no camera).
 
 rs-test:  ## Hardware-in-the-loop RealSense tests (skips without a camera).
 	sudo $(PYTEST) -m realsense -q
-
-perceptronics-build:  ## Build the perceptronics service image (Jetson / Linux; compiles librealsense).
-	$(COMPOSE) --profile perceptronics build
-
-perceptronics-up:  ## Run the perceptronics service (privileged, USB, cockpit on :7621).
-	$(COMPOSE) --profile perceptronics up -d
-
-perceptronics-down:  ## Stop the perceptronics service.
-	$(COMPOSE) --profile perceptronics down
 
 # ---- The pilot's seat (perceptronics/cell.html) ------------------------------------
 # One cell profile (sim | ur3 | ur20, perceptronics/cells/*.env) selects robot host/ports + bracket.

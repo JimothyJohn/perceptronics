@@ -136,11 +136,6 @@ def test_librealsense_is_pinned_to_the_binding_release():
     binding = _text(ROOT / "perceptronics" / "realsense.py")
     minor = re.search(r"written against librealsense (\d+\.\d+)", binding).group(1)
     assert tag.lstrip("v").startswith(minor + "."), f"{tag} is not librealsense {minor}.x"
-    # and the container builds the same release
-    docker_ref = re.search(r"LIBREALSENSE_REF=(\S+)", _text(ROOT / "deploy/Dockerfile.perceptronics")).group(
-        1
-    )
-    assert docker_ref == tag
     assert 'rev-parse HEAD)"' in text and "$LIBREALSENSE_COMMIT" in text, "the clone's commit is checked"
 
 

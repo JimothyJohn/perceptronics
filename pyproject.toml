@@ -20,7 +20,6 @@ sam = ["torch>=2.0", "transformers>=4.40", "numpy>=1.24", "pillow>=10.0"]
 
 [project.scripts]
 urctl = "urctl.cli:main"
-urctl-mcp = "urctl.mcp_server:main"
 perceptronics = "perceptronics.cli:main"
 perceptronics-gui = "perceptronics.webapp:main"
 perceptronics-mcp = "perceptronics.mcp_server:main"
