@@ -16,6 +16,7 @@ import importlib.util
 import io
 import ipaddress
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -1162,7 +1163,8 @@ def test_setting_the_password_replaces_the_factory_login(portal_server):
     )
     assert status == 200 and json.loads(body)["ok"], body
     stored = portal.password_file
-    assert stored.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":  # Windows has no POSIX modes; the file is private by the directory there
+        assert stored.stat().st_mode & 0o777 == 0o600
     text = stored.read_text()
     assert text.startswith("scrypt$") and new not in text and "admin" not in text
     # the factory login is dead, the new one lives, and the gate is open
