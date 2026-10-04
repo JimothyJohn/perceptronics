@@ -91,7 +91,7 @@ services:
       - HOST_ARCH=${HOST_ARCH:-amd64}
       - ROBOT_TYPE=${ROBOT_TYPE:-UR10}
       # URCap installs through the SDK's Robot-API path need Remote mode unless the
-      # sim runs in Development Mode (urcap/urcapx.py uses the urservice endpoint,
+      # sim runs in Development Mode (integrations/urcap/urcapx.py uses the urservice endpoint,
       # which needs neither), which is what the URCap SDK's own run-simulator sets: URSIM_PX_DEVMODE=true docker compose up -d ursim-px
       # (recreating the container resets the Services toggles and Remote mode).
       - DEVMODE=${URSIM_PX_DEVMODE:-}
@@ -116,7 +116,7 @@ services:
     profiles: ["perceptronics"]
     build:
       context: .
-      dockerfile: Dockerfile.perceptronics
+      dockerfile: deploy/Dockerfile.perceptronics
     image: perceptronics/perceptronics:local
     privileged: true
     volumes:

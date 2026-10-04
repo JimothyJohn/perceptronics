@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The product page at perceptronics.advin.io: build it, look at it, deploy it.
 #
-#   site/site.sh build      assemble site/_build/ from public/, urcap/dist/ and the screens
+#   site/site.sh build      assemble site/_build/ from public/, integrations/urcap/dist/ and the screens
 #   site/site.sh preview    build, then serve it on http://localhost:8000
 #   site/site.sh datasheet  build, then print the datasheet and UR Quickstart PDFs (needs Chrome; commit the results)
 #                           Over SSH, Chrome can't print (no display: CVDisplayLink fails, no PDF);

@@ -94,7 +94,7 @@ case "$mode" in
 esac
 
 # The wheel is built with the first Python that has pip: $PYTHON, then python3 on PATH, then
-# the usual installs. A repo .venv made from requirements-dev.txt has no pip and is often
+# the usual installs. A repo .venv made from requirements/dev.txt has no pip and is often
 # first on PATH (it was on the Mac Studio, 2026-10-02), so PATH alone isn't enough.
 py=""
 for cand in ${PYTHON:+"$PYTHON"} python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
@@ -135,7 +135,7 @@ done
 if [ "$cell_address" = 192.168.3.20 ]; then
     log "done. On the pendant nothing to type: the URCap's Cockpit field defaults to this PC's cell address 192.168.3.20;" \
         "a robot already on 192.168.3.x/24 (the UR3e: 192.168.3.3) stays as it is; one on DHCP gets 192.168.3.3 from this PC." \
-        "The whole procedure: PLUG-AND-PLAY.md"
+        "The whole procedure: deploy/pi/PLUG-AND-PLAY.md"
 else
     log "done. On the pendant: Installation -> URCaps -> Perceptronic -> Cockpit = ${cell_address} -> Save"
 fi

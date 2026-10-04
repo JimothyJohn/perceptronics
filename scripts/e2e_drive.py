@@ -239,9 +239,9 @@ def phase4_home(host: str) -> PhaseResult:
 
 # ----- MotionDemo program build + load --------------------------------------
 
-MOTION_DEMO_SCRIPT = REPO_ROOT / "programs" / "MotionDemo" / "MotionDemo.script"
-MOTION_DEMO_URP = REPO_ROOT / "programs" / "MotionDemo" / "MotionDemo.urp"
-MOTION_DEMO_INST = REPO_ROOT / "programs" / "MotionDemo" / "MotionDemo.installation"
+MOTION_DEMO_SCRIPT = REPO_ROOT / "tests" / "fixtures" / "programs" / "MotionDemo" / "MotionDemo.script"
+MOTION_DEMO_URP = REPO_ROOT / "tests" / "fixtures" / "programs" / "MotionDemo" / "MotionDemo.urp"
+MOTION_DEMO_INST = REPO_ROOT / "tests" / "fixtures" / "programs" / "MotionDemo" / "MotionDemo.installation"
 
 
 def phase5_dashboard_load(host: str, docker: list[str], container: str) -> PhaseResult:

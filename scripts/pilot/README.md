@@ -1,6 +1,6 @@
 # scripts/pilot — the 2026-09-25 UR3e + Hand-E session scripts
 
-Working scripts from the first hardware pick (see `docs/realsense.md` §Hand-eye
+Working scripts from the first hardware pick (see `perceptronics/README.md` §Hand-eye
 without a mark and §Picking with the Hand-E). They drive a **running cockpit**
 (`perceptronics --cell ur3 gui --rs-lean`, port 7621) over its HTTP API and the
 gripper through `urctl gripper`; nothing here talks to the robot directly.

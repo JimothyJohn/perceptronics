@@ -188,14 +188,18 @@ def _const(path: str, pattern: str) -> str:
 
 def test_the_urcaps_and_the_installer_agree_on_the_pick_pcs_address():
     pc, robot = cellnet.PICK_PC_ADDRESS, cellnet.ROBOT_ADDRESS
-    java = "urcap/perceptronic-ps5/src/io/advin/perceptronic/Cockpit.java"
-    js = "urcap/perceptronic/perceptronic-frontend/pickscript.js"
+    java = "integrations/urcap/perceptronic-ps5/src/io/advin/perceptronic/Cockpit.java"
+    js = "integrations/urcap/perceptronic/perceptronic-frontend/pickscript.js"
     assert _const(java, r'DEFAULT_HOST = "([\d.]+)"') == pc
     assert _const(java, r'ROBOT_DEFAULT_HOST = "([\d.]+)"') == robot
     assert _const(js, r'DEFAULT_COCKPIT_HOST = "([\d.]+)"') == pc
     assert _const(js, r'ROBOT_DEFAULT_HOST = "([\d.]+)"') == robot
     assert (
-        _const("urcap/perceptronic/perceptronic-frontend/main.js", r'DEFAULT_COCKPIT_HOST = "([\d.]+)"') == pc
+        _const(
+            "integrations/urcap/perceptronic/perceptronic-frontend/main.js",
+            r'DEFAULT_COCKPIT_HOST = "([\d.]+)"',
+        )
+        == pc
     )
     assert _const("deploy/pi/install.sh", r'cell_address="([\d.]+)/(?:\d+)"') == pc
     assert int(_const("deploy/pi/install.sh", r'cell_address="[\d.]+/(\d+)"')) == cellnet.CELL_PREFIX

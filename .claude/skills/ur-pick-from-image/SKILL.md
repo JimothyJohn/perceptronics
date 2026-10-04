@@ -16,7 +16,7 @@ The hard part isn't the motion (that's **ur-program-authoring**) — it's that o
 image has **no metric camera→base calibration**, so you cannot recover true table
 coordinates. Don't pretend you can. Instead, reproduce the objects' *relative*
 arrangement faithfully and anchor it somewhere reachable, then say exactly what
-you assumed. `programs/AppleStack` is the worked example.
+you assumed. `tests/fixtures/programs/AppleStack` is the worked example.
 
 ## Steps
 

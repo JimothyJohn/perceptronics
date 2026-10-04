@@ -6,7 +6,7 @@ pick **DHCP** on the robot's network screen (Settings → System → Network), s
 holds a fixed address on its cell port (:data:`PICK_PC_ADDRESS`) and answers DHCP there
 with one lease, :data:`ROBOT_ADDRESS` — the address the shipped cell profiles give
 ``UR_HOST`` — so a robot on DHCP is where the cockpit looks for it, and the URCap's empty
-Cockpit field means the pick PC (``urcap/perceptronic-ps5/.../Cockpit.java``,
+Cockpit field means the pick PC (``integrations/urcap/perceptronic-ps5/.../Cockpit.java``,
 ``pickscript.js`` hold the same constant; a test keeps them equal).
 
 A DHCP server on a network that already has one takes leases away from it, so the pick PC

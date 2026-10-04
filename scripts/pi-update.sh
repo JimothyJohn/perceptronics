@@ -27,7 +27,7 @@ admin="${repo}/deploy/pi/perceptronics-admin"
 [ $# -ge 1 ] || { usage; exit 2; }
 cmd="$1"; shift
 
-# The first Python that has pip (a repo .venv made from requirements-dev.txt has none).
+# The first Python that has pip (a repo .venv made from requirements/dev.txt has none).
 find_python() {
     local cand
     for cand in ${PYTHON:+"$PYTHON"} python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do

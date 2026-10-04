@@ -15,7 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-PROGRAMS_DIR = REPO_ROOT / "programs"
+PROGRAMS_DIR = REPO_ROOT / "tests" / "fixtures" / "programs"
 
 # Make scripts/urp_convert.py importable as a regular module.
 if str(SCRIPTS_DIR) not in sys.path:

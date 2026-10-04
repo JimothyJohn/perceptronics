@@ -125,7 +125,7 @@ class GuidedSession:
         self.steps: list[StepResult] = []
         # (joint pose, name) for every recorded waypoint, so we can give a
         # returning position the same functional name (rule: unique names except
-        # for duplicate positions — see docs/program-authoring-best-practices.md).
+        # for duplicate positions — see urctl/PROGRAM-AUTHORING.md).
         self._named: list[tuple[list[float], str]] = []
 
     # -- internals -------------------------------------------------------- #

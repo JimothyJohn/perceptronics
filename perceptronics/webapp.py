@@ -324,7 +324,7 @@ class ViewerApp:
         self._latest_t = 0.0  # host time the newest frame arrived
         self.mask_t = 0.0  # ... and the one the current mask was cut from
         # Origins allowed to call the API from another page (a PolyScope X URCap on
-        # the pendant, `urcap/perceptronic`). Empty = same-origin only (the default).
+        # the pendant, `integrations/urcap/perceptronic`). Empty = same-origin only (the default).
         self.cors_origins = []
         for o in (o.strip() for o in (cors or []) if o and o.strip()):
             if o == "*" or _ORIGIN_RE.match(o):

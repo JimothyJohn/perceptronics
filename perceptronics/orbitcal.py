@@ -2,7 +2,7 @@
 
 A gripper on the flange means nothing can touch a mark, so the mark is a
 block's top-face centre and the wrist orbits it (the 2026-09-25 procedure,
-``docs/realsense.md`` §Hand-eye without a mark, folded in from the
+``perceptronics/README.md`` §Hand-eye without a mark, folded in from the
 ``scripts/pilot/orbit_cal*.py`` scratch scripts):
 
 1. **Find the mark.** From where the arm is, the white block nearest the

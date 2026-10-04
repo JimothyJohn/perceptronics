@@ -8,8 +8,8 @@ pendant puts the gripper on it. This page gets it onto a Universal Robots e-Seri
 
 **1. Download these two files** (both, from the same place, don't rename them):
 
-- [`perceptronic-ps5-0.9.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/urcap/dist/perceptronic-ps5-0.9.0.urcap)
-- [`urmagic_perceptronic.sh`](https://github.com/JimothyJohn/perceptronics/raw/main/urcap/dist/urmagic_perceptronic.sh)
+- [`perceptronic-ps5-0.9.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap)
+- [`urmagic_perceptronic.sh`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/urmagic_perceptronic.sh)
 
 **2. Copy them onto a USB stick**, at the top, not in a folder. The stick must be
 FAT32 (most sticks are). Eject it properly before you pull it out.
@@ -32,8 +32,8 @@ the `.urcap` → **Open** → **Restart**. What happened is written to
 `urmagic_perceptronic.log` on the stick.
 
 The camera computer (a Raspberry Pi with the D435 on its USB port) is set up once:
-[docs/pick-kit.md](docs/pick-kit.md). PolyScope X has no magic files; its URCap
-installs through System Manager: [urcap/README.md](urcap/README.md).
+[site/public/quickstart-ur.html](site/public/quickstart-ur.html). PolyScope X has no magic files; its URCap
+installs through System Manager: [integrations/urcap/README.md](integrations/urcap/README.md).
 
 ## Developers: install from a PC over SSH
 
@@ -59,7 +59,7 @@ ssh-copy-id root@$ROBOT                  # once: key login from now on
 
 ```bash
 ssh root@$ROBOT 'mkdir -p /tmp/perceptronic'
-scp urcap/dist/perceptronic-ps5-0.9.0.urcap urcap/dist/urmagic_perceptronic.sh root@$ROBOT:/tmp/perceptronic/
+scp integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap integrations/urcap/dist/urmagic_perceptronic.sh root@$ROBOT:/tmp/perceptronic/
 ssh root@$ROBOT 'bash /tmp/perceptronic/urmagic_perceptronic.sh'
 ```
 
@@ -68,17 +68,17 @@ would, and restarts the controller when the arm is off and no program runs; othe
 it tells you to restart. `URMAGIC_RESTART=always` (before `bash`) restarts regardless,
 `=never` leaves it to you. Its log is `/tmp/perceptronic/urmagic_perceptronic.log`.
 
-**After changing the URCap:** `make urcap5-package` rebuilds `urcap/dist/` (the `.urcap`
+**After changing the URCap:** `make urcap5-package` rebuilds `integrations/urcap/dist/` (the `.urcap`
 and the `.sh` with its new checksum), then run the three lines above again.
 `scripts/urcap5-usb.sh` writes a stick from a Mac without the `._` files Finder leaves.
 
 ## More
 
-- [docs/architecture.md](docs/architecture.md): how it works, the code map, the cockpit's API, adding a robot, running it all without hardware
-- [urcap/perceptronic-ps5/README.md](urcap/perceptronic-ps5/README.md): the PolyScope 5 URCap in full: upgrading, every screen
-- [docs/pick-kit.md](docs/pick-kit.md): the kit, the camera computer, setting up a cell
-- [docs/realsense.md](docs/realsense.md): the camera, depth quality, hand-eye
+- [perceptronics/ARCHITECTURE.md](perceptronics/ARCHITECTURE.md): how it works, the code map, the cockpit's API, adding a robot, running it all without hardware
+- [integrations/urcap/perceptronic-ps5/README.md](integrations/urcap/perceptronic-ps5/README.md): the PolyScope 5 URCap in full: upgrading, every screen
+- [site/public/quickstart-ur.html](site/public/quickstart-ur.html): the kit, the camera computer, setting up a cell
+- [perceptronics/README.md](perceptronics/README.md): the camera, depth quality, hand-eye
 - [CLAUDE.md](CLAUDE.md): working notes, protocols, and the gotchas that cost real time
 
 Working on perceptronics itself: `make install-dev`, `make test`, `make lint`; PRs go
-to `dev` ([docs/architecture.md](docs/architecture.md#development)).
+to `dev` ([perceptronics/ARCHITECTURE.md](perceptronics/ARCHITECTURE.md#development)).

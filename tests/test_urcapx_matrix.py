@@ -1,4 +1,4 @@
-"""urcap/psx_matrix.py — the PolyScope X release list and how it reads the e2e: the
+"""integrations/urcap/psx_matrix.py — the PolyScope X release list and how it reads the e2e: the
 release rule against Docker Hub's tag shapes, drift, and the e2e's check lines."""
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import psx_matrix  # noqa: E402
 
 HUB = [

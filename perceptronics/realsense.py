@@ -327,7 +327,7 @@ class Api:
         claims the camera's USB interfaces through its own device watcher.
         On macOS's libusb backend every claim that finds an interface held
         resets the USB device and races Apple's ``UVCAssistant`` for the
-        re-enumerated interfaces (see docs/realsense.md, Troubleshooting) —
+        re-enumerated interfaces (see perceptronics/README.md, Troubleshooting) —
         a second context in the same process re-runs that race and, losing
         the depth interface, logs ``cannot access depth sensor`` and starts
         a pipeline that never delivers a frameset. Enumeration and streaming
