@@ -277,3 +277,20 @@ def test_a_near_miss_is_a_candidate_a_little_off_and_nothing_else():
     assert not spec.near_miss(0.100, 0.030, 0.090)  # parts' worth long, but nothing like as tall
     assert not spec.near_miss(0.050, 0.030, 0.090)  # three times as tall
     assert spec.near_miss(0.066, 0.030, None)  # no height measured: not held against it
+
+
+# -- the nominal height (Nick, 2026-10-04: the taught size is the truth, the measurement the filter)
+
+
+def test_nominal_height_is_the_matched_faces_height():
+    spec = PartSpec.from_mm(60, 40, 30)
+    assert spec.nominal_height(0.060, 0.040, 0.027) == pytest.approx(0.030)  # flat, read 3 mm low
+    assert spec.nominal_height(0.060, 0.030, 0.043) == pytest.approx(0.040)  # on its long side
+    assert spec.nominal_height(0.040, 0.030, 0.058) == pytest.approx(0.060)  # on its end
+    assert spec.nominal_height(0.060, 0.040, 0.010) is None  # not this part: too flat
+    assert spec.nominal_height(0.090, 0.040, 0.030) is None  # not this part: too long
+    assert spec.nominal_height(0.060, 0.040, None) == pytest.approx(0.030)  # height unseen: the given face
+
+
+def test_nominal_height_is_none_without_a_taught_height():
+    assert PartSpec.from_mm(60, 40).nominal_height(0.060, 0.040, 0.025) is None

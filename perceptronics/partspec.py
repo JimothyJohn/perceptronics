@@ -122,6 +122,22 @@ class PartSpec:
                 best = (off, why)
         return best[1] if best else None
 
+    def nominal_height(
+        self, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
+    ) -> float | None:
+        """The height the part *is* when these measurements are it (:meth:`why_not` is None):
+        the matched face's given height — the taught size is the truth and the measurement is
+        the filter (Nick, 2026-10-04: the grip hangs from the nominal height, not the measured
+        top). None when the part has no height, or the measurements are not it."""
+        best: tuple[tuple[float, float], float | None] | None = None
+        for pose in self.poses():
+            if self._why_not_as(pose, major_m, minor_m, height_m, floor_m) is not None:
+                continue
+            off = self._offness(pose, major_m, minor_m, height_m, floor_m)
+            if best is None or off < best[0]:
+                best = (off, pose[2])
+        return None if best is None else best[1]
+
     def _offness(
         self, pose, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
     ) -> tuple[float, float]:
