@@ -341,7 +341,7 @@ def check_network(
     pendant = (
         "the pendant's Cockpit field can stay empty (its default)"
         if default
-        else f"on the pendant: Installation → URCaps → Perceptronic → Cockpit = {here}"
+        else f"on the pendant: Installation → URCaps → Perceive → Cockpit = {here}"
     )
     report.add(
         Check(

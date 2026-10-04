@@ -8,7 +8,7 @@ realsense-pilot …` (RealSense Pilot).*
 Copyright © 2026 Nick Armenta.
 
 > **e-Series robot on PolyScope 5?** Use the Installation-node build instead:
-> [`perceptronic-ps5/`](perceptronic-ps5/README.md) (`dist/perceptronic-ps5-0.9.0.urcap`).
+> [`perceptronic-ps5/`](perceptronic-ps5/README.md) (`dist/perceptronic-ps5-0.10.0.urcap`).
 
 A URCap for **PolyScope X** (PolyScope 10) robots. It adds a **Perceptronic**
 node under **Application** that shows the live colour feed from an Intel
@@ -26,7 +26,7 @@ this repository). The pendant shows the cockpit's picture over the cell network.
 
 ```
  ┌───────────── PolyScope X pendant ─────────────┐          ┌──── computer next to the robot ────┐
- │ Application → Perceptronic  (this URCap)      │  HTTP    │ perceptronics gui  (the cockpit)       │
+ │ Application → Perceive  (this URCap)      │  HTTP    │ perceptronics gui  (the cockpit)       │
  │   feed · hover · click · Move                 │ ───────► │   :7621   D435 on USB               │
  └───────────────────────────────────────────────┘          │   talks to the robot on 30001/30004 │
                                                             └─────────────────────────────────────┘
@@ -40,7 +40,7 @@ this repository). The pendant shows the cockpit's picture over the cell network.
 
 ## Quick start
 
-1. **Download** [`dist/perceptronic-0.7.0.urcapx`](dist/perceptronic-0.7.0.urcapx)
+1. **Download** [`dist/perceptronic-0.8.0.urcapx`](dist/perceptronic-0.8.0.urcapx)
    (on GitHub: open the file, then the download button). The single file is the
    whole URCap.
 2. **Install it** on the robot (see [Install the URCap](#1-install-the-urcap)).
@@ -48,7 +48,7 @@ this repository). The pendant shows the cockpit's picture over the cell network.
    ```bash
    python3 -m perceptronics --cell mycell.env gui --bind 0.0.0.0 --cors http://<robot-ip>
    ```
-4. On the pendant: **Application → Perceptronic**, type
+4. On the pendant: **Application → Perceive**, type
    `http://<camera-computer-ip>:7621` in **Cockpit**, press **Save**. The feed
    appears.
 
@@ -76,11 +76,11 @@ Pick one of the two ways. You only do this once per robot (and again to update).
 
 ### A. On the pendant, from a USB stick
 
-1. Copy `perceptronic-0.7.0.urcapx` onto a USB stick and plug it into the
+1. Copy `perceptronic-0.8.0.urcapx` onto a USB stick and plug it into the
    teach pendant.
 2. Open the **☰ menu** (top-left) → **System Manager** → **URCaps**, and
    unlock it with the **admin password**.
-3. Add a URCap and pick `perceptronic-0.7.0.urcapx` from the USB stick.
+3. Add a URCap and pick `perceptronic-0.8.0.urcapx` from the USB stick.
 4. When it's listed, open **☰ → Reload**.
    **Perceptronic** now appears under **Application**.
 
@@ -90,7 +90,7 @@ Pick one of the two ways. You only do this once per robot (and again to update).
 to install. Download it next to the `.urcapx` and run:
 
 ```bash
-python3 urcapx.py install perceptronic-0.7.0.urcapx --host <robot-ip> --port 80
+python3 urcapx.py install perceptronic-0.8.0.urcapx --host <robot-ip> --port 80
 ```
 
 It posts the package to the same endpoint PolyScope's System Manager uses, which
@@ -102,7 +102,7 @@ Other commands from the same file:
 
 ```bash
 python3 urcapx.py list --host <robot-ip> --port 80                                          # what's installed
-python3 urcapx.py install perceptronic-0.7.0.urcapx --host <robot-ip> --port 80 --replace   # update
+python3 urcapx.py install perceptronic-0.8.0.urcapx --host <robot-ip> --port 80 --replace   # update
 python3 urcapx.py delete advin perceptronic --host <robot-ip> --port 80        # uninstall
 ```
 
@@ -183,7 +183,7 @@ hand-eye**. See [perceptronics/README.md §Hand-eye](../perceptronics/README.md)
 
 ## 4. Use it
 
-1. On the pendant: **Application → Perceptronic** (add it to a program like
+1. On the pendant: **Application → Perceive** (add it to a program like
    any other node).
 2. **Cockpit**: `http://<camera-computer-ip>:7621`, then **Save**. It's stored in
    the node, so you do this once. Left empty, the node looks for a cockpit on the
@@ -198,7 +198,7 @@ hand-eye**. See [perceptronics/README.md §Hand-eye](../perceptronics/README.md)
 
 ---
 
-## 5. Pick with the **3D Pick** node
+## 5. Pick with the **Pounce** node
 
 The same node as the PolyScope 5 kit's, for PolyScope X, at functional parity (0.7.0 here
 = 0.9.0 there; a test holds the two nodes' URScript line for line): **one move sequence
@@ -212,7 +212,7 @@ corner, along one edge and on the far side for each area. The map beside them dr
 base, how far this arm reaches (its rated reach, named on its circle) and every area in
 it. There are no reach margins: which parts can be picked is the arm's kinematics' answer.
 
-1. **Program → + → URCaps → 3D Pick.** The tree row shows the part, the picture points
+1. **Program → + → URCaps → Pounce.** The tree row shows the part, the picture points
    and the order; **Teach & options…** opens the node's screen as a PolyScope dialog.
    Nothing in it scrolls.
 2. In it: the live picture, with the parts that will be picked in **green, numbered** in
@@ -282,7 +282,7 @@ make urcap-install    # installs dist/perceptronic-*.urcapx into it
 make urcap-cockpit    # a fake cockpit on :7621 with --cors for the simulator
 ```
 
-Open `http://localhost:8000`, **Application → Perceptronic**, leave
+Open `http://localhost:8000`, **Application → Perceive**, leave
 **Cockpit** empty, and the synthetic scene appears. Locate/Move need a real robot
 link behind the cockpit.
 
@@ -301,7 +301,7 @@ link behind the cockpit.
 | Locate + Move (cockpit) against a real PolyScope X arm | **not yet** |
 | `perceptronics calibrate` (orbit hand-eye) as a command on hardware | **not yet**: the same orbit, scripted, gave RMS 4.4 mm on a UR3e (2026-09-25); the cockpit's touch-and-click calibration is the proven path |
 | Move (PolyScope): IK + hold-to-move accept the pose | **not yet**: compare against the cockpit's approach pose on first use |
-| **3D Pick** program node (named Perceptronic Pick until 0.5.0): in the toolbox, its row in the tree, the dialog (feed, a picture point from PolyScope's joints, Options), the two program variables declared, and its URScript **compiled and run by PolyScope X** (Play): NEXT → movej → FIND against a synthetic cockpit over the network, the failure popup naming the pick server's answer | 10.13.0 simulator (UR3), 2026-09-29; the toolbox → dialog → verdict part is in `integrations/urcap/e2e.py` |
+| **Pounce** program node (named Perceptronic Pick until 0.5.0 and 3D Pick until 0.9.0; Nick 2026-10-04: Perceive is the tool, Pounce the approach): in the toolbox, its row in the tree, the dialog (feed, a picture point from PolyScope's joints, Options), the two program variables declared, and its URScript **compiled and run by PolyScope X** (Play): NEXT → movej → FIND against a synthetic cockpit over the network, the failure popup naming the pick server's answer | 10.13.0 simulator (UR3), 2026-09-29; the toolbox → dialog → verdict part is in `integrations/urcap/e2e.py` |
 | Pick areas taught from PolyScope's joint positions + DH; robot model read from PolyScope for the reach map and the kinematics | 10.13.0 simulator, 2026-09-29 |
 | A real pick with the Pick node on a PolyScope X arm (the program drives the gripper; the node does not) | **not yet** |
 

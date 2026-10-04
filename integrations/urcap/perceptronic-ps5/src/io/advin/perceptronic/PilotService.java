@@ -8,7 +8,7 @@ import com.ur.urcap.api.contribution.installation.swing.SwingInstallationNodeSer
 import com.ur.urcap.api.domain.data.DataModel;
 import java.util.Locale;
 
-/** Installation tab → URCaps → Perceptronic (PolyScope X: Application → Perceptronic). */
+/** Installation tab → URCaps → Perceptronic (PolyScope X: Application → Perceive). */
 public class PilotService implements SwingInstallationNodeService<PilotContribution, PilotView> {
     @Override
     public void configureContribution(ContributionConfiguration configuration) {
@@ -17,7 +17,7 @@ public class PilotService implements SwingInstallationNodeService<PilotContribut
 
     @Override
     public String getTitle(Locale locale) {
-        return "Perceptronic";
+        return "Perceive";
     }
 
     @Override

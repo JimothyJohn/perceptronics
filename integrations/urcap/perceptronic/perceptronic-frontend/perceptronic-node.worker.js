@@ -18,7 +18,7 @@ const NODE_VERSION = "1.1.0";
 // (`perceptronics gui --cors …`) answers; empty = the page's own host on :7621.
 // `areas` (up to 8: name + the three fingertip touches, base frame, m), `tipMm` (the
 // fingertips past the flange) and `robotModel` (read from PolyScope: the pick server asks
-// that arm's kinematics what is in reach) are what the 3D Pick program node reads from this
+// that arm's kinematics what is in reach) are what the Pounce program node reads from this
 // node (pickscript.js `settings`). A node saved before 0.5.0 also carries `reachInnerMm` /
 // `reachOuterMm`, the margins of a pick ring nothing reads any more.
 const fresh = () => ({

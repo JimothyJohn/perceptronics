@@ -21,12 +21,12 @@ integrations/urcap/
   perceptronic/
     manifest.yaml                          vendorID advin, urcapID perceptronic
     perceptronic-frontend/
-      contribution.json                    the applicationNode (tag advin-perceptronic) + one programNode (3D Pick)
+      contribution.json                    the applicationNode (tag advin-perceptronic) + one programNode (Pounce)
       main.js                              the application node's presenter (a custom element): two tabs — the feed (Picture / Depth toggle, click → locate) and the pick areas on the arm's reach
       perceptronic-node.worker.js       its behavior worker (node factory / upgrade)
       pickscript.js                        the Pick node's settings + URScript + pose math + the drawings as SVG (worker, page and tests share it)
-      pick.js                              the program node's presenter: the 3D Pick row + its dialog (no scrolling; Options = Part / Approach tabs)
-      pick-node.worker.js                  the 3D Pick node's behaviors (label, validator, the whole script before "children" it does not have)
+      pick.js                              the program node's presenter: the Pounce row + its dialog (no scrolling; Options = Part / Approach tabs)
+      pick-node.worker.js                  the Pounce node's behaviors (label, validator, the whole script before "children" it does not have)
       assets/i18n/en.json                  node titles + supportive text (program.tree.nodes.<tag> for program nodes)
       assets/icons/perceptronic.svg      the P mark — a copy of ../perceptronic.svg (a test holds them equal)
       assets/icons/perceptronic-*.svg    the program nodes' toolbox icons

@@ -33,7 +33,7 @@ import urcap5  # noqa: E402
 
 SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.9.0.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.10.0.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")

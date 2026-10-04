@@ -21,8 +21,8 @@ standing next to it.
 
 | Piece | State | Evidence |
 | --- | --- | --- |
-| Perceive URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0; the node is still titled 3D Pick) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap` |
-| Perceive URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.7.0.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
+| Perceive URCap for PolyScope 5 (`io.advin.perceptronic` 0.10.0; the program node is Pounce) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.10.0.urcap` |
+| Perceive URCap for PolyScope X (0.8.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.8.0.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
 | Pick PC (Pi, cockpit, pick server, firewall, DHCP for the robot) | Deployed and verified on one Pi 5; flashable image boots in ~30 s | `deploy/pi/README.md` §Verified on a board, `deploy/pi/image/README.md` |
 | Setup portal + update bundles (network from a browser, upload an update, auto-rollback) | Code + 115 tests, **never on a board** | PR #59, `perceptronics/setupportal.py`, `deploy/pi/perceptronics-admin` |
 | Camera bracket | Rev B.2 printed and on the UR3e; **Rev C and the UFACTORY print are unprinted** | `hardware/d435-tool-bracket/README.md` §7 (13 unchecked boxes) |
@@ -171,7 +171,7 @@ without Nick.
 
 The pick stays what it is. Everything below is *around* it, in the customer's own program
 where Nick decided the gripper and the place belong (`site/public/quickstart-ur.html` §Program; decision
-2026-10-02 "3D Pick keeps its structure"). Build order is the order of risk.
+2026-10-02 "Pounce keeps its structure"). Build order is the order of risk.
 
 ### 5.1 Prove the pick on a pendant (before anything else)
 
@@ -399,7 +399,7 @@ Answer: Yes force a password change
 7. **The first Tend customer**: a shop you already know, free install for logs and a
    reference. Who?
 Answer: OX Manufacturing
-8. **Name**: "3D Pick" vs "Perceive" (TODO 10-02) — decide before the 1.0 URCap with the
+8. **Name**: "Pounce" vs "Perceive" (TODO 10-02) — decide before the 1.0 URCap with the
    I/O screen, since the template and the docs will say it everywhere.
 Answer: Perceive is the name of the tool and Pounce is what we'll call the approach.
 9. **Site deploy from CI** (S5) and **image build on a self-hosted runner** (F1): both are

@@ -71,7 +71,7 @@
       <div class="rev">Quickstart · {{QUICKSTART_DATE}}<br>URCap {{PS5_VERSION}} (PolyScope 5) · {{PSX_VERSION}} (PolyScope X)</div>
     </div>
 
-    <p class="lede">From the kit to the first pick on a Universal Robots arm: mount the camera, connect the camera computer, install the Perceptronic URCap, calibrate, and add the <strong>3D Pick</strong> node to a program. Steps 1 to 4 are done once per robot.</p>
+    <p class="lede">From the kit to the first pick on a Universal Robots arm: mount the camera, connect the camera computer, install the Perceptronic URCap, calibrate, and add the <strong>Pounce</strong> node to a program. Steps 1 to 4 are done once per robot.</p>
 
     <p class="warn"><strong>Beta software.</strong> The integrator is responsible for the risk assessment and safety of the cell. Run the first picks at reduced speed, with the area clear and a hand on the emergency stop. If a step here does not match what you see, write to <a href="mailto:nick@advin.io">nick@advin.io</a>.</p>
 
@@ -160,7 +160,7 @@
           <pre>ssh &lt;user&gt;@&lt;computer-address&gt; sudo -u perceptronics /opt/perceptronics/current/bin/perceptronics \
     --cell /etc/perceptronics/cell.env calibrate --cockpit http://127.0.0.1:7621 --apply</pre>
           The arm orbits the part slowly (39 views at three distances, a few minutes). The result takes effect at once and is kept through restarts and updates.</li>
-        <li>Switch the pendant back to <strong>Local</strong> if that is how the cell runs. The 3D Pick node runs in either mode.</li>
+        <li>Switch the pendant back to <strong>Local</strong> if that is how the cell runs. The Pounce node runs in either mode.</li>
       </ol>
     </div>
 
@@ -171,9 +171,9 @@
 
     <div class="step">
       <h2><span class="n">7</span>Write the first pick program</h2>
-      <p class="keep">The 3D Pick node is one line with no children. It looks, finds the next part, and ends with the fingertips at the grip. It does not touch the gripper, so your gripper's nodes go around it. Program tab, inside a loop:</p>
+      <p class="keep">The Pounce node is one line with no children. It looks, finds the next part, and ends with the fingertips at the grip. It does not touch the gripper, so your gripper's nodes go around it. Program tab, inside a loop:</p>
       <pre class="prog">Open gripper        ← your gripper's node
-3D Pick             ← Program → URCaps → 3D Pick
+Pounce             ← Program → URCaps → Pounce
 Close gripper       ← your gripper's node
 If rs_pick_found    ← lift, place</pre>
       <ol>
@@ -185,8 +185,8 @@ If rs_pick_found    ← lift, place</pre>
       </ol>
       <p>The node's picture shows the parts it will pick in <strong>green</strong>, numbered in pick order, and parts that nearly match in <strong>yellow</strong>, each with the reason: off size, two parts touching, out of reach, no room for a finger, outside the pick area, cut off by the edge of the picture. The toggle in its corner switches to the depth view. <code>rs_pick_found</code> is True once the tool is at the grip; <code>rs_pick_loc</code> is the picture point the part came from.</p>
       <figure>
-        <img src="screens/pick-part.png" width="1000" height="560" alt="The 3D Pick node on the pendant, step 2 of 3: one tapped part taught its size; parts to pick outlined in green and numbered, rejected parts in yellow with the reason.">
-        <figcaption>The 3D Pick node on a PolyScope 5 pendant (simulated scene).</figcaption>
+        <img src="screens/pick-part.png" width="1000" height="560" alt="The Pounce node on the pendant, step 2 of 3: one tapped part taught its size; parts to pick outlined in green and numbered, rejected parts in yellow with the reason.">
+        <figcaption>The Pounce node on a PolyScope 5 pendant (simulated scene).</figcaption>
       </figure>
     </div>
 
@@ -200,7 +200,7 @@ If rs_pick_found    ← lift, place</pre>
           <tr><th>The camera gives no picture</th><td>The D435 in a blue port, no hub; the kit's power supply. Re-plug the camera: the picture comes back by itself.</td></tr>
           <tr><th>Parts drawn, but picks miss by centimetres</th><td>Calibrate (step 5), and check the tool length (step 2).</td></tr>
           <tr><th>A part is yellow</th><td>Read its reason. Off size: check the size and tolerance. Out of reach: move the parts or the picture point. No room for a finger: space the parts further apart.</td></tr>
-          <tr><th>A "3D Pick: no pick" popup</th><td>It names the reason; the node's picture shows what it saw.</td></tr>
+          <tr><th>A "Pounce: no pick" popup</th><td>It names the reason; the node's picture shows what it saw.</td></tr>
           <tr><th>The robot got no address</th><td>Another DHCP server is on that network, so the camera computer stays quiet. Give the robot a static 192.168.3.3.</td></tr>
         </tbody>
       </table>

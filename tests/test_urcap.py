@@ -53,8 +53,8 @@ def test_manifest_contribution_and_sources_agree():
     worker_js = (FRONTEND / node["behaviorURI"]).read_text(encoding="utf-8")
     assert f'const TAG = "{tag}"' in main_js and f'const NODE_TYPE = "{tag}"' in worker_js
     i18n = json.loads((FRONTEND / node["translationPath"] / "en.json").read_text(encoding="utf-8"))
-    assert i18n["application"]["nodes"][tag]["title"] == "Perceptronic"
-    # one program node: 3D Pick (0.5.0 — "After picture N" went with the node's children)
+    assert i18n["application"]["nodes"][tag]["title"] == "Perceive"
+    # one program node: Pounce (3D Pick until 0.9.0; 0.5.0 — "After picture N" went with the node's children)
     (pick,) = contribution["programNodes"]
     assert pick["componentTagName"] == f"{tag}-pick"
     lib = (FRONTEND / "pickscript.js").read_text(encoding="utf-8")
@@ -63,7 +63,7 @@ def test_manifest_contribution_and_sources_agree():
     assert pick["categoryName"] == "perceptronic" and pick["translationPath"] == "assets/i18n/"
     worker = (FRONTEND / pick["behaviorURI"]).read_text(encoding="utf-8")
     assert 'importScripts("pickscript.js")' in worker
-    assert i18n["program"]["tree"]["nodes"] == {pick["componentTagName"]: "3D Pick"}
+    assert i18n["program"]["tree"]["nodes"] == {pick["componentTagName"]: "Pounce"}
     pick_js = (FRONTEND / pick["presenterURI"]).read_text(encoding="utf-8")
     assert f'"{pick["componentTagName"]}"' in pick_js and f'"{pick["componentTagName"]}"' in lib
     assert f"{tag}-after" not in pick_js + lib + worker
@@ -86,7 +86,7 @@ def test_manifest_reader_rejects_bad_ids_and_missing_fields():
 
 def test_package_is_a_gzipped_tar_with_the_manifest_first(tmp_path):
     out = urcapx.package(URCAP, tmp_path)
-    assert out.name == "perceptronic-0.7.0.urcapx"
+    assert out.name == "perceptronic-0.8.0.urcapx"
     with tarfile.open(out, "r:gz") as tar:
         names = tar.getnames()
     assert names[0] == "manifest.yaml"
@@ -122,7 +122,7 @@ def test_package_is_reproducible_and_normalised(tmp_path):
     a = urcapx.package(URCAP, tmp_path / "a").read_bytes()
     b = urcapx.package(URCAP, tmp_path / "b").read_bytes()
     assert a == b
-    with tarfile.open(tmp_path / "a" / "perceptronic-0.7.0.urcapx", "r:gz") as tar:
+    with tarfile.open(tmp_path / "a" / "perceptronic-0.8.0.urcapx", "r:gz") as tar:
         infos = tar.getmembers()
     assert {(i.uid, i.gid, i.uname, i.gname) for i in infos} == {(0, 0, "", "")}
     assert len({i.mtime for i in infos}) == 1 and infos[0].mtime > 1_600_000_000
@@ -234,7 +234,7 @@ class UrserviceStub(BaseHTTPRequestHandler):
                 {"errors": [{"code": "already_installed", "message": "urcap already installed"}]}, status=409
             )
             return
-        UrserviceStub.installed.append({"id": ident, "version": "0.1.0", "urcapName": "Perceptronic"})
+        UrserviceStub.installed.append({"id": ident, "version": "0.1.0", "urcapName": "Perceive"})
         self._reply({"metadata": {"id": ident}}, status=201)
 
     def do_DELETE(self):  # noqa: N802
@@ -323,10 +323,10 @@ def test_cli_list_and_package(tmp_path, urservice, capsys):
     assert urcapx.main(["list", "--host", host, "--port", str(port)]) == 0
     assert "universal-robots/web-frontend-app  1.2.0" in capsys.readouterr().out
     assert urcapx.main(["package", str(URCAP), "--out", str(tmp_path)]) == 0
-    assert (tmp_path / "perceptronic-0.7.0.urcapx").is_file()
+    assert (tmp_path / "perceptronic-0.8.0.urcapx").is_file()
     assert (
         urcapx.main(
-            ["install", str(tmp_path / "perceptronic-0.7.0.urcapx"), "--host", host, "--port", str(port)]
+            ["install", str(tmp_path / "perceptronic-0.8.0.urcapx"), "--host", host, "--port", str(port)]
         )
         == 0
     )

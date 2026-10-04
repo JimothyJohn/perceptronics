@@ -5,7 +5,7 @@ a systemd service. The robot's PolyScope 5 URCap talks to it over Ethernet:
 
 - **Perceptronic** (Installation node) calls the cockpit's HTTP API on **:7621**,
   including `GET /api/color.png` for the feed on the pendant;
-- **3D Pick** (program node; "Perceptronic Pick" before URCap 0.7.0) runs URScript that opens a socket to the pick server
+- **Pounce** (program node; "Perceptronic Pick" before URCap 0.7.0) runs URScript that opens a socket to the pick server
   on **:7622**.
 
 Nothing here needs a desktop, a GPU, Docker or a network connection at runtime. The
@@ -166,7 +166,7 @@ firewall limits that to the cell. Change the default login on a PC that leaves t
 | --- | --- | --- | --- |
 | 22/tcp | in | SSH | anyone (key auth; tighten in `nftables.conf` if the PC is on a wider network) |
 | 7621/tcp | in | cockpit HTTP API (`perceptronics gui --port`), incl. `/api/color.png`, and the setup portal `/setup` (login) | cell subnet only (+ the backup subnet after a network change) |
-| 7622/tcp | in | pick server for the 3D Pick node (`--pick-port`) | cell subnet only |
+| 7622/tcp | in | pick server for the Pounce node (`--pick-port`) | cell subnet only |
 | 29999, 30001, 30004/tcp | out | robot Dashboard, Primary, RTDE (`UR_*_PORT` in `cell.env`) | — |
 
 Both inbound services are **unauthenticated** (a trusted cell network, like the robot's

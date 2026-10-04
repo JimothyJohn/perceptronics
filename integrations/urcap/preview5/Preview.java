@@ -19,7 +19,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 /**
- * The 3D Pick node's and the Installation node's screens in a desktop window, driven by
+ * The Pounce node's and the Installation node's screens in a desktop window, driven by
  * a live camera computer — the pendant's own Swing classes ({@link PickScreen},
  * {@link LocationsScreen}), with desktop stand-ins for what only PolyScope provides: typed
  * values come from a dialog instead of PolyScope's keypad, a picture point is added where the
@@ -183,7 +183,7 @@ public final class Preview {
         top.setBorder(BorderFactory.createEmptyBorder(8, 12, 0, 12));
         top.add(Ui.label("Preview — " + cockpit.base + "   (desktop stand-ins for the arm and PolyScope's keypad)",
                 12f, false, Ui.MUTED), BorderLayout.WEST);
-        Ui.Segmented tabs = new Ui.Segmented(new String[] {"Program: 3D Pick", "Installation: pick areas"}, 0,
+        Ui.Segmented tabs = new Ui.Segmented(new String[] {"Program: Pounce", "Installation: pick areas"}, 0,
                 i -> ((java.awt.CardLayout) deck.getLayout()).show(deck, i == 0 ? "pick" : "areas"));
         tabs.setPreferredSize(new Dimension(460, 40));
         top.add(tabs, BorderLayout.EAST);
@@ -192,7 +192,7 @@ public final class Preview {
         root.add(top, BorderLayout.NORTH);
         root.add(deck, BorderLayout.CENTER);
         if (show) {
-            JFrame f = new JFrame("3D Pick " + PickScript.VERSION + " — preview");
+            JFrame f = new JFrame("Pounce " + PickScript.VERSION + " — preview");
             f.setContentPane(root);
             f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             f.setSize(1280, 800); // the e-Series pendant's screen

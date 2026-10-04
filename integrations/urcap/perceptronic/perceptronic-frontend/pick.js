@@ -1,4 +1,4 @@
-// 3D Pick — the Program Node's presenter, plain custom elements like main.js.
+// Pounce — the Program Node's presenter, plain custom elements like main.js.
 //
 // PolyScope X draws a program node's presenter *inside its tree row* (an
 // `ur-inline-presenter` in a 48 px row, 10.13), so the node's row is one line — the part,
@@ -301,7 +301,7 @@
         await this.ensureVariables();
         // the dialog edits this very node and saves through this API as it goes
         await api.dialogService.openCustomDialog(DIALOG_TAG, { node: this._node, api, app: this._app, row: this }, {
-          title: "3D Pick",
+          title: "Pounce",
           dialogSize: "XL",
           confirmText: "Done",
           raiseForKeyboard: false,
@@ -452,7 +452,7 @@
                 </div>
               </div>
               <div class="side">
-                <h2><span class="dot" data-pk="dot"></span> 3D Pick <small>v${P.VERSION}</small></h2>
+                <h2><span class="dot" data-pk="dot"></span> Pounce <small>v${P.VERSION}</small></h2>
                 <div class="card">
                   <h3>Picture points <small data-pk="points-count"></small></h3>
                   <div class="chips" data-pk="chips"></div>

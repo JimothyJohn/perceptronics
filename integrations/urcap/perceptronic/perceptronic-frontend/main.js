@@ -3,7 +3,7 @@
 // `robotSettings` and `robotContext` on it (SDK 6.5.65 JavaScript template).
 //
 // Two tabs, so nothing scrolls: Camera (the feed and the moves) and Pick areas (the areas
-// the 3D Pick node looks at, on a map of the arm's reach).
+// the Pounce node looks at, on a map of the arm's reach).
 //
 // The page talks to the RealSense cockpit (`perceptronics gui --cors <this origin>`)
 // over its HTTP API: the colour feed is `GET /api/color.png` long-polled by
@@ -314,7 +314,7 @@
         this.innerHTML = `
           <style>${CSS}</style>
           <div class="rsp">
-            <h2><span class="dot" data-rsp="dot"></span> Perceptronic <small data-rsp="fps"></small>
+            <h2><span class="dot" data-rsp="dot"></span> Perceive <small data-rsp="fps"></small>
               <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button></span>
             </h2>
             <div data-rsp="tab-camera">
@@ -344,7 +344,7 @@
             </div>
             <div class="two hidden" data-rsp="tab-areas">
               <div class="card" data-rsp="areas-card">
-                <h3>Pick areas <small>for the 3D Pick node — touch the table with the fingertips at a corner, along one edge, and on the far side</small></h3>
+                <h3>Pick areas <small>for the Pounce node — touch the table with the fingertips at a corner, along one edge, and on the far side</small></h3>
                 <div data-rsp="areas"></div>
                 <div class="row"><button data-rsp="area-add">New area</button> <small data-rsp="areas-note"></small></div>
               </div>
@@ -409,7 +409,7 @@
       }
     }
 
-    // -- pick areas (what the 3D Pick program node reads from this node), on the arm's reach ---------
+    // -- pick areas (what the Pounce program node reads from this node), on the arm's reach ---------
     async startAreas() {
       try {
         this._lib = await loadLib();

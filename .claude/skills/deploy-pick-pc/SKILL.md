@@ -4,7 +4,7 @@ description: >-
   Deploy, update, roll back or check the pick PC: a Raspberry-Pi-class arm64 box on
   minimal Debian / Raspberry Pi OS Lite with a RealSense D435 that runs the RGB-D cockpit
   headless (perceptronics-cockpit.service, :7621 HTTP + :7622 pick server) for a UR e-Series
-  on PolyScope 5 and its Perceptronic / 3D Pick URCap. Use when asked to
+  on PolyScope 5 and its Perceptronic / Pounce URCap. Use when asked to
   "deploy / set up / install / update the pick PC (or the Pi, the camera computer) at
   <ip>", to roll it back, to check why the pendant can't reach the cockpit, or to point
   the URCap at it. Covers the preflight you answer from the environment (not by asking),
@@ -92,7 +92,7 @@ Report the doctor's failures verbatim, each with its fix. Don't paraphrase them 
 
 Tell Nick (it's a pendant action, with no network path to it): **Installation** tab →
 **URCaps** → **Perceptronic** → **Cockpit** = `http://<pc-ip>:7621` → **Save**. The
-**3D Pick** program node uses the same host and learns :7622 from the cockpit.
+**Pounce** program node uses the same host and learns :7622 from the cockpit.
 If the URCap isn't installed, point to `integrations/urcap/perceptronic-ps5/README.md` (USB stick,
 Settings → System → URCaps → +).
 

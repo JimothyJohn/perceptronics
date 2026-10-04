@@ -249,6 +249,11 @@ answers an unsolvable pose (the node gives it 8 s). Cockpit field shorthand (`:7
 `host:port`) is completed to a URL; a bare `:7621` used to be fetched relative to
 PolyScope's own page and its 404 misread as an outdated cockpit.
 
+**Names on the pendant (Nick, 2026-10-04: "Perceive is the name of the tool and Pounce is what we'll call the
+approach"):** the Installation node, the P button and the bundle name read **Perceive**; the program node reads
+**Pounce** (3D Pick until 0.9.0; service id `PerceptronicPick` / tag `advin-perceptronic-pick` unchanged, so saved
+programs load). The URCap files and bundle ids stay `perceptronic`. PS5 0.10.0, PSX 0.8.0.
+
 **The URCaps are "Perceptronic" (renamed from "RealSense Pilot" 2026-09-29, Nick: "not this
 weird RealSense Pilot thing"), owned by Nick personally, namespaced by his domain advin.io
 (Nick, 2026-09-30; the 09-29 builds were `com.nickarmenta.perceptronic` / `nickarmenta/perceptronic`,

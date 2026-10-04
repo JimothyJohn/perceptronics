@@ -169,7 +169,7 @@ the broadcast for `--collect-for` seconds and returns lines containing `--marker
 URScript dialect has real teeth (no `random()`, no nested `def`s, 2-arg
 `textmsg`, fixed-size arrays, `str_cat` is binary). For writing programs or
 choreography, use the **ur-program-authoring** skill; for picking objects located
-in a photo: that skill was retired on 2026-10-04 (the RGB-D cockpit and the 3D Pick node replaced it).
+in a photo: that skill was retired on 2026-10-04 (the RGB-D cockpit and the Pounce node replaced it).
 
 ## Loading and playing PolyScope programs
 

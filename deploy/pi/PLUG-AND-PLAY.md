@@ -35,7 +35,7 @@ board: `PI.md`. What the installer does, line by line: `deploy/pi/README.md`.
 
        scripts/urcap5-usb.sh
 
-   It puts `perceptronic-ps5-0.9.0.urcap` and its auto-install file on the "URE MODELS"
+   It puts `perceptronic-ps5-0.10.0.urcap` and its auto-install file on the "URE MODELS"
    stick, without macOS `._` files, then ejects.
 
 ## 2. At the robot: three cables
@@ -55,7 +55,7 @@ Power-up order doesn't matter. Give the Pi a minute after power-on.
    in the stick:
    - **automatic:** Settings → Security → General → **Run magic files** on, arm powered
      **off**, plug the stick in, and the robot installs and restarts by itself;
-   - **by hand:** ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.0.urcap`
+   - **by hand:** ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.10.0.urcap`
      → Open → Restart.
 
    (Step by step with pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)
@@ -63,7 +63,7 @@ Power-up order doesn't matter. Give the Pi a minute after power-on.
    System → Network that it reads 192.168.3.3 / 255.255.255.0. A robot that says
    *Disabled network* or sits on another subnet: select **DHCP** → **Apply**, and the Pi
    gives it 192.168.3.3.
-3. **Installation tab → URCaps → Perceptronic.** The Cockpit field says `192.168.3.20` and
+3. **Installation tab → URCaps → Perceive.** The Cockpit field says `192.168.3.20` and
    the live picture appears within seconds. Nothing to type. Then ☰ → **Save Installation**
    so the node's data (pick areas, a typed address) is kept.
 
@@ -72,15 +72,15 @@ Power-up order doesn't matter. Give the Pi a minute after power-on.
 Program tab, top to bottom:
 
     Gripper: open        ← Robotiq's node (Hand-E)
-    3D Pick              ← URCaps → 3D Pick: part size, one picture point (+), pick order
+    Pounce              ← URCaps → Pounce: part size, one picture point (+), pick order
     Gripper: close       ← Robotiq's node
     If rs_pick_found     ← lift, place
 
-**3D Pick** drives no gripper. It ends with the fingertips at the grip, and runs in
+**Pounce** drives no gripper. It ends with the fingertips at the grip, and runs in
 **Local** mode (it is the robot's own program). Picture point: move the arm so the camera
 sees the parts from ≥ 0.3 m (the picture pose, 0.37 m up, is right) and tap **+**. The
 node's screen draws the parts it will pick in green, numbered, and near misses in yellow
-with the reason (`integrations/urcap/perceptronic-ps5/README.md` §3D Pick).
+with the reason (`integrations/urcap/perceptronic-ps5/README.md` §Pounce).
 
 ## 5. Check it
 
@@ -97,7 +97,7 @@ What READY looks like on this cell:
 | `camera` | the D435, held by the cockpit, ~30 fps, USB 3.x |
 | `handeye` | `file:/var/lib/perceptronics/captures/calibration/handeye.json` |
 | `approach` | fingertip, 0.163 m |
-| `robot.control` | `LOCAL` gates the **cockpit's** moves and `calibrate` only (the verdict says STATE ONLY); the 3D Pick node doesn't care |
+| `robot.control` | `LOCAL` gates the **cockpit's** moves and `calibrate` only (the verdict says STATE ONLY); the Pounce node doesn't care |
 
 The cockpit's own page is at http://192.168.3.20:7621 from the Mac's cell interface (`.10`),
 or from anywhere through `ssh -L 7621:127.0.0.1:7621 nick@10.0.0.56`.
@@ -131,7 +131,7 @@ What the pendant says (the URCap names the cause first, most likely first):
 | *A computer answers at 192.168.3.20, but not the camera program* | `ssh nick@10.0.0.56 systemctl status perceptronics-cockpit`; `journalctl -u perceptronics-cockpit -n 50` |
 | *The camera computer is on, but its camera gives no picture* | The D435 in a **blue** port, no hub; the 27 W supply; re-plug it (the picture comes back by itself) |
 | Parts drawn but picks miss by cm | §6, calibrate |
-| `3D Pick: no pick - …` popup | It names the reason; the node's screen shows the parts in green / yellow |
+| `Pounce: no pick - …` popup | It names the reason; the node's screen shows the parts in green / yellow |
 | The robot got no address (DHCP) | `journalctl -u perceptronics-cell-dhcp`: *another DHCP server answered* means the Pi is on a network that has one, so it stays quiet. Give the robot a static 192.168.3.3 |
 
 ## Verified 2026-10-02 (pickpc, no cable to the robot yet)
@@ -147,7 +147,7 @@ doctor's `network` line reads *reached from 10.0.0.56, not on its network* — r
 
 - The Pi has never run against the real UR3e: Dashboard / RTDE from the Pi, the pendant
   reaching 192.168.3.20. Every robot-side check so far was against simulators.
-- URCap 0.9.0 (and 0.8.0's 3D Pick) has never been on a pendant.
+- URCap 0.9.0 (and 0.8.0's Pounce) has never been on a pendant.
 - The DHCP lease path has never served a robot. The probe and dnsmasq's config were
   checked on the Pi; a robot taking the lease has not been.
 

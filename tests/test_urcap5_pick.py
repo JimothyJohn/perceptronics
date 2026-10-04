@@ -1,4 +1,4 @@
-"""The 3D Pick node's contract (0.7.0), under a JDK: the URScript it writes — one move
+"""The Pounce node's contract (3D Pick until 0.9.0), under a JDK: the URScript it writes — one move
 sequence from the survey to the gripper clamped on a part, no children — the request options
 it sends (read back by the Python pick server's own parser), its screens (nothing scrolls,
 two option tabs, only near misses drawn on the picture), and the pendant's drawings and pose
@@ -63,7 +63,7 @@ def test_the_script_is_one_move_sequence_from_the_survey_to_the_grip(java_client
     assert out["problem"] is None
     text = out["script"]
     assert text.isascii() and balanced(text)
-    assert text.startswith("# 3D Pick 0.9.0 ")
+    assert text.startswith("# Pounce 0.10.0 ")
     order = [
         "set_tcp(p[0, 0, 0, 0, 0, 0])",
         'socket_open("192.168.3.10", 7622, "rs_pick")',
@@ -526,7 +526,7 @@ def test_the_options_are_two_tabs_part_and_approach_and_nothing_else(java_client
     # the order is one control on the Approach tab, not eight tiles on the main screen (0.9.0)
     assert "Order" in approach
     main = set(java_client("screen", "1000", "560", "box", "3", "main")["texts"])
-    assert {"3D Pick", "Options"} <= main and "Pick order" not in main and "Picture points" not in main
+    assert {"Pounce", "Options"} <= main and "Pick order" not in main and "Picture points" not in main
 
 
 @pytest.mark.parametrize(

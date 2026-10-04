@@ -1,4 +1,4 @@
-// 3D Pick — Program Node behavior (the web worker PolyScope X loads for the
+// Pounce — Program Node behavior (the web worker PolyScope X loads for the
 // program node declared in contribution.json). Same hand-written threads.js protocol as
 // perceptronic-node.worker.js (`registerProgramBehavior(b)` is `expose(b)`); the shape
 // of every answer is what PolyScope's own serializers read back (web-app main.js,
@@ -58,7 +58,7 @@ const behaviors = {
     const p = (node && node.parameters) || {};
     const st = P.settings(p, null);
     const np = st.points.length;
-    // PolyScope prefixes the tree row with the node's title itself ("3D Pick: …")
+    // PolyScope prefixes the tree row with the node's title itself ("Pounce: …")
     return [
       { type: "primary", value: P.partWords(st) },
       { type: "secondary", value: `${np} picture${np === 1 ? "" : "s"} · ${P.orderText(st.orderFirst, st.orderRows)}` },

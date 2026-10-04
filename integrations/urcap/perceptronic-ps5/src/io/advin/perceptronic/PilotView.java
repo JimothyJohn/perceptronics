@@ -39,7 +39,7 @@ import javax.swing.SwingUtilities;
  * the located target, and Move (PolyScope) / Move (cockpit) / Bring up / STOP / Clear.
  * "Open cockpit" is gone — the pendant has no browser to open it in. The feed has the
  * Picture / Depth toggle in its top right corner; with no camera its place says what to check
- * (cables, the IP address, the firewall). A second tab holds the pick areas the 3D Pick node
+ * (cables, the IP address, the firewall). A second tab holds the pick areas the Pounce node
  * looks at, on a map of the arm's reach ({@link LocationsScreen}).
  */
 // Swing components are never serialized here; javac's serial lint does not apply to them
@@ -108,7 +108,7 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         title.setOpaque(false);
         dot.setForeground(IDLE);
         dot.setFont(dot.getFont().deriveFont(16f));
-        JLabel name = new JLabel("Perceptronic");
+        JLabel name = new JLabel("Perceive");
         name.setFont(name.getFont().deriveFont(Font.BOLD, 20f));
         name.setForeground(INK);
         fps.setForeground(MUTED);

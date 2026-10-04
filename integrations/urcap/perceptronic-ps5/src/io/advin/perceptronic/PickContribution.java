@@ -30,7 +30,7 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 
 /**
- * One 3D Pick node in a program (0.7.0): a single move sequence with no children. Teach time —
+ * One Pounce node in a program (0.7.0): a single move sequence with no children. Teach time —
  * the node's screen open — the live picture (or the depth), what is found in it
  * ({@code GET /api/pick/scene}, asked with exactly the options the program will send), the
  * picture points, the pick order, and the Options view. Run time: {@link PickScript}.
@@ -197,7 +197,7 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
     public String getTitle() {
         PickScript s = script();
         int n = pointCount();
-        return "3D Pick (" + (s.round() ? "Ø" + PickScript.num(s.longSide())
+        return "Pounce (" + (s.round() ? "Ø" + PickScript.num(s.longSide())
                 : PickScript.num(s.longSide()) + "×" + PickScript.num(s.shortSide())) + "×"
                 + PickScript.num(s.n("partHeightMm")) + " mm, " + n + " picture" + (n == 1 ? "" : "s") + ")";
     }
@@ -364,7 +364,7 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
                 : "picture " + (i + 1) + " looks at " + inst.areaName(pick) + " — parts outside it are left alone",
                 Ui.Kind.OK);
         if (areas == 0) {
-            view.screen().setStatus("no pick area is taught yet: Installation → URCaps → Perceptronic → Pick areas",
+            view.screen().setStatus("no pick area is taught yet: Installation → URCaps → Perceive → Pick areas",
                     Ui.Kind.INFO);
         }
     }

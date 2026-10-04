@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The URScript a 3D Pick node contributes — generated here with no UR API, so it is tested on
+ * The URScript a Pounce node contributes — generated here with no UR API, so it is tested on
  * any JDK — and the node's settings (one table, {@link #NUMBERS}: key, default, limits,
  * label; the Options screen and the data model both read it).
  *
@@ -40,7 +40,7 @@ import java.util.Map;
  * </ol>
  */
 final class PickScript {
-    static final String VERSION = "0.9.0";
+    static final String VERSION = "0.10.0";
     static final int DEFAULT_PICK_PORT = 7622;
     static final String SOCKET = "rs_pick";
     static final int MAX_POINTS = 12;
@@ -200,7 +200,7 @@ final class PickScript {
 
     /** Why the node cannot generate a program yet, or null when it can. */
     String problem() {
-        if (host.isEmpty()) return "set the camera computer's address in Installation → URCaps → Perceptronic";
+        if (host.isEmpty()) return "set the camera computer's address in Installation → URCaps → Perceive";
         if (!host.matches("[A-Za-z0-9.:\\-]+")) return "the camera computer's host \"" + host + "\" is not an address";
         if (port < 1 || port > 65535) return "the pick port must be 1..65535";
         if (!nodeId.matches("[0-9a-f]{1,12}")) return "the node has no identity yet - open it once";
@@ -356,7 +356,7 @@ final class PickScript {
         String lv = f2(0.25 * SPEED);
         String la = f2(0.6 * SPEED);
         String settle = f2(SETTLE_S);
-        s.add("# 3D Pick " + VERSION + " - camera computer " + host + ":" + port + " - part " + partText()
+        s.add("# Pounce " + VERSION + " - camera computer " + host + ":" + port + " - part " + partText()
                 + " - " + orderText(orderFirst, orderRows) + " - " + np + " picture point" + (np == 1 ? "" : "s")
                 + (closeLook ? "" : " - no closer look")
                 + (gripCheck ? " - finger room " + num(n("fingerRoomMm")) + " mm" : " - no grip check")
@@ -488,19 +488,19 @@ final class PickScript {
         s.add("    end");
         s.add("  end");
         s.add("  if " + foundVariable + " == False:");
-        s.add("    textmsg(\"3D Pick: no pick - \", rs_why)");
+        s.add("    textmsg(\"Pounce: no pick - \", rs_why)");
         s.add("    socket_send_line(str_cat(\"LOG no pick - \", rs_why), \"" + SOCKET + "\")");
         s.add("  end");
         s.add("  socket_close(\"" + SOCKET + "\")");
         s.add("else:");
         s.add("  rs_why = \"no camera computer at " + host + ":" + port
                 + " - is it on, and is the address in Installation > Perceptronic right?\"");
-        s.add("  textmsg(\"3D Pick: \", rs_why)");
+        s.add("  textmsg(\"Pounce: \", rs_why)");
         s.add("end");
         s.add("set_tcp(rs_tcp0)");
         if (popupOnFail) {
             s.add("if " + foundVariable + " == False:");
-            s.add("  popup(str_cat(\"3D Pick: no pick - \", rs_why), \"3D Pick\", False, True, blocking=True)");
+            s.add("  popup(str_cat(\"Pounce: no pick - \", rs_why), \"Pounce\", False, True, blocking=True)");
             s.add("end");
         }
         return s;
@@ -562,7 +562,7 @@ final class PickScript {
      */
     private static void say(List<String> s, String indent, String text, String value, boolean socket) {
         String v = value == null ? "\"\"" : value;
-        s.add(indent + "textmsg(\"3D Pick: " + text + "\", " + v + ")");
+        s.add(indent + "textmsg(\"Pounce: " + text + "\", " + v + ")");
         if (socket) {
             String line = value == null ? "\"LOG " + text + "\"" : "str_cat(\"LOG " + text + "\", to_str(" + value + "))";
             s.add(indent + "socket_send_line(" + line + ", \"" + SOCKET + "\")");

@@ -1,6 +1,6 @@
 # perceptronics
 
-A depth camera on the robot's wrist finds the part; the **3D Pick** node on the
+A depth camera on the robot's wrist finds the part; the **Pounce** node on the
 pendant puts the gripper on it. This page gets it onto a Universal Robots e-Series
 (PolyScope 5).
 
@@ -8,7 +8,7 @@ pendant puts the gripper on it. This page gets it onto a Universal Robots e-Seri
 
 **1. Download these two files** (both, from the same place, don't rename them):
 
-- [`perceptronic-ps5-0.9.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap)
+- [`perceptronic-ps5-0.10.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.10.0.urcap)
 - [`urmagic_perceptronic.sh`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/urmagic_perceptronic.sh)
 
 **2. Copy them onto a USB stick**, at the top, not in a folder. The stick must be
@@ -22,7 +22,7 @@ in.** The pendant shows **! USB !**, then the robot restarts by itself. That's t
 install.
 
 **5. Use it.** **Installation** → **URCaps** → **Perceptronic**: type the camera
-computer's address. In your program: *your gripper's Open* → **3D Pick** → *your
+computer's address. In your program: *your gripper's Open* → **Pounce** → *your
 gripper's Close*.
 
 If nothing happens at step 4: the arm was on or a program was running (you'll get a
@@ -59,7 +59,7 @@ ssh-copy-id root@$ROBOT                  # once: key login from now on
 
 ```bash
 ssh root@$ROBOT 'mkdir -p /tmp/perceptronic'
-scp integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap integrations/urcap/dist/urmagic_perceptronic.sh root@$ROBOT:/tmp/perceptronic/
+scp integrations/urcap/dist/perceptronic-ps5-0.10.0.urcap integrations/urcap/dist/urmagic_perceptronic.sh root@$ROBOT:/tmp/perceptronic/
 ssh root@$ROBOT 'bash /tmp/perceptronic/urmagic_perceptronic.sh'
 ```
 

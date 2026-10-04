@@ -8,7 +8,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 /**
- * The 3D Pick node's screen: {@link PickScreen} (the live picture, the picture points, the
+ * The Pounce node's screen: {@link PickScreen} (the live picture, the picture points, the
  * pick order, the Options view) in PolyScope's panel. One
  * view serves every Pick node in the program, so every action goes to
  * {@code provider.get()} — the node that is open.

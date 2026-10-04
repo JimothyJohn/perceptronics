@@ -1,4 +1,4 @@
-"""The PolyScope X 3D Pick program node's contract (0.6.0), under node: the URScript
+"""The PolyScope X Pounce program node's contract (3D Pick until 0.7.0), under node: the URScript
 pickscript.js writes (the same script as the PolyScope 5 node's PickScript.java — one move
 sequence from the survey to the tool at the grip, no children, no gripper), the request
 options it sends (read back by the Python pick server's own parser), the plane, reach and
@@ -172,7 +172,7 @@ def test_the_script_is_one_move_sequence_from_the_survey_to_the_grip():
     assert out["problem"] is None
     text = out["script"]
     assert text.isascii() and balanced(text)
-    assert text.startswith("# 3D Pick 0.7.0 ")
+    assert text.startswith("# Pounce 0.8.0 ")
     order = [
         "global rs_pick_found = False",
         "set_tcp(p[0, 0, 0, 0, 0, 0])",
@@ -237,7 +237,7 @@ def test_the_script_is_the_polyscope_5_nodes_line_for_line():
         java = _java_pick(ps5, {**spec, **extra})
 
         def same(text: str) -> list[str]:
-            text = re.sub(r"^# 3D Pick \S+ ", "# 3D Pick ", text, flags=re.M)
+            text = re.sub(r"^# Pounce \S+ ", "# Pounce ", text, flags=re.M)
             text = re.sub(r"^(\s*)global (\w+ = )", r"\1\2", text, flags=re.M)
             return text.replace("Application > Perceptronic", "Installation > Perceptronic").splitlines()
 
@@ -987,7 +987,7 @@ def test_the_pick_worker_speaks_the_protocol_and_answers_script_builders():
     assert "camera computer's address" in result(by, "noapp")["errorMessageKey"]
     before = result(by, "before")
     assert before["type"] == "$$ScriptBuilder" and before["currentIndent"] == 0
-    assert before["script"].startswith("# 3D Pick 0.7.0") and before["script"].rstrip().endswith("end")
+    assert before["script"].startswith("# Pounce 0.8.0") and before["script"].rstrip().endswith("end")
     assert balanced(before["script"])  # the whole program is here: nothing is left for after the children
     assert 'socket_open("192.168.3.10", 7622, "rs_pick")' in before["script"]
     assert "arm=UR3e" in before["script"] and "reach=" not in before["script"]

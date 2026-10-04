@@ -25,8 +25,8 @@
 # scripts/urcap5-usb.sh writes this to the stick with the three @…@ values filled in.
 set -u
 
-URCAP_FILE="perceptronic-ps5-0.9.0.urcap"
-URCAP_SHA256="90c608bf54dd1bb6845ee5fb68cb2c3fc26300196a7647cb0604fcb2b64d5892"
+URCAP_FILE="perceptronic-ps5-0.10.0.urcap"
+URCAP_SHA256="c0c1777b03b191e468cfcf7af01d9e3c4051b291ae5f5ce73d0e823c480b55ce"
 SYMBOLIC_NAME="io.advin.perceptronic"
 
 URCAPS_DIR="${URCAPS_DIR:-/root/.urcaps}"
