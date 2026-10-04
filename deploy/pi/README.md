@@ -115,8 +115,8 @@ in `/var/lib/perceptronics`, librealsense and the user. Add `--purge` to remove 
 ## Setup portal: network and updates without SSH
 
 Every PC installed or flashed from this directory serves **http://192.168.3.20:7621/setup**
-(log in `admin` / `admin` for now; `PERCEPTRONICS_ADMIN_USER` / `PERCEPTRONICS_ADMIN_PASSWORD`
-in `cell.env` change it). Connect a laptop to the PC's Ethernet port and give the laptop a
+(the factory login `admin` / `admin` opens it once, to set a password; from then on that
+password is the only login — nothing else on the page works before it is set). Connect a laptop to the PC's Ethernet port and give the laptop a
 **static** `192.168.3.10`, mask `255.255.255.0`. Don't use DHCP: the PC's one-lease DHCP
 server would hand the laptop the robot's address.
 

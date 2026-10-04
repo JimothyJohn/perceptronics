@@ -10,7 +10,8 @@
 # the PC. --librealsense adds a prebuilt library (scripts/pi-image.sh caches one in
 # target/pi-image/cache/) — needed only when the bundle pins a librealsense the PC doesn't have
 # yet, because a cell PC has no internet to build one.
-# push: logs in as PERCEPTRONICS_ADMIN_USER / PERCEPTRONICS_ADMIN_PASSWORD (default admin/admin),
+# push: logs in as PERCEPTRONICS_ADMIN_USER / PERCEPTRONICS_ADMIN_PASSWORD (the password the
+# operator set on the portal; the factory admin/admin can only set one),
 # uploads, and prints the PC's install log until it reports done / failed / rolled back.
 # An operator does the same on http://<pick PC>:7621/setup with no tools at all.
 #

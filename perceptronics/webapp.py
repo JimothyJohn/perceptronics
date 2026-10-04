@@ -1543,6 +1543,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             self._send_json({"ok": False, "error": f"missing {setupportal.ADMIN_HEADER}: 1"}, 403)
             return None
+        # the factory login opens the page, the status and the password route — nothing else
+        route = urlparse(self.path).path.rstrip("/")
+        if portal.password_required and route not in ("/setup", "/api/admin/status", "/api/admin/password"):
+            if posting:
+                self.close_connection = True
+            self._send_json(
+                {"ok": False, "error": setupportal.PASSWORD_REQUIRED, "password_required": True}, 403
+            )
+            return None
         return portal
 
     def _portal_call(self, fn) -> None:
@@ -1707,7 +1716,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
         if route == "/api/admin/update":  # a raw bundle, not a JSON body
             self._upload()
             return
-        if route == "/api/admin/network":
+        if route in ("/api/admin/network", "/api/admin/password"):
             portal = self._portal(posting=True)
             if portal is None:
                 return
@@ -1716,7 +1725,10 @@ class ViewerHandler(BaseHTTPRequestHandler):
             except (ValueError, json.JSONDecodeError) as exc:
                 self._send_json({"ok": False, "error": f"bad request: {exc}"}, status=400)
                 return
-            self._portal_call(lambda: portal.queue_network(payload))
+            if route == "/api/admin/password":
+                self._portal_call(lambda: portal.set_password(payload.get("password")))
+            else:
+                self._portal_call(lambda: portal.queue_network(payload))
             return
         try:
             payload = self._body()
