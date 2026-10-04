@@ -16,8 +16,8 @@ from perceptronics.cell import ALLOWED_PREFIXES, parse_env_text
 from perceptronics.picknode import DEFAULT_PICK_PORT
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = ROOT / "docker-compose.windows.yml"
-DOCKERFILE = ROOT / "Dockerfile.perceptronics"
+COMPOSE = ROOT / "deploy/windows/docker-compose.yml"
+DOCKERFILE = ROOT / "deploy/Dockerfile.perceptronics"
 SCRIPT = ROOT / "scripts" / "docker-windows.ps1"
 CELL_EXAMPLE = ROOT / "deploy" / "windows" / "cell.env.example"
 EXTRA_ARGS = "${COCKPIT_ARGS:-}"

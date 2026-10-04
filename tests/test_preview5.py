@@ -1,4 +1,4 @@
-"""``urcap/preview5.py``: the URCap's screens on a desktop. Runs the real launcher headless
+"""``integrations/urcap/preview5.py``: the URCap's screens on a desktop. Runs the real launcher headless
 (``--snapshot``) and reads the picture it wrote — the simulated camera computer's parts on the
 picture, and the NO CAMERA CONNECTED card when there is no camera computer."""
 
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import preview5  # noqa: E402
 
 pytestmark = pytest.mark.skipif(shutil.which("javac") is None, reason="javac is not installed")

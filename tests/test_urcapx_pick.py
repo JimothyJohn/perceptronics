@@ -27,7 +27,7 @@ from urctl.pose import pose_trans
 from urctl.safety import MODEL_REACH_M
 
 ROOT = Path(__file__).resolve().parent.parent
-FRONTEND = ROOT / "urcap" / "perceptronic" / "perceptronic-frontend"
+FRONTEND = ROOT / "integrations" / "urcap" / "perceptronic" / "perceptronic-frontend"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not installed")
 

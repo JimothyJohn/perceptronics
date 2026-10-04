@@ -19,14 +19,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 volume="/Volumes/${1:-URE MODELS}"
-urcap="$(find urcap/dist -maxdepth 1 -name 'perceptronic-ps5-*.urcap' | sort | tail -1)"
+urcap="$(find integrations/urcap/dist -maxdepth 1 -name 'perceptronic-ps5-*.urcap' | sort | tail -1)"
 [[ -d "$volume" ]] || { echo "no stick at $volume — plug it in (or pass its name)"; exit 1; }
 [[ -f "$urcap" ]] || { echo "no $urcap — make urcap5-package"; exit 1; }
 
-urcapx="$(find urcap/dist -maxdepth 1 -name 'perceptronic-*.urcapx' | sort | tail -1)"
+urcapx="$(find integrations/urcap/dist -maxdepth 1 -name 'perceptronic-*.urcapx' | sort | tail -1)"
 magic_src="scripts/urmagic_perceptronic.sh"
-symbolic="$(sed -n 's/^Bundle-SymbolicName=//p' urcap/perceptronic-ps5/bundle.properties)"
-[[ -n "$symbolic" ]] || { echo "no Bundle-SymbolicName in urcap/perceptronic-ps5/bundle.properties"; exit 1; }
+symbolic="$(sed -n 's/^Bundle-SymbolicName=//p' integrations/urcap/perceptronic-ps5/bundle.properties)"
+[[ -n "$symbolic" ]] || { echo "no Bundle-SymbolicName in integrations/urcap/perceptronic-ps5/bundle.properties"; exit 1; }
 
 # replace any earlier build of the URCaps (and the magic file + its log) on the stick
 find "$volume" -maxdepth 1 \( -name 'perceptronic-ps5-*.urcap' -o -name '._perceptronic-ps5-*' \

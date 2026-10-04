@@ -1,5 +1,5 @@
 # The PolyScope X URCap in the simulator it is built for, on every change to it:
-# `urcap/e2e.py` boots urcap/target.json's simulator (by digest), installs a fresh
+# `integrations/urcap/e2e.py` boots integrations/urcap/target.json's simulator (by digest), installs a fresh
 # build, loads the node headlessly and clicks through it (see the script's
 # docstring for the checks). The weekly urcap-track workflow moves the target;
 # this one keeps each change honest against it.
@@ -9,13 +9,13 @@ name: URCap e2e
 on:
   pull_request:
     paths:
-      - "urcap/**"
+      - "integrations/urcap/**"
       - "perceptronics/webapp.py"
       - ".github/workflows/urcap-e2e.yml"
   push:
     branches: [main]
     paths:
-      - "urcap/**"
+      - "integrations/urcap/**"
       - "perceptronics/webapp.py"
       - ".github/workflows/urcap-e2e.yml"
   workflow_dispatch:
@@ -40,15 +40,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-*.txt
+          cache-dependency-path: requirements/*.txt
 
       - name: Install (locked) + the headless browser
         run: |
-          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install --require-hashes -r requirements/dev.txt
           python -m pip install playwright==1.63.0 && python -m playwright install --with-deps chromium
 
       - name: The URCap in the pinned simulator
-        run: python urcap/e2e.py --artifacts e2e-artifacts --report e2e-artifacts/e2e.json
+        run: python integrations/urcap/e2e.py --artifacts e2e-artifacts --report e2e-artifacts/e2e.json
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

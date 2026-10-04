@@ -3,7 +3,7 @@
 What exists, where it is on the network, and what is connected today. `CLAUDE.md` has
 the protocols and gotchas; the cell files (`perceptronics/cells/*.env`) are the machine-
 readable half of this page and win where they differ. Dated lines are the field log
-(`docs/realsense-cell.html` has the longer one). **Update this page when the cell
+(`perceptronics/cell.html` has the longer one). **Update this page when the cell
 changes** — a robot moved, an address changed, something unplugged.
 
 **Status 2026-09-29:** the UR3e is **not connected** (Nick). Nothing else in the cell has
@@ -44,7 +44,7 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
   `scp` has worked on the UR10 at `192.168.1.50` but not been exercised on this UR3e.
 - **URCap on it:** RealSense Pilot 0.2.0 installed and rendered on the pendant 2026-09-27;
   0.3.0 is on the "URE MODELS" USB stick; **0.5.0 has never been on a pendant**, and the
-  URCap is now **Perceptronic 0.8.0** (`urcap/dist/perceptronic-ps5-0.8.0.urcap`, the **3D Pick** node; bundle
+  URCap is now **Perceptronic 0.8.0** (`integrations/urcap/dist/perceptronic-ps5-0.8.0.urcap`, the **3D Pick** node; bundle
   `io.advin.perceptronic` — a different URCap to PolyScope: remove RealSense Pilot
   on the pendant, its node data and Pick nodes don't carry over). Auto-install from the stick needs
   **Settings → Security → General → Run magic files** on (`scripts/urcap5-usb.sh`,
@@ -64,8 +64,8 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
 | Simulator | Works here? | How |
 | --- | --- | --- |
 | PolyScope X 10.13.0 (`ursim-px`, arm64) | **yes** | `HOST_ARCH=arm64 make simx-up` → UI :8000, Primary :31001, RTDE :31004. Enable Primary/RTDE once under Settings → Security → Services; Remote mode for anything mutating. A second one as UR3 has run as a plain container on :8001 / :32001 / :32004. Each PX sim's inner Docker is ~12 GB (Docker Desktop disk raised to 160 GB, 2026-09-27); `docker rm -v` or it leaks. |
-| URCap in that sim + a fake cockpit | yes | `make urcap-install` (urservice endpoint, no Remote needed) + `make urcap-cockpit` (:7621 with `--cors` for :8000). `urcap/e2e.py` does it headless (~2 min). |
-| e-Series URSim 5.x (PolyScope 5) | **no** — the image is amd64-only and neither Rosetta nor QEMU user-mode keeps URControl + Xvfb alive | `scripts/ursim-e-vm.sh up` (full x86_64 QEMU VM, ~8 min to Dashboard) proves a URCap *loads*; PolyScope's JVM crashes in JIT there, so no clicking through. Every 5.x minor from 5.4 runs in CI on amd64 (`urcap5-matrix.yml`). Off-pendant screens: `python3 urcap/preview5.py` (JDK). |
+| URCap in that sim + a fake cockpit | yes | `make urcap-install` (urservice endpoint, no Remote needed) + `make urcap-cockpit` (:7621 with `--cors` for :8000). `integrations/urcap/e2e.py` does it headless (~2 min). |
+| e-Series URSim 5.x (PolyScope 5) | **no** — the image is amd64-only and neither Rosetta nor QEMU user-mode keeps URControl + Xvfb alive | `scripts/ursim-e-vm.sh up` (full x86_64 QEMU VM, ~8 min to Dashboard) proves a URCap *loads*; PolyScope's JVM crashes in JIT there, so no clicking through. Every 5.x minor from 5.4 runs in CI on amd64 (`urcap5-matrix.yml`). Off-pendant screens: `python3 integrations/urcap/preview5.py` (JDK). |
 
 ## 4. Network summary
 

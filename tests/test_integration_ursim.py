@@ -295,12 +295,14 @@ class TestUrpBuilderLoading:
         assert "STOPPED" in state and urp_name in state, state
 
     def test_bundled_nodetree_demo_urp_loads(self, ursim_ready, docker_ready, tmp_path):
-        # The committed builder-authored sample (programs/NodeTreeDemo) must load
+        # The committed builder-authored sample (tests/fixtures/programs/NodeTreeDemo) must load
         # as a node tree every time, so it can be opened/edited in PolyScope.
         src_urp = PROGRAMS_DIR / "NodeTreeDemo" / "NodeTreeDemo.urp"
         src_inst = PROGRAMS_DIR / "NodeTreeDemo" / "NodeTreeDemo.installation"
         if not src_urp.exists() or not src_inst.exists():
-            pytest.skip("NodeTreeDemo artifacts not built — run programs/NodeTreeDemo/build.py")
+            pytest.skip(
+                "NodeTreeDemo artifacts not built — run tests/fixtures/programs/NodeTreeDemo/build.py"
+            )
         docker_cp_to_container(src_urp, "/ursim/programs/NodeTreeDemo.urp")
         docker_cp_to_container(src_inst, "/ursim/programs/NodeTreeDemo.installation")
         reply = dash("load NodeTreeDemo.urp")

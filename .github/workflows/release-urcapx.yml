@@ -1,9 +1,9 @@
 name: release-urcapx
 
 # CD for the PolyScope X URCap: pushing a `urcapx-v<version>` tag (for example
-# urcapx-v0.3.0) publishes the committed urcap/dist/perceptronic-<version>.urcapx as a
+# urcapx-v0.3.0) publishes the committed integrations/urcap/dist/perceptronic-<version>.urcapx as a
 # GitHub Release asset with its sha256, for System Manager (a USB stick or
-# `urcap/urcapx.py install` over the network).
+# `integrations/urcap/urcapx.py install` over the network).
 #
 # The package is not rebuilt for the release: `urcapx.py release-check` proves the committed
 # file is the tag's version and exactly what the tagged sources package to (the build is
@@ -30,18 +30,18 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-*.txt
+          cache-dependency-path: requirements/*.txt
       - name: the tag, the manifest and the committed package agree
         id: check
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          out=$(python3 urcap/urcapx.py release-check "$TAG")
+          out=$(python3 integrations/urcap/urcapx.py release-check "$TAG")
           echo "$out"
           python3 -c 'import json, sys; d = json.loads(sys.argv[1]); [print(f"{k}={d[k]}") for k in ("path", "sha256", "version")]' "$out" >> "$GITHUB_OUTPUT"
       - name: the URCap's tests (packaging, the presenters and workers under node, the Pick node's script)
         run: |
-          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install --require-hashes -r requirements/dev.txt
           python -m pytest -q tests/test_urcap.py tests/test_urcapx_pick.py tests/test_urcap_track.py
 
   github-release:
@@ -62,18 +62,18 @@ jobs:
           name=$(basename "$PKG")
           echo "$SHA256  $name" > "$PKG.sha256"
           prev=$(git describe --tags --abbrev=0 --match 'urcapx-v*' "$TAG^" 2>/dev/null || true)
-          target=$(python3 -c 'import json; t = json.load(open("urcap/target.json")); print(t["polyscope_x"]["release"])')
+          target=$(python3 -c 'import json; t = json.load(open("integrations/urcap/target.json")); print(t["polyscope_x"]["release"])')
           {
             echo "Perceptronic URCap for **PolyScope X**: the Perceptronic application node (the wrist camera, click → locate → move, the pick areas and reach) and the 3D Pick program node."
             echo
-            echo "**Install:** ☰ → System Manager → URCaps → add \`$name\` (from a USB stick), or from any computer on the robot's network \`python3 urcap/urcapx.py install $name --host <robot-ip> --port 80\` (\`--replace\` to update). Built for PolyScope X $target (urcap/target.json); the newest ten releases are run by .github/workflows/urcapx-matrix.yml."
+            echo "**Install:** ☰ → System Manager → URCaps → add \`$name\` (from a USB stick), or from any computer on the robot's network \`python3 integrations/urcap/urcapx.py install $name --host <robot-ip> --port 80\` (\`--replace\` to update). Built for PolyScope X $target (integrations/urcap/target.json); the newest ten releases are run by .github/workflows/urcapx-matrix.yml."
             echo
             echo "**Needs** the RealSense cockpit (\`perceptronics gui --cors http://<pendant-or-sim>:<port>\`) from this release's commit (\`${GITHUB_SHA::12}\`) or later on the computer the camera is plugged into — the Pick node's requests follow the pick server's protocol at that commit."
             echo
             echo "sha256 \`$SHA256\`"
             echo
             echo "### Changes to the URCap${prev:+ since $prev}"
-            git log --format='- %s (%h)' ${prev:+"$prev.."}"$TAG" -- urcap/perceptronic urcap/urcapx.py perceptronics/picknode.py perceptronics/partspec.py
+            git log --format='- %s (%h)' ${prev:+"$prev.."}"$TAG" -- integrations/urcap/perceptronic integrations/urcap/urcapx.py perceptronics/picknode.py perceptronics/partspec.py
           } > notes.md
           cat notes.md
       - name: create the GitHub release

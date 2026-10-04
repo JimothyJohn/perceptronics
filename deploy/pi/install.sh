@@ -50,7 +50,7 @@ IMAGE=0
 
 # ---- pins ----------------------------------------------------------------------------
 # perceptronics/realsense.py binds the C API with ctypes and checks enum ordinals written
-# against librealsense 2.58 (`_check_enums`); v2.58.4 is also what Dockerfile.perceptronics
+# against librealsense 2.58 (`_check_enums`); v2.58.4 is also what deploy/Dockerfile.perceptronics
 # builds. It was the newest release tag on 2026-09-28 (`git ls-remote --tags`); the commit
 # is checked after the clone so a moved tag cannot slip a different tree in.
 readonly LIBREALSENSE_TAG="v2.58.4"

@@ -3,9 +3,9 @@ name: ur-program-authoring
 description: >-
   Author, convert, run, and save a URScript/PolyScope program for a UR e-Series
   robot in this repo — a choreography, pick-and-place, a motion routine, or any
-  reusable .script/.urp under programs/. Use when asked to create/write/save a
+  reusable .script/.urp under tests/fixtures/programs/. Use when asked to create/write/save a
   robot program or sequence, build a demo/dance/cycle, or convert between
-  .script and .urp. Covers the programs/ conventions, the urp_convert workflow,
+  .script and .urp. Covers the tests/fixtures/programs/ conventions, the urp_convert workflow,
   installation pairing, how to run it (Primary vs Dashboard play), the URScript
   dialect traps (no random(), no nested defs, 2-arg textmsg, fixed arrays,
   pose_add), and the movej blend-radius pitfall that aborts randomized paths.
@@ -13,12 +13,12 @@ description: >-
 
 # Authoring a UR program
 
-A "program" here is a `.script` (URScript) committed under `programs/<Name>/`,
+A "program" here is a `.script` (URScript) committed under `tests/fixtures/programs/<Name>/`,
 converted to a PolyScope-loadable `.urp`, with a matching `.installation`. See
-`programs/PickPlace`, `programs/AppleStack`, `programs/ElegantDance` as worked
+`tests/fixtures/programs/PickPlace`, `tests/fixtures/programs/AppleStack`, `tests/fixtures/programs/ElegantDance` as worked
 references, and CLAUDE.md for the `.urp` schema. This skill is the procedure +
 the dialect traps that cost real time. For naming/blend/Move-grouping
-conventions, follow `docs/program-authoring-best-practices.md`.
+conventions, follow `urctl/PROGRAM-AUTHORING.md`.
 
 ## The shape every sample follows
 
@@ -49,9 +49,9 @@ MyProgram()          # <- top-level call; without it nothing runs when played
 ## Convert + pair the installation
 
 ```bash
-python3 scripts/urp_convert.py to-urp programs/MyProgram/MyProgram.script \
-    programs/MyProgram/MyProgram.urp --name MyProgram --installation MyProgram
-cp programs/PickPlace/PickPlace.installation programs/MyProgram/MyProgram.installation
+python3 scripts/urp_convert.py to-urp tests/fixtures/programs/MyProgram/MyProgram.script \
+    tests/fixtures/programs/MyProgram/MyProgram.urp --name MyProgram --installation MyProgram
+cp tests/fixtures/programs/PickPlace/PickPlace.installation tests/fixtures/programs/MyProgram/MyProgram.installation
 ```
 
 `load <name>` needs `<name>.urp` **and** a sibling `<name>.installation` in the
@@ -65,7 +65,7 @@ so it runs once and reaches `STOPPED`; `--loop` makes it cycle forever.
 ```bash
 urctl bring-up
 urctl run-script --raw --capture --marker "myprog/" --collect-for 55 \
-    < programs/MyProgram/MyProgram.script
+    < tests/fixtures/programs/MyProgram/MyProgram.script
 ```
 
 `--raw` because the file defines its own `def` + call (don't let urctl wrap it
@@ -124,7 +124,7 @@ For fixed, well-separated waypoints, modest blends are fine.
 - Confirm the `.urp` loads: `urctl load MyProgram` → `STOPPED MyProgram.urp`.
 - Add a load-guard integration test mirroring
   `tests/test_integration_ursim.py::test_bundled_apple_stack_urp_loads`, and a
-  short `programs/MyProgram/README.md` (run instructions + assumptions).
+  short `tests/fixtures/programs/MyProgram/README.md` (run instructions + assumptions).
 - Commit the `.script`, `.urp`, `.installation`, `README.md` together. Don't bake
   real-robot kinematics into committed URPs — the converter's identity/checksum-
   off defaults work everywhere.

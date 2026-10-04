@@ -11,7 +11,7 @@
 param(
     [string]$Cell = "sim",
     # librealsense release whose Windows installer we fetch (GitHub Releases asset name pattern:
-    # RealSense.SDK-WIN10-<ver>.<build>.exe). Keep in step with Dockerfile.perceptronics's LIBREALSENSE_REF.
+    # RealSense.SDK-WIN10-<ver>.<build>.exe). Keep in step with deploy/Dockerfile.perceptronics's LIBREALSENSE_REF.
     [string]$SdkVersion = "2.58.4",
     # The winget package installed when no Python >= 3.10 is found.
     [string]$PythonPackage = "Python.Python.3.13",

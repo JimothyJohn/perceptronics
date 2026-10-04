@@ -15,10 +15,10 @@ site/cloudformation/static-site.yaml   statician's template, unchanged
 ```
 
 **The page cannot drift from the repo.** `build.py` takes the versions, sizes and sha256
-from the committed `urcap/dist/` files and copies them to `downloads/`, takes the
-supported PolyScope ranges from the CI matrices (`urcap/ps5_matrix.py`,
-`urcap/psx_matrix.py`) and copies the pendant screens from
-`urcap/perceptronic-ps5/screens/`. `tests/test_site.py` builds it and checks the result
+from the committed `integrations/urcap/dist/` files and copies them to `downloads/`, takes the
+supported PolyScope ranges from the CI matrices (`integrations/urcap/ps5_matrix.py`,
+`integrations/urcap/psx_matrix.py`) and copies the pendant screens from
+`integrations/urcap/perceptronic-ps5/screens/`. `tests/test_site.py` builds it and checks the result
 against the CSP.
 
 **The PDFs**: the datasheet (`public/datasheet.html`, one US Letter page) and the UR
@@ -31,5 +31,5 @@ noise. Its performance figures are conservative
 estimates (marked E) drawn from the code's limits and programmed speeds, not measurements;
 replace them as cells are tested and move `SHEET_DATE` in `build.py`.
 
-After a new URCap lands in `urcap/dist/`: `site/site.sh datasheet`, commit, then `site/site.sh sync`. Settings are in `site/.env` (copy `.env.example`); `deploy` is only
+After a new URCap lands in `integrations/urcap/dist/`: `site/site.sh datasheet`, commit, then `site/site.sh sync`. Settings are in `site/.env` (copy `.env.example`); `deploy` is only
 needed when the template changes.

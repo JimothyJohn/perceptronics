@@ -1,9 +1,9 @@
-"""The PolyScope 5 (e-Series) Perceptronic URCap: the packager (``urcap/urcap5.py``),
+"""The PolyScope 5 (e-Series) Perceptronic URCap: the packager (``integrations/urcap/urcap5.py``),
 the committed ``dist/`` jar, and the Java client's contract — URL rules, JSON, the
 located-target text, and real HTTP against the cockpit (``perceptronics.webapp``).
 
 The Java checks need only a JDK (the client classes import nothing from UR); the build
-checks need the URCap API jars too (``python3 urcap/urcap5.py sdk``: the floor's and every
+checks need the URCap API jars too (``python3 integrations/urcap/urcap5.py sdk``: the floor's and every
 ``compat.since`` version's) and skip without.
 """
 
@@ -28,12 +28,12 @@ from perceptronics.realsense import SyntheticRgbdCamera
 from perceptronics.webapp import ViewerApp, ViewerHandler
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import urcap5  # noqa: E402
 
-SRC = ROOT / "urcap" / "perceptronic-ps5"
+SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "urcap" / "dist" / "perceptronic-ps5-0.9.0.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.9.0.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")
@@ -50,7 +50,7 @@ PURE_JAVA = (
     "FeedPoller.java",
     "Log.java",
 )
-SVG = ROOT / "urcap" / "perceptronic.svg"
+SVG = ROOT / "integrations" / "urcap" / "perceptronic.svg"
 _PLAN = urcap5.compat_plan(urcap5.read_properties((SRC / "bundle.properties").read_text(encoding="utf-8")))
 HAS_SDK = all((urcap5.SDK_ROOT / v / urcap5.SDK_INFO).is_file() for v in (_PLAN["floor"], *_PLAN["since"]))
 
@@ -891,12 +891,19 @@ def test_release_check_cli_prints_json_or_fails_with_the_reason(capsys):
 
 
 def test_the_logo_java_carries_the_svg_the_docs_and_polyscope_x_use(java_client):
-    """One glyph everywhere: ``urcap/perceptronic.svg`` (the README's mark), the PolyScope X
+    """One glyph everywhere: ``integrations/urcap/perceptronic.svg`` (the README's mark), the PolyScope X
     node's icon, and the Java constant next to the Java2D drawing of the same path."""
     svg = SVG.read_text(encoding="utf-8")
     assert java_client("svg") == svg
     px_icon = (
-        ROOT / "urcap" / "perceptronic" / "perceptronic-frontend" / "assets" / "icons" / "perceptronic.svg"
+        ROOT
+        / "integrations"
+        / "urcap"
+        / "perceptronic"
+        / "perceptronic-frontend"
+        / "assets"
+        / "icons"
+        / "perceptronic.svg"
     )
     assert px_icon.read_text(encoding="utf-8") == svg
     assert 'd="M22 54V10h14a14 14 0 0 1 0 28H22"' in svg and 'cx="36" cy="24" r="5"' in svg

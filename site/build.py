@@ -1,11 +1,11 @@
 """Assemble the product page (perceptronics.advin.io) into ``site/_build/``.
 
 The page's facts come from the repo, never from the template: the two URCaps and their
-versions are the committed ``urcap/dist/`` files (copied to ``downloads/`` with their
+versions are the committed ``integrations/urcap/dist/`` files (copied to ``downloads/`` with their
 sha256 and size), the supported PolyScope ranges are the CI matrices' own lists
-(``urcap/ps5_matrix.py``, ``urcap/psx_matrix.py``), and the screenshots are the rendered
-pendant screens in ``urcap/perceptronic-ps5/screens/``. A ``{{NAME}}`` left in the output
-is an error. Stdlib only: ``python3 site/build.py [--out DIR]``.
+(``integrations/urcap/ps5_matrix.py`` and ``psx_matrix.py``), and the screenshots are the
+rendered pendant screens in ``integrations/urcap/perceptronic-ps5/screens/``. A ``{{NAME}}`` left in
+the output is an error. Stdlib only: ``python3 site/build.py [--out DIR]``.
 
 The printed documents — the one-page datasheet (``public/datasheet.html``) and the UR
 Quickstart guide (``public/quickstart-ur.html``) — are printed to PDF by a local Chrome
@@ -32,8 +32,8 @@ from pathlib import Path
 SITE = Path(__file__).resolve().parent
 REPO = SITE.parent
 PUBLIC = SITE / "public"
-DIST = REPO / "urcap" / "dist"
-SCREENS = REPO / "urcap" / "perceptronic-ps5" / "screens"
+DIST = REPO / "integrations" / "urcap" / "dist"
+SCREENS = REPO / "integrations" / "urcap" / "perceptronic-ps5" / "screens"
 # the pendant screens the page shows (all 1000 x 560)
 SCREEN_NAMES = ("pick-part.png", "pick-options.png", "installation-areas.png")
 PRINT_DIR = SITE / "print"
@@ -74,11 +74,13 @@ def _module(path: Path):
 
 
 def _one(pattern: str) -> tuple[Path, str]:
-    """The single ``urcap/dist`` file matching ``pattern`` and the version in its name."""
+    """The single ``integrations/urcap/dist`` file matching ``pattern`` and the version in its name."""
     rx = re.compile(pattern)
     found = [(p, m.group(1)) for p in sorted(DIST.iterdir()) if (m := rx.fullmatch(p.name))]
     if len(found) != 1:
-        raise SystemExit(f"expected exactly one urcap/dist file matching {pattern}, found {len(found)}")
+        raise SystemExit(
+            f"expected exactly one integrations/urcap/dist file matching {pattern}, found {len(found)}"
+        )
     return found[0]
 
 
@@ -99,8 +101,8 @@ def _kb(path: Path) -> str:
 def facts() -> dict[str, str]:
     ps5, ps5_version = _one(r"perceptronic-ps5-(\d+\.\d+\.\d+)\.urcap")
     psx, psx_version = _one(r"perceptronic-(\d+\.\d+\.\d+)\.urcapx")
-    ps5_matrix = _module(REPO / "urcap" / "ps5_matrix.py")
-    psx_matrix = _module(REPO / "urcap" / "psx_matrix.py")
+    ps5_matrix = _module(REPO / "integrations" / "urcap" / "ps5_matrix.py")
+    psx_matrix = _module(REPO / "integrations" / "urcap" / "psx_matrix.py")
     return {
         "PS5_FILE": ps5.name,
         "PS5_VERSION": ps5_version,

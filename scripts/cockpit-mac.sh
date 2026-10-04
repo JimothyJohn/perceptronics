@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The UR3e cockpit on the Mac Studio, exactly as run on the cell: lean RealSense open
-# (the Mac loses the libusb claim race otherwise; docs/realsense.md §Troubleshooting) and
+# (the Mac loses the libusb claim race otherwise; perceptronics/README.md §Troubleshooting) and
 # CORS for the UR3 PolyScope X sim's page on :8001. The interpreter is resolved before
 # sudo (root's PATH may hold an older python3); PYTHON overrides it.
 # Run from a LOCAL Terminal (SSH sessions are denied the webcams by TCC).

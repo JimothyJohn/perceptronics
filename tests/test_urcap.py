@@ -1,5 +1,5 @@
-"""The PolyScope X URCap (urcap/perceptronic): its source tree agrees with itself,
-urcap/urcapx.py packages it reproducibly (and the downloadable urcap/dist/ copy is
+"""The PolyScope X URCap (integrations/urcap/perceptronic): its source tree agrees with itself,
+integrations/urcap/urcapx.py packages it reproducibly (and the downloadable integrations/urcap/dist/ copy is
 that build, byte for byte) the way UR's urcap-utils does and installs it the way
 the Robot-API expects (against a real HTTP server), the behavior worker speaks the
 threads.js protocol (run under node when present), and the cockpit's CORS + colour
@@ -27,12 +27,12 @@ from perceptronics.config import PerceptionConfig
 from perceptronics.realsense import SyntheticRgbdCamera
 from perceptronics.webapp import ViewerApp, ViewerHandler
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "urcap"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "integrations" / "urcap"))
 import urcapx  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-URCAP = ROOT / "urcap" / "perceptronic"
-DIST = ROOT / "urcap" / "dist"
+URCAP = ROOT / "integrations" / "urcap" / "perceptronic"
+DIST = ROOT / "integrations" / "urcap" / "dist"
 FRONTEND = URCAP / "perceptronic-frontend"
 PACKAGE_VERSION = urcapx.read_manifest((URCAP / "manifest.yaml").read_text(encoding="utf-8"))["version"]
 NODE = shutil.which("node")
@@ -146,8 +146,8 @@ def test_changed_source_changes_the_timestamp(tmp_path):
 
 
 def test_the_downloadable_package_is_the_current_source(tmp_path):
-    """urcap/dist/ is what people download: it must be exactly what the source
-    builds to now. Edited the URCap? `make urcap-package` and commit urcap/dist/."""
+    """integrations/urcap/dist/ is what people download: it must be exactly what the source
+    builds to now. Edited the URCap? `make urcap-package` and commit integrations/urcap/dist/."""
     fresh = urcapx.package(URCAP, tmp_path)
     shipped = DIST / fresh.name
     assert shipped.is_file(), f"{shipped.relative_to(ROOT)} missing — run `make urcap-package` and commit it"
@@ -158,11 +158,13 @@ def test_the_downloadable_package_is_the_current_source(tmp_path):
         f"{shipped.relative_to(ROOT)} is stale — run `make urcap-package` and commit it"
     )
     stale = sorted(p.name for p in DIST.glob("*.urcapx") if p.name != fresh.name)
-    assert not stale, f"old packages left in urcap/dist/: {stale} (the README links one version)"
-    readme = (ROOT / "urcap" / "README.md").read_text(encoding="utf-8")
-    assert f"dist/{fresh.name}" in readme, f"urcap/README.md doesn't link dist/{fresh.name}"
+    assert not stale, f"old packages left in integrations/urcap/dist/: {stale} (the README links one version)"
+    readme = (ROOT / "integrations" / "urcap" / "README.md").read_text(encoding="utf-8")
+    assert f"dist/{fresh.name}" in readme, f"integrations/urcap/README.md doesn't link dist/{fresh.name}"
     linked = set(re.findall(r"perceptronic-\d+\.\d+\.\d+\.urcapx", readme))
-    assert linked == {fresh.name}, f"urcap/README.md names other versions: {sorted(linked - {fresh.name})}"
+    assert linked == {fresh.name}, (
+        f"integrations/urcap/README.md names other versions: {sorted(linked - {fresh.name})}"
+    )
 
 
 # -- installing against a urservice look-alike ----------------------------------------------------

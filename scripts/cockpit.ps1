@@ -20,7 +20,7 @@ Update-PathFromRegistry   # a Python installed a moment ago is not on this shell
 $python = Find-Python
 if (-not $python) {
     Write-Host "Setup has not been run yet (no Python 3.10+ was found)." -ForegroundColor Red
-    Write-Host "Run Windows-Setup (scripts\setup-windows.ps1) first." -ForegroundColor Yellow
+    Write-Host "Run deploy\windows\Setup.cmd (scripts\setup-windows.ps1) first." -ForegroundColor Yellow
     exit 1
 }
 if ($Doctor) {

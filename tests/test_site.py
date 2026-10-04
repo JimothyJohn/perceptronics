@@ -16,7 +16,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 SITE = REPO / "site"
-DIST = REPO / "urcap" / "dist"
+DIST = REPO / "integrations" / "urcap" / "dist"
 
 
 def _load_build():
@@ -195,7 +195,15 @@ def test_quickstart_names_the_urcaps_it_installs(built: Path):
         assert values[key] in text, key
     # the address the URCap's Cockpit field defaults to (and the camera computer gives itself)
     java = (
-        REPO / "urcap" / "perceptronic-ps5" / "src" / "io" / "advin" / "perceptronic" / "Cockpit.java"
+        REPO
+        / "integrations"
+        / "urcap"
+        / "perceptronic-ps5"
+        / "src"
+        / "io"
+        / "advin"
+        / "perceptronic"
+        / "Cockpit.java"
     ).read_text(encoding="utf-8")
     default = re.search(r'DEFAULT_HOST\s*=\s*"([^"]+)"', java).group(1)
     assert f"<code>{default}</code>" in text

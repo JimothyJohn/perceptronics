@@ -17,12 +17,12 @@ standing next to it.
 
 ## 1. Where we stand (facts, 2026-10-04)
 
-**What a customer can get today** (`docs/pick-kit.md`, `site/public/index.html`):
+**What a customer can get today** (`site/public/quickstart-ur.html`, `site/public/index.html`):
 
 | Piece | State | Evidence |
 | --- | --- | --- |
-| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `urcap/dist/perceptronic-ps5-0.9.0.urcap` |
-| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `urcap/dist/perceptronic-0.7.0.urcapx`, `urcap/perceptronic-ps5/README.md` §PolyScope X |
+| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap` |
+| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.7.0.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
 | Pick PC (Pi, cockpit, pick server, firewall, DHCP for the robot) | Deployed and verified on one Pi 5; flashable image boots in ~30 s | `deploy/pi/README.md` §Verified on a board, `deploy/pi/image/README.md` |
 | Setup portal + update bundles (network from a browser, upload an update, auto-rollback) | Code + 115 tests, **never on a board** | PR #59, `perceptronics/setupportal.py`, `deploy/pi/perceptronics-admin` |
 | Camera bracket | Rev B.2 printed and on the UR3e; **Rev C and the UFACTORY print are unprinted** | `hardware/d435-tool-bracket/README.md` §7 (13 unchecked boxes) |
@@ -38,7 +38,7 @@ standing next to it.
   the Mac's cockpit (2026-09-25/27).
 - The kit board is a Pi 4 (`BOM.md` K1); only a Pi 5 has ever been run.
 - No place move, no machine handshake, no gripper control in the node (by decision: the
-  customer's program opens before and closes after, `docs/pick-kit.md` §Program).
+  customer's program opens before and closes after, `site/public/quickstart-ur.html` §Program).
 
 **The honest summary:** we have a well-tested *picking* component and a well-tested
 *deployment* story, both one real-robot day away from being provable, and **zero** of
@@ -163,7 +163,7 @@ without Nick.
 ## 5. What has to be built for Tend and Lights-out
 
 The pick stays what it is. Everything below is *around* it, in the customer's own program
-where Nick decided the gripper and the place belong (`docs/pick-kit.md` §Program; decision
+where Nick decided the gripper and the place belong (`site/public/quickstart-ur.html` §Program; decision
 2026-10-02 "3D Pick keeps its structure"). Build order is the order of risk.
 
 ### 5.1 Prove the pick on a pendant (before anything else)
@@ -178,7 +178,7 @@ Not new code. One day on the UR3e with the Pi on the cell cable:
 Everything in this document is a promise until this day happens. **It is the launch
 blocker; it is not tomorrow's blocker** because tomorrow we launch the beta and the plan.
 
-### 5.2 The tending program template (`programs/MachineTend/`, URCap 1.0)
+### 5.2 The tending program template (`tests/fixtures/programs/MachineTend/`, URCap 1.0)
 
 A PolyScope program the customer loads, with the I/O and poses as named variables at the
 top. It uses only what PolyScope 5.4 has, so the matrix covers it.
@@ -215,7 +215,7 @@ Deliverables:
 - **Fault vocabulary**: `tray_empty`, `door`, `chuck`, `machine`, `part_lost`, `protective_stop`,
   each a popup with the one sentence of what to do, and a `LOG` line to the Pi.
 - Machine side: a dry-contact / 24 V I/O recipe for the three common cases (Haas, Fanuc
-  0i/30i M-code DO + door-open input, a generic PLC) in `docs/machine-io.md`. The
+  0i/30i M-code DO + door-open input, a generic PLC) in `site/public/machine-io.html`. The
   "M-code to open the door" is what every tending integrator sells first; it is a day of
   reading manuals, not code.
 
@@ -280,7 +280,7 @@ Add to the portal: an SMTP relay or a webhook URL (Slack/Teams/Twilio), a test b
 4. Publish the Pi image `imager.json` from a real source on `main` (today it is on a wip branch).
 5. Beta terms on the site: free URCap, kit at the Find price, "Tend early access: install
    dates from <month>". One email address, one form.
-6. This document reviewed by Nick → decisions in §10 made → moved to `docs/` as the plan of record.
+6. This document reviewed by Nick → decisions in §10 made → kept at the root as the plan of record.
 
 **Week 1 — prove it (§5.1).** Plug the UR3e in. One day on the pendant with the Pi. Fix
 what breaks (expect the magic-file install, the DHCP lease and a pendant layout surprise).
