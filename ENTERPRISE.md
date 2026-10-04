@@ -300,6 +300,9 @@ whichever vendor the first ten customers ask for. The template is URScript today
 second connector needs it expressed in that controller's language. That is when the
 `Controller` protocol grows `set_digital_output` / `wait_digital_input` (it has neither
 today, `urctl/controller.py`).
+On PolyScope X, the cockpit can also be packaged as a URCap backend container
+(`containers:` + `devices: video` + `services: urcontrol-primary`, `integrations/urcap/DEVELOPING.md`)
+so the pendant needs no external host; that is a quarter-2 packaging job, not a product tier.
 
 ---
 

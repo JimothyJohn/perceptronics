@@ -303,7 +303,7 @@ link behind the cockpit.
 | Move (PolyScope): IK + hold-to-move accept the pose | **not yet**: compare against the cockpit's approach pose on first use |
 | **3D Pick** program node (named Perceptronic Pick until 0.5.0): in the toolbox, its row in the tree, the dialog (feed, a picture point from PolyScope's joints, Options), the two program variables declared, and its URScript **compiled and run by PolyScope X** (Play): NEXT → movej → FIND against a synthetic cockpit over the network, the failure popup naming the pick server's answer | 10.13.0 simulator (UR3), 2026-09-29; the toolbox → dialog → verdict part is in `integrations/urcap/e2e.py` |
 | Pick areas taught from PolyScope's joint positions + DH; robot model read from PolyScope for the reach map and the kinematics | 10.13.0 simulator, 2026-09-29 |
-| A real pick with the Pick node on a PolyScope X arm (and the Robotiq Hand-E URCap for PolyScope X exposing `:63352` the way the e-Series one does) | **not yet** |
+| A real pick with the Pick node on a PolyScope X arm (the program drives the gripper; the node does not) | **not yet** |
 
 ## Tested PolyScope X releases
 
