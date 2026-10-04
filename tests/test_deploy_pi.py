@@ -253,7 +253,7 @@ def test_unit_documents_ports_and_stop_command():
     text = _text(UNIT)
     assert str(webapp.DEFAULT_PORT) in text and str(DEFAULT_PICK_PORT) in text
     assert "systemctl stop perceptronics-cockpit" in text
-    assert "pick-server" in text, "the :7622 clash with the sidecar is written where the next person looks"
+    assert "/api/pick/log" in text, "where the pick trace is read is written where the next person looks"
 
 
 # ----- cell.env ---------------------------------------------------------------------------

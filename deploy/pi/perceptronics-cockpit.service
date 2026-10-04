@@ -13,9 +13,7 @@
 #   config:   /etc/perceptronics/cell.env (robot host, ports, tool length, hand-eye)
 #   state:    /var/lib/perceptronics (captures/, calibration, audit.jsonl)
 #
-# A `perceptronics pick-server` sidecar also binds :7622. Kill it before (re)starting this
-# unit (`pkill -f "pick-server --bind"`) or the cockpit warns and runs without its pick
-# server (CLAUDE.md, "Perceptronic Pick program node").
+# The pick server's trace: GET /api/pick/log on the cockpit, captures/pick.log in the state dir.
 
 [Unit]
 Description=RealSense RGB-D cockpit + pick server (perceptronics gui, :7621 / :7622)

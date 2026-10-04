@@ -117,6 +117,10 @@ from .segment import Mask, StubSegmenter, extract_features, normalize_box
 
 DEFAULT_PORT = 7621
 DEFAULT_SNAPSHOT_DIR = "captures/snapshots"
+# Every line the pick server says (requests, answers, the program's own LOG lines) is an event of
+# kind "pick"; it is also appended here (or to the per-user log dir when captures/ is not
+# writable, e.g. root-owned after a sudo run) and served as text by GET /api/pick/log.
+DEFAULT_PICK_LOG = Path("captures") / "pick.log"
 REOPEN_DELAY_S = 1.0
 REOPEN_MAX_DELAY_S = 30.0
 STALL_AFTER_S = 2.0  # no new frame for this long: the stream is stalled, its rate is 0
@@ -131,6 +135,52 @@ def validate_name(name: str) -> str:
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name or ""):
         raise ValueError("name must be 1-64 characters of letters, digits, _ or -")
     return name
+
+
+def user_log_dir() -> Path:
+    """The per-user log directory: ``~/Library/Logs/perceptronics`` (macOS),
+    ``%LOCALAPPDATA%\\perceptronics\\logs`` (Windows), ``$XDG_STATE_HOME/perceptronics``
+    (else ``~/.local/state/perceptronics``)."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "perceptronics"
+    if os.name == "nt":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "perceptronics" / "logs"
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "perceptronics"
+
+
+def writable_log(preferred: Path) -> Path | None:
+    """``preferred`` if it can be appended to, else the same name in :func:`user_log_dir`,
+    else None (events only)."""
+    for path in (preferred, user_log_dir() / preferred.name):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8"):
+                pass
+        except OSError:
+            continue
+        return path
+    return None
+
+
+class PickLogFile:
+    """The pick server's trace as an append-only text file beside the cockpit's events."""
+
+    def __init__(self, path: Path | None):
+        self.path = path
+        self._lock = threading.Lock()
+
+    def write(self, text: str) -> None:
+        if self.path is None:
+            return
+        clean = "".join(c if " " <= c <= "~" or c in "°×→—" else " " for c in text)
+        line = f"{time.strftime('%H:%M:%S')}.{int(time.time() * 1000) % 1000:03d} {clean}\n"
+        with self._lock:
+            try:
+                with self.path.open("a", encoding="utf-8") as f:
+                    f.write(line)
+            except OSError as exc:
+                print(f"pick log {self.path}: {exc} — events only from here on", file=sys.stderr)
+                self.path = None
 
 
 class EventLog:
@@ -238,6 +288,7 @@ class ViewerApp:
         self.events = EventLog()
         self._last_logged_error: str | None = None
         self.pick_port: int | None = None  # the robot program's pick server (serve(pick_port=…))
+        self.pick_log = PickLogFile(writable_log(DEFAULT_PICK_LOG))
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -868,6 +919,20 @@ class ViewerApp:
             return None
         return self.robot.handeye.as_dict().get("flange_to_color_pose")
 
+    def _pick_said(self, text: str, ok: bool) -> None:
+        self.events.add("pick", text, ok=ok)
+        self.pick_log.write(text)
+
+    def pick_log_text(self, limit: int = 400) -> str:
+        """The last ``limit`` pick lines as text, one per line — what a browser next to the
+        pendant (or the deploy skill) reads at ``GET /api/pick/log``."""
+        lines = []
+        for item in self.events.since(0, 100000):
+            if item["kind"] == "pick":
+                stamp = time.strftime("%H:%M:%S", time.localtime(item["ts"]))
+                lines.append(f"{stamp} {item['message']}")
+        return "\n".join(lines[-limit:]) + ("\n" if lines else "")
+
     def pick_planner(self) -> PickPlanner:
         from .handeye import tip_m_from_env
 
@@ -876,7 +941,7 @@ class ViewerApp:
             lambda: self.latest()[0],
             self._handeye_pose,
             tip_m=self.robot.tip_m if self.robot is not None else tip_m_from_env(),
-            log=lambda text, ok: self.events.add("pick", text, ok=ok),
+            log=self._pick_said,
         )
 
     def pick_preview(
@@ -1553,6 +1618,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self._send_json(
                 {"ok": True, "seq": self.app.events.seq, "events": self.app.events.since(after, limit)}
             )
+        elif route == "/api/pick/log":
+            data = self.app.pick_log_text().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self._cors_headers()
+            self.end_headers()
+            self.wfile.write(data)
         elif route == "/api/point":
             try:
                 x, y = int(qs["x"][0]), int(qs["y"][0])

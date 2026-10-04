@@ -172,9 +172,8 @@ firewall limits that to the cell. Change the default login on a PC that leaves t
 Both inbound services are **unauthenticated** (a trusted cell network, like the robot's
 own ports). The firewall is what keeps them on the cell.
 
-A `perceptronics pick-server` sidecar also binds **:7622**. Never run one next to this
-service. If you did, `pkill -f "pick-server --bind"` before restarting the cockpit, or the
-cockpit warns and runs without its pick server.
+The pick server's trace is `GET /api/pick/log` on the cockpit (and `captures/pick.log` under
+`/var/lib/perceptronics`).
 
 ## Troubleshooting
 

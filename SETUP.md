@@ -71,8 +71,7 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
 Cell subnet `192.168.3.0/24`: robot `.3`, the Mac Studio's cell interface `.10`, the Pi 5 pick PC `.20`. The UR10 seen earlier in
 this repo's history was `192.168.1.50` (another network). Controller ports are in
 `CLAUDE.md` § *Network surface of a UR controller*; the cockpit's are :7621 (HTTP),
-:7622 (pick server socket the PS5 program node opens), :7631 (the retired
-`pick-server` sidecar — kill it before relaunching a cockpit, both bind :7622).
+:7622 (pick server socket the PS5 program node opens).
 
 ## 5. Removable media
 

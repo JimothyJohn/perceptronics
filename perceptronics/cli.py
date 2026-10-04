@@ -23,7 +23,6 @@ from .cell import ENV_CELL, apply_cell, list_cells
 from .config import PerceptionConfig
 from .orbitcal import add_calibrate_args, run_calibrate
 from .pickcycle import add_pick_cycle_args, run_pick_cycle
-from .picksidecar import add_pick_server_args, run_pick_server
 from .webapp import (
     DEFAULT_PORT,
     add_camera_args,
@@ -117,13 +116,6 @@ def build_parser() -> argparse.ArgumentParser:
         "(--drop to shuffle)",
     )
     add_pick_cycle_args(pc)
-
-    ps = sub.add_parser(
-        "pick-server",
-        help="the PolyScope Perceptronic Pick node's server beside an already-running cockpit "
-        "(its pick socket + teach routes; everything else forwarded to the cockpit)",
-    )
-    add_pick_server_args(ps)
 
     cb = sub.add_parser(
         "calibrate",
@@ -241,8 +233,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report.ok else 1
     if args.cmd == "pick-cycle":
         return run_pick_cycle(args)
-    if args.cmd == "pick-server":
-        return run_pick_server(args)
     if args.cmd == "calibrate":
         return run_calibrate(args)
     if args.cmd in ("rs-info", "gui"):

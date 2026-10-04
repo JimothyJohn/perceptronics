@@ -21,7 +21,7 @@
 # Long-lived process this installs: perceptronics-cockpit.service, the cockpit on TCP :7621 and
 # the PolyScope Pick node's pick server on TCP :7622.
 #   stop:  sudo systemctl stop perceptronics-cockpit     logs: journalctl -u perceptronics-cockpit -f
-# A `perceptronics pick-server` sidecar also binds :7622 — stop it before (re)starting the unit.
+# The pick server's trace: GET /api/pick/log on the cockpit, and captures/pick.log in its state dir.
 #
 # The cell port (--cell-if, default eth0) is set up for a robot nobody has configured: it
 # holds --cell-address (default 192.168.3.20/24, what the URCap's empty Cockpit field means)

@@ -71,7 +71,7 @@ jobs:
             echo
             echo "**Or let the stick install it:** also copy \`$(basename "$STICK")\` (attached; written for exactly this file) to the top level of the stick. A robot with Settings → Security → General → **Run magic files** enabled then installs the URCap by itself when the stick goes in."
             echo
-            echo "**Needs** the RealSense cockpit (\`perceptronics gui\`) or \`perceptronics pick-server\` from this release's commit (\`${GITHUB_SHA::12}\`) or later on the computer the camera is plugged into — the node's requests follow the pick server's protocol at that commit."
+            echo "**Needs** the RealSense cockpit (\`perceptronics gui\`) from this release's commit (\`${GITHUB_SHA::12}\`) or later on the computer the camera is plugged into — the node's requests follow the pick server's protocol at that commit."
             echo
             echo "sha256 \`$SHA256\`"
             echo

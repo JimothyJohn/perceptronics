@@ -9,7 +9,7 @@ description: >-
   <ip>", to roll it back, to check why the pendant can't reach the cockpit, or to point
   the URCap at it. Covers the preflight you answer from the environment (not by asking),
   scripts/deploy-pi.sh, reading the doctor, the pendant's Cockpit field, and the
-  USB 2 / udev / firewall / :7622 sidecar traps.
+  USB 2 / udev / firewall / :7622 traps.
 ---
 
 # Deploying the pick PC
@@ -47,7 +47,7 @@ to do.
 | Cell subnet for the firewall? | The installer defaults to `UR_HOST`'s /24 | Only if the PC and robot sit on different subnets: pass `--allow-from <CIDR>`. |
 | Internet on the PC? (the first build fetches from GitHub/sqlite.org) | `ssh <pc> 'python3 -c "import urllib.request as u; u.urlopen(\"https://github.com\", timeout=10); print(\"ok\")"'` | No internet: apt and the librealsense build can't run. Say so; the README's *Open items* has the copy-a-built-tree path. |
 | Enough room? | `ssh <pc> 'df -h /var/tmp; free -m'` | The build wants ≥ 5 GiB free. Low RAM is handled (temporary swapfile). |
-| Something already on :7621 / :7622? | `ssh <pc> "ss -ltnp 'sport = :7621 or sport = :7622'"` | A `perceptronics pick-server` sidecar or a hand-started cockpit is running: stop it first (`pkill -f "pick-server --bind"`). Two processes on :7622 means the cockpit runs without its pick server. |
+| Something already on :7621 / :7622? | `ssh <pc> "ss -ltnp 'sport = :7621 or sport = :7622'"` | A hand-started cockpit is running: stop it first (`pkill -f "perceptronics"`), the service owns the ports. |
 | Recent activity by someone else? | `ssh <pc> 'journalctl -u perceptronics-cockpit --since -2h -n 20 --no-pager; ls -l /etc/perceptronics 2>/dev/null'` | A cockpit is in use (a pick in progress): check with Nick before restarting it. |
 
 ## 2. Deploy
@@ -119,7 +119,7 @@ laptop is inside the cell subnet (the firewall). Otherwise tunnel:
 | Camera on USB 2 | The cockpit negotiates 640×480 @ 15 by itself (`describe()["negotiated"]`). The fix is physical: a blue port, a short cable, no hub, and adequate PSU current on a Pi 5. |
 | Pendant: cockpit unreachable / feed blank | `ssh <pc> sudo nft list ruleset`: the controller's IP must fall inside `CELL_NET`. Re-deploy with `--allow-from <subnet>`. Also check the Cockpit field says the PC's cell address (empty / `192.168.3.20` is the default), not `:7621` (that means the controller itself), and that the robot is on the cell network: its Network screen on DHCP got 192.168.3.3 from `perceptronics-cell-dhcp` (`cat /var/lib/misc/perceptronics-cell.leases`); `journalctl -u perceptronics-cell-dhcp` says when it stood down because another DHCP server answered. |
 | Pick node loops on status −4 | The D435 dropped out (frames frozen). The cockpit re-opens it. Check the journal for `Frame didn't arrive`, and re-plug if it doesn't recover. It is not a hang. |
-| Cockpit log: pick port busy / runs without pick server | Something else holds :7622 (a sidecar). `pkill -f "pick-server --bind"`, then `sudo systemctl restart perceptronics-cockpit`. |
+| Cockpit log: pick port busy / runs without pick server | Something else holds :7622 (a hand-started cockpit). Stop it, then `sudo systemctl restart perceptronics-cockpit`. |
 | Service in a restart loop | `journalctl -u perceptronics-cockpit -b --no-pager \| tail -50`. Usually a bad `cell.env` value. Compare with the shipped cell, fix it, restart. |
 | librealsense build failed | `/var/tmp/perceptronics-build/cmake-build.log` on the PC. Out of memory shows up as `Killed` / `internal compiler error`: re-run (fewer jobs are chosen from RAM), and check `free -m`. |
 
@@ -128,7 +128,7 @@ laptop is inside the cell subnet (the firewall). Otherwise tunnel:
 - Don't run the cockpit as root on the PC (`sudo perceptronics gui`). That is macOS
   folklore; on Linux the udev rules make it unnecessary, and a root run leaves
   `captures/` root-owned.
-- Don't start a `perceptronics pick-server` sidecar next to the service (:7622 clash).
+- Don't start a second cockpit next to the service (:7621/:7622 clash). The pick trace is `GET /api/pick/log`.
 - Don't `nft flush ruleset` to "fix" reachability. Widen `--allow-from` instead.
 - Don't edit the unit in `/etc/systemd/system` by hand. Change
   `deploy/pi/perceptronics-cockpit.service`, commit, and redeploy, so the repo stays the

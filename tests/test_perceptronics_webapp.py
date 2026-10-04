@@ -812,3 +812,40 @@ def test_a_live_camera_is_not_stalled(server):
         time.sleep(0.01)
     info = json.loads(get(base, "/api/info")[2])
     assert info["stalled"] is False and info["frame_age_s"] < 2.0 and info["fps"] > 0
+
+
+def test_pick_log_is_served_as_text_and_appended_to_a_file(server, tmp_path, monkeypatch):
+    """What the pick server says is a `pick` event, a line in captures/pick.log and the body of
+    GET /api/pick/log — the trace the retired sidecar used to keep, now in the cockpit."""
+    base, app, _ = server
+    app._pick_said("pick FIND [n1]: 2 parts", True)
+    app._pick_said("robot: FIND\x07 refused", False)
+    status, ctype, body = get(base, "/api/pick/log")
+    assert status == 200 and ctype.startswith("text/plain")
+    text = body.decode()
+    lines = text.splitlines()
+    assert len(lines) == 2 and lines[0].endswith("pick FIND [n1]: 2 parts") and "refused" in lines[1]
+    assert re.fullmatch(r"\d\d:\d\d:\d\d .*", lines[0]), lines[0]
+    assert [e["message"] for e in app.events.since(0) if e["kind"] == "pick"] == [
+        "pick FIND [n1]: 2 parts",
+        "robot: FIND\x07 refused",
+    ]
+    # the file: under the directory the cockpit was pointed at, control characters dropped
+    monkeypatch.setattr(webapp, "DEFAULT_PICK_LOG", tmp_path / "logs" / "pick.log")
+    app2 = ViewerApp(SyntheticRgbdCamera(width=16, height=12, fps=0), config=PerceptionConfig())
+    app2._pick_said("pick NEXT [n1]: part 2 of 2", True)
+    app2._pick_said("robot: LOG\x1b[0m stage 3", True)
+    written = (tmp_path / "logs" / "pick.log").read_text(encoding="utf-8").splitlines()
+    assert len(written) == 2 and written[0].endswith("pick NEXT [n1]: part 2 of 2")
+    assert "\x1b" not in written[1] and "stage 3" in written[1]
+
+
+def test_pick_log_falls_back_to_the_user_log_dir_when_captures_is_unwritable(tmp_path, monkeypatch):
+    blocked = tmp_path / "captures"
+    blocked.write_text("a file, not a directory")  # mkdir(parents=True) fails on it
+    monkeypatch.setattr(webapp, "DEFAULT_PICK_LOG", blocked / "pick.log")
+    monkeypatch.setattr(webapp, "user_log_dir", lambda: tmp_path / "userlogs")
+    app = ViewerApp(SyntheticRgbdCamera(width=16, height=12, fps=0), config=PerceptionConfig())
+    assert app.pick_log.path == tmp_path / "userlogs" / "pick.log"
+    app._pick_said("pick FIND [n1]: 1 part", True)
+    assert "1 part" in (tmp_path / "userlogs" / "pick.log").read_text(encoding="utf-8")
