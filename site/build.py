@@ -3,9 +3,9 @@
 The page's facts come from the repo, never from the template: the two URCaps and their
 versions are the committed ``integrations/urcap/dist/`` files (copied to ``downloads/`` with their
 sha256 and size), the supported PolyScope ranges are the CI matrices' own lists
-(``integrations/urcap/ps5_matrix.py``, ``integrations/urcap/psx_matrix.py``), and the screenshots are the rendered
-pendant screens in ``integrations/urcap/perceptronic-ps5/screens/``. A ``{{NAME}}`` left in the output
-is an error. Stdlib only: ``python3 site/build.py [--out DIR]``.
+(``integrations/urcap/ps5_matrix.py`` and ``psx_matrix.py``), and the screenshots are the
+rendered pendant screens in ``integrations/urcap/perceptronic-ps5/screens/``. A ``{{NAME}}`` left in
+the output is an error. Stdlib only: ``python3 site/build.py [--out DIR]``.
 
 The printed documents — the one-page datasheet (``public/datasheet.html``) and the UR
 Quickstart guide (``public/quickstart-ur.html``) — are printed to PDF by a local Chrome
@@ -78,7 +78,9 @@ def _one(pattern: str) -> tuple[Path, str]:
     rx = re.compile(pattern)
     found = [(p, m.group(1)) for p in sorted(DIST.iterdir()) if (m := rx.fullmatch(p.name))]
     if len(found) != 1:
-        raise SystemExit(f"expected exactly one integrations/urcap/dist file matching {pattern}, found {len(found)}")
+        raise SystemExit(
+            f"expected exactly one integrations/urcap/dist file matching {pattern}, found {len(found)}"
+        )
     return found[0]
 
 

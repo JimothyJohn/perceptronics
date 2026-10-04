@@ -24,11 +24,16 @@ PolyScope program files reproducible without needing a real robot.
 
 ```
 docker-compose.yml          URSim container (UR10, ports 5900/6080/29999-30001)
-urctl/                      Host-side control library + CLI + MCP server + agent tools
-scripts/poweron.sh          Cold-start sequence over Dashboard (29999)
-scripts/urp_convert.py      .script <-> .urp converter (PolyScope program files)
-tests/fixtures/programs/InspectionBot/     Sample teach-by-prompt program (HelpfulBot-style)
-tests/                      pytest suite (unit + URSim integration)
+urctl/                      Host-side control library + CLI + MCP server + agent tools (+ HARNESS.md, PROGRAM-AUTHORING.md)
+perceptronics/              RGB-D cockpit, detector, pick server, cells (+ README.md = the RealSense notes, ARCHITECTURE.md, cell.html)
+integrations/urcap/         The Perceptronic URCaps (PolyScope 5 + X), their tooling, dist/ and the PS5 matrix compose file;
+                            other robot embeds/apps go beside it under integrations/
+deploy/                     pi/ (pick PC installer, image, PI.md, PLUG-AND-PLAY.md), windows/ (Setup.cmd, Start.cmd, compose), Dockerfile.perceptronics
+hardware/                   BOM + the D435 tool bracket
+site/                       perceptronics.advin.io (the only published pages; docs/ and GitHub Pages are gone, 2026-10-04)
+requirements/               dev.{in,txt}, vision.{in,txt} (hashed; CI + `make install-dev`)
+scripts/                    poweron.sh, urp_convert.py (.script <-> .urp), deploy-pi.sh, pi-image.sh, the Windows .ps1s
+tests/                      pytest suite (unit + URSim integration); tests/fixtures/programs/ holds the sample .urp/.script fixtures
 ```
 
 `urctl/` is the reusable, network-target-agnostic layer: `Robot` (facade over
