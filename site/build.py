@@ -251,7 +251,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, default=SITE / "_build")
     ap.add_argument("--pdf", action="store_true", help="also print the PDFs (needs Chrome)")
-    ap.add_argument("--describe-image", type=Path, metavar="IMG_XZ", help="record a pick PC image in pickpc-image.json")
+    ap.add_argument(
+        "--describe-image", type=Path, metavar="IMG_XZ", help="record a pick PC image in pickpc-image.json"
+    )
     args = ap.parse_args(argv)
     if args.describe_image:
         info = describe_image(args.describe_image, time.strftime("%Y-%m-%d"))
