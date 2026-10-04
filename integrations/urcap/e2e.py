@@ -53,7 +53,7 @@ sys.path.insert(0, str(HERE))
 import track  # noqa: E402
 import urcapx  # noqa: E402
 
-REPO = HERE.parent
+REPO = HERE.parents[1]  # integrations/urcap/ -> the repo (python -m perceptronics runs from it)
 VENDOR, URCAP_ID, ARCHIVE = "advin", "perceptronic", "perceptronic-frontend"
 TAG = "advin-perceptronic"
 
