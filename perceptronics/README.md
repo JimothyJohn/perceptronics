@@ -353,8 +353,8 @@ on; a view the envelope refuses or the arm can't reach is skipped and named; the
 worst view is dropped while any residual exceeds `--trim-mm` (9). Ctrl-C stops
 the program. `tests/test_orbitcal.py` runs it end to end on a fake cell (a
 rendered block, a real `CalibrationSession` from a wrong seed) plus the fault
-campaign; **not yet run on the UR3e** — the `scripts/pilot/orbit_cal*.py`
-scratch scripts stay as the proven fallback until it is.
+campaign; **not yet run on the UR3e** (the 2026-09-25 scratch scripts it was folded in from
+were deleted on 2026-10-04; the procedure lives here now).
 
 ## Picking with the Hand-E
 

@@ -129,7 +129,7 @@ pass that lets each block go from 120 mm up. A close on nothing opens and moves
 on; a protective stop unlocks, lifts and moves on. It is a client of the running
 cockpit (HTTP, like the MCP tools) and falls back to `urctl gripper` when the
 cockpit predates the gripper route. `--record DIR` saves the three feeds + the
-captioned events for `scripts/pilot/assemble.py`. Hand-E as mounted: the fingers
+captioned events (the pilot-era timelapse scripts that read them were deleted 2026-10-04). Hand-E as mounted: the fingers
 travel along flange **Y**; a yaw about the tool Z (pointing down) is the negative
 of the base-heading yaw — `grasp_yaw_deg` handles it and a composed-pose test
 locks it. First runs 2026-09-25 on the UR3e + Hand-E.
@@ -546,8 +546,6 @@ go with this reference doc — use them, don't re-derive:
   jogging to a limit + protective-stop recovery, load/play programs.
 - **ur-program-authoring** — write/convert/run/save a `.script`/`.urp` program:
   conventions, URScript dialect traps, and the movej blend-radius pitfall.
-- **ur-pick-from-image** — turn a photo of objects into a pick/stack program when
-  there's no camera calibration (scale-from-object-size + anchor-the-cluster).
 
 **Connection target is configurable, not hardcoded.** Nothing in `urctl/` (or
 `poweron.sh` / `e2e_drive.py`) bakes in `localhost` — they default to it for

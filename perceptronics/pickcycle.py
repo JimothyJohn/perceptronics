@@ -20,8 +20,8 @@ is a client, the same way the MCP tools are. The routine:
    ``drop_mm`` up so the pile shuffles.
 
 Every phase is an event with a wall-clock stamp (``events.json``), and
-``--record DIR`` saves the three cockpit feeds alongside so
-``scripts/pilot/assemble.py`` can cut a subtitled timelapse.
+``--record DIR`` saves the three cockpit feeds alongside for a
+subtitled timelapse (the cutter was a pilot-era script, deleted 2026-10-04).
 
 The fingertip length is the one number the routine cannot see: ``tip_m``
 (Hand-E 157 mm + the 6 mm bracket adapter by default). The tool axis may be
@@ -508,7 +508,7 @@ class PickCycle:
     def say(self, text: str, *, think: str | None = None, do: str | None = None) -> None:
         """Log one event. ``text`` is the engineer's line; ``think`` / ``do`` are the
         same moment in plain words (what the robot has concluded, what it is about
-        to do) — what ``scripts/pilot/assemble.py`` captions for a lay audience."""
+        to do) — captions for a lay audience."""
         ev: dict = {"t": round(time.time() - self.t0, 2), "text": text}
         if think:
             ev["think"] = think
@@ -1014,8 +1014,7 @@ class PickCycle:
 
 class Recorder:
     """Save ``/api/view/0``, ``/api/view/1`` (JPEG) and ``/api/rgbd`` (PNG) to
-    ``out`` with timestamps relative to ``t0``; ``index.json`` + ``t0.json`` are
-    what ``scripts/pilot/assemble.py`` reads."""
+    ``out`` with timestamps relative to ``t0``, plus ``index.json`` + ``t0.json``."""
 
     def __init__(self, cockpit: Cockpit, out: str, t0: float):
         self.cockpit, self.out, self.t0 = cockpit, out, t0
