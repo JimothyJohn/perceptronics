@@ -26,7 +26,7 @@
 set -u
 
 URCAP_FILE="perceptronic-ps5-0.10.0.urcap"
-URCAP_SHA256="c0c1777b03b191e468cfcf7af01d9e3c4051b291ae5f5ce73d0e823c480b55ce"
+URCAP_SHA256="25c08492b59e13dd8c035feb3784f64416da9dbf5acecf2f846975a1a5302361"
 SYMBOLIC_NAME="io.advin.perceptronic"
 
 URCAPS_DIR="${URCAPS_DIR:-/root/.urcaps}"

@@ -941,3 +941,12 @@ def test_feed_poller_explains_a_dead_cockpit_and_keeps_going(java_client):
         "events"
     ]
     assert got["was_running"] and got["stopped"]
+
+
+def test_the_installation_screen_has_a_log_tab_fed_by_the_nodes_own_log():
+    """Nick, 2026-10-04: a Log line on the Installation node, since a pendant has no console."""
+    view = (JAVA / "PilotView.java").read_text(encoding="utf-8")
+    assert '"Camera", "Pick areas", "Log"' in view and "Log.recent()" in view and "refreshLog()" in view
+    assert "JScrollPane" not in view  # the pendant rule: nothing scrolls; the area shows what fits
+    log = (JAVA / "Log.java").read_text(encoding="utf-8")
+    assert "KEEP = 50" in log and "static synchronized List<String> recent()" in log

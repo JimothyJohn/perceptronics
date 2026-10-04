@@ -468,6 +468,11 @@ def test_program_node_presenter_parses_and_defines_its_elements():
     subprocess.run([NODE, "--check", str(FRONTEND / "pick.js")], check=True, timeout=30)
     src = (FRONTEND / "pick.js").read_text(encoding="utf-8")
     assert "customElements.define(PICK_TAG, PerceptronicPickNode)" in src
+    # the Installation node has a Log tab (Nick, 2026-10-04): the last lines it logged, newest first, with Copy
+    app_src = (FRONTEND / "main.js").read_text(encoding="utf-8")
+    assert 'data-tab="log"' in app_src and 'data-rsp="log"' in app_src and 'data-rsp="log-copy"' in app_src
+    assert "LOG_KEEP = 50" in app_src and app_src.count("this.log(") >= 2
+    assert "console.warn(`Perceptronic:" not in app_src.replace("console.warn(`Perceptronic: ${detail}`)", "")
     assert "customElements.define(DIALOG_TAG, PerceptronicPickDialog)" in src
     assert "AFTER_TAG" not in src and "PerceptronicAfterNode" not in src
     for prop in ("contributedNode", "presenterAPI", "robotSettings", "programTree", "applicationContext"):
