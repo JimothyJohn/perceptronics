@@ -42,17 +42,6 @@
          grid-template-rows: auto auto; grid-template-areas: "color depth side" "color depth side"; }
   @media (max-width: 1200px) { main { grid-template-columns: 1fr 1fr; grid-template-areas: "color depth" "side side"; } }
   @media (max-width: 760px) { main { grid-template-columns: 1fr; grid-template-areas: "color" "depth" "side"; } }
-  /* extra viewpoints (--view): a second row → the 2×2 grid */
-  .panel.view { display: none; }
-  body.views .panel.view { display: flex; }
-  body.views main { grid-template-rows: 1fr 1fr; grid-template-areas: "color depth side" "view0 view1 side"; }
-  body.views.views1 main { grid-template-areas: "color depth side" "view0 view0 side"; }
-  @media (max-width: 1200px) { body.views main { grid-template-areas: "color depth" "view0 view1" "side side"; }
-                               body.views.views1 main { grid-template-areas: "color depth" "view0 view0" "side side"; } }
-  @media (max-width: 760px) { body.views main, body.views.views1 main { grid-template-areas: "color" "depth" "view0" "view1" "side"; } }
-  #view0Panel { grid-area: view0; } #view1Panel { grid-area: view1; }
-  .stage img.view { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-  body.demo .panel.view { display: none; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: flex;
            flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
   .panel > .head { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -178,16 +167,6 @@
       </div>
       <div class="hint">Colour = metres (near→far). Dark grey = no depth. Readout gives the camera-frame point X/Y/Z of the pixel under the cursor.</div>
     </div>
-  </section>
-
-  <section id="view0Panel" class="panel view">
-    <div class="head"><h2 id="view0Title">View 1</h2><div class="right"><span id="view0Meta">–</span></div></div>
-    <div class="body"><div class="stage" id="view0Stage"><img class="view" id="view0Img" alt=""><div class="readout" id="view0Readout">waiting for the first frame…</div></div></div>
-  </section>
-
-  <section id="view1Panel" class="panel view">
-    <div class="head"><h2 id="view1Title">View 2</h2><div class="right"><span id="view1Meta">–</span></div></div>
-    <div class="body"><div class="stage" id="view1Stage"><img class="view" id="view1Img" alt=""><div class="readout" id="view1Readout">waiting for the first frame…</div></div></div>
   </section>
 
   <aside id="side" class="panel">
@@ -673,42 +652,9 @@
 
 
   // ---- info poll -------------------------------------------------------------------
-  // ---- extra viewpoints (--view): one long-poll loop per view, image bytes → <img> ----
-  const viewLoops = new Set();
-  function viewLoop(i) {
-    if (viewLoops.has(i) || i > 1) return;   // the page lays out two view panels
-    viewLoops.add(i);
-    const img = $(`view${i}Img`), meta = $(`view${i}Meta`), readout = $(`view${i}Readout`);
-    let vseq = 0, url = null;
-    (async () => {
-      while (true) {
-        if (!running) { await sleep(120); continue; }
-        try {
-          const r = await fetch(`/api/view/${i}?after=${vseq}&timeout_ms=1500`);
-          if (r.status === 503) { const j = await r.json(); readout.textContent = j.last_error || 'waiting for the first frame…'; readout.style.display = ''; await sleep(500); continue; }
-          if (r.status === 404) { readout.textContent = 'view gone'; await sleep(2000); continue; }
-          if (!r.ok) throw new Error(`view fetch ${r.status}`);
-          const s = parseInt(r.headers.get('X-Seq') || '0', 10);
-          if (s === vseq) continue;   // long-poll timed out: nothing new
-          vseq = s;
-          const blob = await r.blob(), next = URL.createObjectURL(blob);
-          img.src = next; if (url) URL.revokeObjectURL(url); url = next;
-          readout.style.display = 'none';
-          meta.textContent = `${r.headers.get('X-Fps') || '0'} fps · seq ${s}`;
-        } catch (e) { readout.textContent = `view: ${e.message}`; readout.style.display = ''; await sleep(500); }
-      }
-    })();
-  }
-  function views(list) {
-    const n = Math.min((list || []).length, 2);
-    document.body.classList.toggle('views', n > 0); document.body.classList.toggle('views1', n === 1);
-    list.slice(0, 2).forEach((v, i) => { $(`view${i}Title`).textContent = v.name || `View ${i + 1}`; viewLoop(i); });
-  }
-
   async function info() {
     try {
       const j = await (await fetch('/api/info')).json(); const c = j.camera, d = c.device || {};
-      views(j.views || []);
       $('cam').textContent = `${d.name || c.kind}${d.serial ? ' · ' + d.serial : ''}`;
       $('chipKind').textContent = c.kind; $('chipKind').className = 'chip ' + (c.kind === 'synthetic' ? 'warn' : (c.open ? 'ok' : 'crit'));
       $('chipUsb').textContent = d.usb_type ? `usb ${d.usb_type}` : 'usb –'; $('chipUsb').className = 'chip ' + (d.usb_type && !String(d.usb_type).startsWith('3') ? 'warn' : '');

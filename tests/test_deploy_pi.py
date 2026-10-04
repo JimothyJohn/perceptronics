@@ -239,7 +239,6 @@ def test_unit_execstart_parses_under_the_real_cli(monkeypatch):
     served = {}
     monkeypatch.setattr(webapp, "camera_from_args", lambda args, config: None)
     monkeypatch.setattr(webapp, "robot_from_args", lambda args: None)
-    monkeypatch.setattr(webapp, "views_from_args", lambda args, config: [])
     monkeypatch.setattr(webapp, "serve", lambda *a, **kw: served.update(kw))
     from perceptronics import cli
 
@@ -309,7 +308,6 @@ def test_written_cell_env_parses_and_is_self_contained(tmp_path, cell):
     assert result.returncode == 0, result.stderr
     values = parse_env_text((tmp_path / "cell.env").read_text(encoding="utf-8"))
     assert values["UR_HOST"] == "192.168.3.3"
-    assert "PERCEPTRONICS_VIEWS" not in values, "the Mac's webcam names must not reach the pick PC"
     assert values["REALSENSE_LIB"] == parse_env_text(_text(TEMPLATE))["REALSENSE_LIB"]
     assert set(values) <= _env_names_read_by_code()
 

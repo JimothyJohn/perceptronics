@@ -14,7 +14,7 @@
   flange pose it was taken at — perceptronics/posestream.py), rendered to an HDR
   target, bloomed and tonemapped; the robot base, the camera, a light column over
   every object and the planned path are drawn into it. The wrist feed (turned to
-  the robot's point of view), the controls and the room views sit beside it.
+  the robot's point of view), the controls sit beside it.
   Zero dependencies; WebGL2. /classic keeps every control this page leaves out.
 -->
 <style>
@@ -118,10 +118,6 @@
   label.chk input { appearance: none; width: 13px; height: 13px; border: 1px solid var(--phos-mid); margin: 0; cursor: pointer; }
   label.chk input:checked { background: var(--phos); box-shadow: 0 0 8px rgba(124,247,162,.6); }
   label.chk:has(input:checked) { color: var(--phos); text-shadow: var(--glow); }
-  .views { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: none; margin-top: 12px; }
-  .view { position: relative; aspect-ratio: 4 / 3; }
-  .view canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .view[hidden] { display: none; }
 
   /* right-click on a card or a part: what to do with it */
   #ctx { position: fixed; z-index: 60; display: none; min-width: 190px; background: rgba(2,8,5,.94); border: 1px solid var(--phos-mid);
@@ -195,10 +191,6 @@
       <button id="kStart" title="power on + brake release (START)">Start</button>
       <button id="kHome" title="back to the picture pose (HOME)">Home</button>
       <button id="kFind" title="find every block (SCAN) — or click one in the feed">Scan</button>
-    </div>
-    <div class="views">
-      <div class="view corners" id="view0" hidden><div class="tag"><span id="view0Name">VIEW 1</span></div><canvas id="view0Cv"></canvas><div class="nosig" id="view0Wait">—</div></div>
-      <div class="view corners" id="view1" hidden><div class="tag"><span id="view1Name">VIEW 2</span></div><canvas id="view1Cv"></canvas><div class="nosig" id="view1Wait">—</div></div>
     </div>
   </aside>
 </main>
@@ -380,9 +372,8 @@
     g.uniform1f(T.crt.u.uAcq, S.acquiredAt ? Math.min(1.01, (now - S.acquiredAt) / 700) : 2);
     g.uniform1i(T.crt.u.uMode, mode); g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
   }
-  let feedTube = null, viewTubes = [null, null];
+  let feedTube = null;
   try { feedTube = makeTube($('gl')); } catch (e) { setTimeout(() => say(`display: ${e.message}`, 'crit'), 1200); }
-  try { viewTubes = [makeTube($('view0Cv')), makeTube($('view1Cv'))]; } catch (e) { viewTubes = [null, null]; }
 
   // ---- the RANGE SCAN: lit splats → HDR → bloom → tonemap -------------------------------------------
   const VS_CLOUD = `#version 300 es
@@ -923,26 +914,6 @@
     const xs = ps.map((p) => p[0]).sort((a, b) => a - b), ys = ps.map((p) => p[1]).sort((a, b) => a - b), q = (a, f) => a[Math.floor(a.length * f)];
     autoFrame.surf = { c: [q(xs, 0.5), q(ys, 0.5), S.tableZ], r: Math.max(0.1, Math.hypot(q(xs, 0.9) - q(xs, 0.1), q(ys, 0.9) - q(ys, 0.1)) / 2) };
   }
-  const viewLoops = new Set();
-  function viewLoop(i) {
-    if (viewLoops.has(i) || i > 1) return; viewLoops.add(i);
-    const T = viewTubes[i], wait = $(`view${i}Wait`); let vseq = 0;
-    (async () => {
-      while (true) {
-        if (!S.running) { await sleep(150); continue; }
-        try {
-          const r = await fetch(`/api/view/${i}?after=${vseq}&timeout_ms=1500`);
-          if (r.status === 503 || r.status === 404) { wait.hidden = false; await sleep(1000); continue; }
-          if (!r.ok) throw new Error(`view ${r.status}`);
-          const s = parseInt(r.headers.get('X-Seq') || '0', 10); if (s === vseq) continue; vseq = s;
-          const bmp = await createImageBitmap(await r.blob());
-          if (T) { upload(T.g, T.feed, false, bmp.width, bmp.height, bmp, true); T.hasFeed = 1; T.w = bmp.width; T.h = bmp.height; }
-          bmp.close && bmp.close(); wait.hidden = true;
-        } catch (e) { wait.hidden = false; await sleep(800); }
-      }
-    })();
-  }
-
   // ---- segmentation + the plan preview ------------------------------------------------------------------
   function maskTexture(b64) {
     return new Promise((resolve) => {
@@ -1141,7 +1112,6 @@
   // ---- the loop, info, boot ------------------------------------------------------------------------------------
   function frame(now) {
     if (feedTube) drawTube(feedTube, S.mode === 'TRUE' ? 1 : (S.mode === 'RANGE' ? 2 : 0), now, S.flipped);
-    viewTubes.forEach((T, i) => { if (T && !$(`view${i}`).hidden) drawTube(T, 0, now, false); });   // the same phosphor as the wrist feed
     if (C) drawScan(now);
     drawFeedOverlay(now);
     $('nosignal').hidden = !!(S.frameAt && now - S.frameAt < 6000) || now < 1400;
@@ -1161,7 +1131,6 @@
       const short = (d.name || c.kind || '').replace(/^.*RealSense\s*/i, '').replace(/\s+/g, ' ').trim();
       $('ident').textContent = [cell.UR_CELL ? String(cell.UR_CELL).toUpperCase() : (S.robot ? 'ARM' : 'NO ROBOT'), short || null, S.robot && S.robot.dry_run ? 'DRY RUN' : null].filter(Boolean).join(' · ');
       $('ident').title = [S.robot ? `${S.robot.platform || ''} ${S.robot.host}` : 'no robot', d.name ? `${d.name}${d.serial ? ' ' + d.serial : ''}` : c.kind].filter(Boolean).join(' · ');
-      (j.views || []).slice(0, 2).forEach((v, i) => { $(`view${i}`).hidden = false; $(`view${i}Name`).textContent = v.name || `VIEW ${i + 1}`; viewLoop(i); });
       if (!S.robot) { lamp('lArm'); lamp('lSafe'); lamp('lRmt'); }
       armKeys();
       if (!booted) { booted = true; say(`${d.name || c.kind || 'camera'} ${c.open ? 'online' : 'offline'}${c.lean ? ' · lean open' : ''} · segmenter ${j.segmenter || '?'}`, c.open ? 'dim' : 'warn');

@@ -234,8 +234,7 @@ Deliverables:
   part where it is and tells the operator which step it stopped in. No auto-resume into
   a machine.
 - **Resume** = Continue on the pendant from the Tray-empty popup; from any other fault,
-  the operator confirms the machine state first (a Yes/No popup per fault, the pattern
-  `urctl/guided.py` uses).
+  the operator confirms the machine state first (a Yes/No popup per fault, `Robot.confirm_on_pendant`).
 - **Cycle log** on the Pi: one JSON line per part (time, pick number, pose, grip
   position, machine cycle time, fault). `audit.jsonl` exists; it needs rotation
   (`deploy/pi/README.md` §Open items) and this record type.

@@ -83,10 +83,7 @@ the arm: `ur_flange_pose` (new tool) + the bracket-nominal hand-eye seed
 base-frame point and an approach pose; **Move** is one `ur_move_tcp` through the
 same tool registry (`perceptronics/robotlink.py`; `perceptronics/README.md` §Sending a
 point to the robot). `urctl/pose.py` is the stdlib pose math (`pose_trans` /
-`pose_inv` semantics). **Extra viewpoints** (`--view DEVICE`, `PERCEPTRONICS_VIEWS` in the
-cell): plain webcams under the colour/depth pair (2×2 grid) and in every snapshot,
-via ffmpeg (`perceptronics/views.py`; macOS picks devices by AVFoundation name; launch
-from a local Terminal — SSH sessions are denied camera access by TCC). **macOS needs `sudo`** to open the camera (libusb
+`pose_inv` semantics). **macOS needs `sudo`** to open the camera (libusb
 must detach Apple's UVC driver — `failed to set power state` otherwise); Linux
 needs the udev rules. `--fake` runs everything on a synthetic scene. The
 shipped compute is the pick PC (`deploy/pi/`; the Jetson container was dropped 2026-10-04). The camera mounts on the tool flange via
@@ -759,74 +756,6 @@ visible flow reads as named operations (`close_gripper()`) instead of I/O
 plumbing. `make regen-urps` runs any `tests/fixtures/programs/*/build.py` to refresh its `.urp`
 (falling back to the `.script`→`.urp` converter for script-based samples).
 
-### Guided build with on-pendant confirmation
-
-`urctl/guided.py` (`GuidedSession`) builds a node-tree program **interactively**:
-the operator issues a step, the robot raises a **Yes/No dialog on its own
-pendant** describing what it's about to do, and on Yes the step *executes live
-and is recorded* into the growing `.urp`. The console front end is
-`urctl guided <name> --save <path>` (a REPL: `movej`, `movetcp [rel]`, `out`,
-`comment`, `summary`, `save`, `quit`).
-
-Two authoring conventions are baked in (see
-`urctl/PROGRAM-AUTHORING.md`): every recorded step is preceded by a
-**Comment node** built from its `; description` (so always pass one), and
-waypoints are **named by function** (CamelCased description), reusing an earlier
-name when a step returns to the same pose. Because each step gets its own
-comment, guided moves are intentionally not grouped into shared Move nodes.
-Passing **`--freedrive`** makes each move drop into freedrive after executing so
-the operator can hand-guide the exact pose and tap Yes (No/Cancel skips)
-(`Robot.reteach_in_freedrive`); the achieved pose is recorded and later relative
-steps build off it.
-
-**Multi-point inspection app** (`urctl inspect <name> --save <path> [--live]`,
-built on `guided.run_inspection`): a pendant-led loop for "walk the robot to each
-spot and snap a picture." It embeds a camera-trigger subprogram once
-(`guided.CAMERA_TRIGGER_DEF` — a digital-out pulse placeholder; swap for the real
-trigger via `--call` or by editing the def), then repeatedly drops into freedrive
-so the operator hand-guides to a point and taps **Yes** to capture (records a
-MoveJ waypoint + a `script_line` call to the subprogram) or **No/Cancel** to
-finish. This is the canonical use of the Yes/No/Cancel return: Cancel ends the
-loop. No camera calibration needed — points are joint-space teach poses.
-
-The pendant gate is `Robot.confirm_on_pendant(prompt, timeout=…)`, built on
-`request_boolean_from_primary_client` — which **PolyScope's own UI answers**
-(the operator taps the choice on the teach pendant; see the dialect note below
-on `request_*_from_primary_client`). Hard-won details, all verified against the
-sim:
-
-- **Confirm, then act — two round-trips, not one.** The confirm is separate from
-  the motion so the move still flows through the `SafetyEnvelope`; inlining the
-  action into the confirm script would bypass validation.
-- **A timed-out confirm leaves a dialog up on the controller** that blocks the
-  next step. `confirm_on_pendant` detects no-answer (`confirmed=None`) and
-  issues `stop` + `close popup` to clear it. On Yes/No the request program ends
-  itself, so cleanup only runs on timeout.
-- **Only approved *and* executed steps are recorded.** A reject, a safety-refused
-  move, or a move that doesn't confirm completion is tallied in `session.steps`
-  but never added to the program.
-- **Moves are recorded as joint-space waypoints at the achieved pose** (read back
-  after the move), so a Cartesian step replays to the same physical spot without
-  calibration — `move_tcp` becomes a `MoveL` over a joint `Waypoint`.
-
-**Live tree growth (`--live`).** By default the node tree is built host-side and
-only appears in PolyScope's Program tab once the `.urp` is loaded. To make the
-tree grow *node-by-node as you confirm*, pass `urctl guided … --live`: after
-every recorded step the program is saved, placed on the controller, and
-reloaded. An e-Series controller **only refreshes its tree by loading a file**,
-so there's no avoiding a brief reload blink per step. The env-specific bit —
-getting the file into the controller's program dir — is a *placer*:
-`docker_placer(container)` (`docker cp` into this repo's URSim; the default,
-`--live-container`) or `local_dir_placer(dir)` (a host-reachable program dir, a
-mounted real-robot share; `--live-program-dir`). `GuidedSession(on_record=…)` is
-the generic post-record hook; `LiveReloader` is the supplied save→place→load
-implementation (reload failures are swallowed + logged — the in-memory program
-and the final save are unaffected).
-
-The one thing that can't be CI-verified is a human actually tapping Yes/No on
-the pendant; everything up to and after that (dialog raised, blocks, readback,
-timeout cleanup, record-on-approve, live publish+reload) is covered by tests.
-
 ## URScript dialect notes
 
 These are gotchas I hit writing `tests/fixtures/programs/InspectionBot/InspectionBot.script`:
@@ -1007,17 +936,6 @@ with `UrpProgram(..., installation="default")` (the builder default). Long
 term, `ssh-copy-id root@<ip>` and drop `sshpass`. There is no Dashboard
 upload command and no SMB/NFS exposed — SSH is the only file-placement
 path.
-
-For step-by-step live program authoring on a real robot, `urctl guided
---live` accepts **`--live-scp root@<ip>`** (in addition to the URSim
-`--live-container` and mounted-share `--live-program-dir`). Each
-approved step is saved → scp'd into `/programs/` → reloaded over
-Dashboard, so the PolyScope tree grows node-by-node on the pendant. Set
-`SSHPASS` once per shell or enroll a pubkey first — the placer does not
-prompt for a password. The matching `<installation>.installation` is
-expected to already exist on the controller (the placer does not push one
-— a real-cell installation is configuration the operator owns, not
-something to overwrite from the dev box).
 
 ### Build motion programs with script nodes (for real-robot cells)
 

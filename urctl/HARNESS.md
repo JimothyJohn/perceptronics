@@ -144,17 +144,11 @@ GUI must respect:
 
 ## 3. Working as a programmer beside the operator
 
-Three authoring layers, lowest to highest:
-
-1. **`urctl.urp_builder.UrpProgram`** — programmatic native node trees
-   (MoveJ/Waypoint, If, Loop, Set, Popup, script nodes). Use script-node
-   motion when `snapshot` says `flange_tcp: false`.
-2. **`urctl guided <name> --save p.urp [--freedrive] [--live ...]`** — the
-   operator-in-the-loop builder: every step is proposed on the pendant
-   (Yes/No), executed live, and recorded at the *achieved* pose. `--live-scp
-   root@<ip>` grows the tree on the real pendant step by step.
-3. **`urctl inspect <name>`** — the multi-point inspection app (freedrive to
-   a spot, tap Yes to capture).
+The authoring layer is **`urctl.urp_builder.UrpProgram`** — programmatic native node trees
+(MoveJ/Waypoint, If, Loop, Set, Popup, script nodes). Use script-node motion when
+`snapshot` says `flange_tcp: false`. (The pendant-confirmed guided builder and the
+inspection app were removed on 2026-10-04; `Robot.confirm_on_pendant` and
+`Robot.reteach_in_freedrive` remain for programs that want a pendant Yes/No.)
 
 The cell model feeds this: named IO becomes routine vocabulary, the active
 TCP decides node style, `safe_home` seeds the retreat pose, and existing

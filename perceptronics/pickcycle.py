@@ -20,8 +20,7 @@ is a client, the same way the MCP tools are. The routine:
    ``drop_mm`` up so the pile shuffles.
 
 Every phase is an event with a wall-clock stamp (``events.json``), and
-``--record DIR`` saves the three cockpit feeds alongside for a
-subtitled timelapse (the cutter was a pilot-era script, deleted 2026-10-04).
+``--record DIR`` saves the wrist feed alongside, stamped, for a timelapse.
 
 The fingertip length is the one number the routine cannot see: ``tip_m``
 (Hand-E 157 mm + the 6 mm bracket adapter by default). The tool axis may be
@@ -1013,47 +1012,21 @@ class PickCycle:
 
 
 class Recorder:
-    """Save ``/api/view/0``, ``/api/view/1`` (JPEG) and ``/api/rgbd`` (PNG) to
-    ``out`` with timestamps relative to ``t0``, plus ``index.json`` + ``t0.json``."""
+    """Save ``/api/rgbd`` (PNG) to ``out`` with timestamps relative to ``t0``, plus
+    ``index.json`` + ``t0.json``."""
 
     def __init__(self, cockpit: Cockpit, out: str, t0: float):
         self.cockpit, self.out, self.t0 = cockpit, out, t0
-        self.idx: dict[str, list] = {"v0": [], "v1": [], "c": []}
+        self.idx: dict[str, list] = {"c": []}
         self.stop = threading.Event()
         self.lock = threading.Lock()
-        for d in ("v0", "v1", "c"):
-            os.makedirs(f"{out}/{d}", exist_ok=True)
+        os.makedirs(f"{out}/c", exist_ok=True)
         json.dump({"t0": t0}, open(f"{out}/t0.json", "w"))
-        self.threads = [
-            threading.Thread(target=self._view, args=(0,), daemon=True),
-            threading.Thread(target=self._view, args=(1,), daemon=True),
-            threading.Thread(target=self._wrist, daemon=True),
-        ]
+        self.threads = [threading.Thread(target=self._wrist, daemon=True)]
 
     def start(self) -> None:
         for t in self.threads:
             t.start()
-
-    def _view(self, i: int) -> None:
-        seq = 0
-        while not self.stop.is_set():
-            try:
-                r = urllib.request.urlopen(
-                    f"{self.cockpit.base}/api/view/{i}?after={seq}&timeout_ms=1000", timeout=5
-                )
-                s = int(r.headers.get("X-Seq", "0"))
-                data = r.read()
-                if s == seq:
-                    continue
-                seq = s
-                t = time.time() - self.t0
-                name = f"{self.out}/v{i}/{int(t * 1000):08d}.jpg"
-                open(name, "wb").write(data)
-                with self.lock:
-                    self.idx[f"v{i}"].append((t, name))
-                time.sleep(0.15)
-            except Exception:
-                time.sleep(0.3)
 
     def _wrist(self) -> None:
         while not self.stop.is_set():
@@ -1078,32 +1051,6 @@ class Recorder:
             t.join(timeout=5)
         json.dump(self.idx, open(f"{self.out}/index.json", "w"))
         return {k: len(v) for k, v in self.idx.items()}
-
-
-def lock_view_focus(cockpit: Cockpit, spec_text: str | None) -> list[dict]:
-    """Before recording: lock the cockpit's webcam views at the focus the cell names
-    (``PERCEPTRONICS_VIEW_FOCUS``, ``perceptronics.uvc``) — a C920 hunting for focus blurs
-    every other second of a timelapse. Runs from this (unprivileged) process, never
-    touches the RealSense; failures are reported and recording goes on."""
-    from .uvc import focus_for, parse_focus_spec, set_focus
-
-    spec = parse_focus_spec(spec_text)
-    if spec is None:
-        return []
-    try:
-        views = [v.get("name", "") for v in cockpit.get("/api/info").get("views") or []]
-    except Exception:
-        views = []
-    out = []
-    for name in views:
-        act, focus = focus_for(spec, name)
-        if act:
-            r = set_focus(name, focus)
-            out.append(r)
-            state = "autofocus" if focus is None else f"focus locked at {focus}"
-            failed = "" if r.get("ok") else f" FAILED: {r.get('error')}"
-            print(f"view {name!r}: {state}{failed}", file=sys.stderr)
-    return out
 
 
 # -- CLI --------------------------------------------------------------------------------
@@ -1133,7 +1080,7 @@ def add_pick_cycle_args(ap) -> None:
         "--record",
         default=None,
         metavar="DIR",
-        help="record the three cockpit feeds + events for a timelapse",
+        help="record the wrist feed + events for a timelapse",
     )
     ap.add_argument(
         "--survey-pose",
@@ -1212,7 +1159,6 @@ def run_pick_cycle(args) -> int:
     )
     rec = None
     if args.record:
-        lock_view_focus(cockpit, os.environ.get("PERCEPTRONICS_VIEW_FOCUS"))
         rec = Recorder(cockpit, args.record, cycle.t0)
         rec.start()
         time.sleep(1.0)

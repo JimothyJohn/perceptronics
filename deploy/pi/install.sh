@@ -330,12 +330,8 @@ import sys
 from perceptronics.cell import load_cell, parse_env_text
 
 cell, robot_host, template, out = sys.argv[1:5]
-# Host-specific to the Mac Studio the shipped cells were written on: webcams by
-# AVFoundation name and their focus lock. A Pi with extra webcams sets PERCEPTRONICS_VIEWS
-# to /dev/videoN by hand.
-DROP = {"PERCEPTRONICS_VIEWS", "PERCEPTRONICS_VIEW_FOCUS"}
 try:
-    values = {k: v for k, v in load_cell(cell).items() if k not in DROP}
+    values = dict(load_cell(cell))
 except ValueError as exc:
     sys.exit(f"--cell: {exc}")
 with open(template, encoding="utf-8") as fh:
