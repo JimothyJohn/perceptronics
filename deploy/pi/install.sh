@@ -725,6 +725,9 @@ remove_cell_dhcp() {
     systemctl disable --now "$CELL_DHCP_UNIT" 2>/dev/null || true
     rm -f "/etc/systemd/system/${CELL_DHCP_UNIT}" "$CELL_DHCP_CONF" "$NM_HOOK"
     systemctl daemon-reload
+    # The NM hook may have restarted it on the address change a moment ago; stopped mid-start
+    # it is left "failed (Result: signal)", and a deleted unit keeps that entry until reset.
+    systemctl reset-failed "$CELL_DHCP_UNIT" 2>/dev/null || true
 }
 
 # ---- systemd ---------------------------------------------------------------------------

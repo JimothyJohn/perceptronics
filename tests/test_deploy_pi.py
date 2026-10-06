@@ -570,3 +570,15 @@ def test_deploy_copies_the_whole_of_deploy_pi_including_its_directories():
     ]
     assert len(copies) == 1, copies
     assert re.search(r"\bscp\s+(-\w+\s+)*-\w*r", copies[0]), copies[0]
+
+
+def test_removing_the_cell_dhcp_clears_its_failed_state():
+    # Regression (2026-10-06, old card): switching the robot DHCP off through the portal left
+    # `perceptronics-cell-dhcp.service: failed (Result: signal)` in `systemctl --failed` — the
+    # NetworkManager hook had restarted the unit on the address change and remove_cell_dhcp
+    # stopped and deleted it mid-start. A deleted unit's failed entry stays until reset-failed.
+    code = _text(INSTALL)
+    body = code[code.index("remove_cell_dhcp() {") :]
+    body = body[: body.index("\n}\n")]
+    assert "reset-failed" in body, body
+    assert body.index("daemon-reload") < body.index("reset-failed"), body
