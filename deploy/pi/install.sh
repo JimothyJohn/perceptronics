@@ -822,7 +822,7 @@ uninstall() {
 
 # ---- main ------------------------------------------------------------------------------
 main() {
-    local wheel="" cell="ur3" robot_host="" allow_from="" reconfigure=0 action=install purge=0
+    local wheel="" cell="ur3" robot_host="" allow_from="" allow_from_given=0 reconfigure=0 action=install purge=0
     local cell_if="eth0" cell_address="192.168.3.20/24" gateway="" dns="" cell_dhcp="auto"
     local saved_cell_if saved_cell_address saved_gateway saved_dns saved_cell_dhcp saved_allow_from
     # what an earlier run (or the setup portal) chose is the default; a flag below overrides it
@@ -838,7 +838,7 @@ main() {
             --wheel) wheel="${2:?--wheel needs a path}"; shift 2 ;;
             --cell) cell="${2:?--cell needs a name}"; shift 2 ;;
             --robot-host) robot_host="${2:?--robot-host needs an address}"; shift 2 ;;
-            --allow-from) allow_from="${2:?--allow-from needs a CIDR}"; shift 2 ;;
+            --allow-from) allow_from="${2:?--allow-from needs a CIDR}"; allow_from_given=1; shift 2 ;;
             --cell-if) cell_if="${2:?--cell-if needs an interface or none}"; shift 2 ;;
             --cell-address) cell_address="${2:?--cell-address needs a CIDR}"; shift 2 ;;
             --gateway) gateway="${2:?--gateway needs an address or none}"; shift 2 ;;
@@ -869,6 +869,9 @@ main() {
     [ "$(id -u)" -eq 0 ] || die "run as root (sudo $0 ...)"
     case "$action" in
         network)
+            # The saved ALLOW_FROM is an update's default, not a network change's: moving to a new
+            # network computes the list for that network (else the subnets the PC left stay open).
+            [ "$allow_from_given" = 1 ] || allow_from=""
             apply_network "$cell_if" "$cell_address" "$robot_host" "$gateway" "$dns" "$cell_dhcp" "$allow_from"
             return
             ;;

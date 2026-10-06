@@ -597,3 +597,36 @@ def test_firewall_serves_the_cockpit_on_port_80_too():
     assert rules[1:] == [f"ip saddr $CELL_NET tcp dport 80 redirect to :{webapp.DEFAULT_PORT}"], rules
     # and the input chain is unchanged: no separate accept for :80 (it never reaches input as :80)
     assert "dport 80" not in _chain("input")
+
+
+def test_a_network_change_recomputes_the_allowed_subnets(tmp_path):
+    # Regression (2026-10-06, old card): after the portal moved the PC to 192.168.50.20 and back,
+    # the firewall still admitted 192.168.50.0/24 — the saved ALLOW_FROM is the default of every
+    # later run (right for an update), and --network reused it instead of computing the list for
+    # the network it was moving to. A network change starts from the new address; only an explicit
+    # --allow-from on that command line is kept.
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    saved = tmp_path / "network.env"
+    saved.write_text(
+        "CELL_IF=eth0\nCELL_ADDRESS=192.168.50.20/24\nALLOW_FROM=192.168.50.0/24,192.168.3.0/24\n"
+    )
+    # install.sh's functions, reading our network.env, without its trailing `main "$@"`
+    copy = tmp_path / "install.sh"
+    code = _text(INSTALL).replace('\nmain "$@"\n', "\n")
+    code = re.sub(r"^readonly NETWORK_ENV=.*$", f'readonly NETWORK_ENV="{saved}"', code, flags=re.M)
+    copy.write_text(code)
+    script = f"""
+        source {copy}
+        id() {{ echo 0; }}
+        apply_network() {{ printf '%s|' "$@"; echo; }}
+        main --network --cell-address 192.168.3.20/24 --gateway none --dns none
+        main --network --cell-address 192.168.3.20/24 --allow-from 10.9.0.0/16
+        main --wheel /nowhere.whl 2>/dev/null || true
+    """
+    out = subprocess.run([bash, "-c", script], capture_output=True, text=True)
+    lines = out.stdout.strip().splitlines()
+    assert len(lines) >= 2, (out.stdout, out.stderr)
+    assert lines[0] == "eth0|192.168.3.20/24||||auto||", out  # recomputed by apply_network
+    assert lines[1] == "eth0|192.168.3.20/24||||auto|10.9.0.0/16|", out  # the explicit one wins
