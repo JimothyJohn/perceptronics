@@ -520,7 +520,14 @@ what the portal chose; (2) after `--network` the port keeps `192.168.3.20/24` as
 the new network holds it; (3) the network rules live twice (helper + `setupportal.validate_network`) and
 a hypothesis test holds them equal — change both; (4) install.sh must never restart
 `perceptronics-admin.service` (an update runs install.sh from inside it); (5) a card flashed before
-this has no portal: reflash it, or SSH with `deploy-pi.sh`. Not yet run on a board.
+this has no portal: reflash it, or SSH with `deploy-pi.sh`. **Run on the old card 2026-10-06**
+(`deploy/pi/PI.md` part 3 log): network change and back, update by `pi-update.sh push` and by the
+page, rollback, the refusals. Two more rules from that run: (6) **every release keeps its deploy files
+and its wheel** (`<release>/deploy`, `.wheel`) and `--rollback` re-runs the previous release's own
+installer — the first version only swapped `current` and left the broken bundle's firewall and
+`install.sh` behind; (7) a `--network` run computes `ALLOW_FROM` for the new network (the saved list
+is an update's default, else the subnets the PC left stay open). Port 80 is the cockpit too
+(nftables `redirect` to :7621), so the portal is `http://<pick PC>/setup`.
 
 **Three traps from the 3D Pick sessions.** (1) `integrations/urcap/pick5_e2e.py` compiles the test harness in
 `tests/test_urcap5.py` (`HARNESS`): anything the harness starts to use must be in the source list

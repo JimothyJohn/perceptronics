@@ -134,7 +134,9 @@ another subnet.
 Install. The PC checks every file against the bundle's manifest (sha256; a truncated or
 damaged upload is refused before anything changes), installs it as a new release with the
 same `install.sh`, waits up to 2 min for the cockpit to answer, and **rolls back by itself**
-if it doesn't. `cell.env`, calibrations and the network settings are kept. The page shows
+if it doesn't — to the previous release *as its bundle installed it*: every release keeps its
+deploy files and wheel, and the rollback re-runs that installer (firewall, units, helper
+included). `cell.env`, calibrations and the network settings are kept. The page shows
 the install log. Make a bundle and send it from a checkout:
 
 ```bash
@@ -156,6 +158,10 @@ everything the cockpit wrote (no symlinks, size caps, every field), runs `instal
 `/var/lib/perceptronics-admin/status.json`, which the page shows. The network settings in use
 are saved to `/etc/perceptronics/network.env` and are the defaults of every later install, so
 an update never undoes the portal. Logs: `journalctl -u perceptronics-admin`.
+
+**Verified on the Pi 5 test board, 2026-10-06** (`PI.md` part 3 log): a network change and
+back through the page, an update pushed and one uploaded on the page, a broken bundle rolled back
+in 2 min 21 s with the firewall restored, a truncated bundle refused, the 401/403 refusals.
 
 **Trust.** Bundles carry checksums, not a signature (decided 2026-10-03). Anyone who can
 reach `:7621` from the allowed subnets and knows the login can install software as root. The
