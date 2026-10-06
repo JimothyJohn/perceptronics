@@ -314,6 +314,7 @@ install_app() {
         touch "${dest}/.complete"
     fi
     cp -f "$wheel" "${APP_ROOT}/wheels/"
+    basename "$wheel" >"${dest}/.wheel"   # --rollback re-runs this release's own installer with it
     local now=""
     [ -L "$CURRENT" ] && now="$(readlink -f "$CURRENT")"
     if [ "$now" != "$dest" ]; then
@@ -764,30 +765,49 @@ install_admin() {
     log "setup portal: ${ADMIN_PATH_UNIT} watching ${ADMIN_QUEUE}"
 }
 
+# The deploy files go to /opt/perceptronics/deploy (what --rollback / --network / --uninstall
+# run) and into the release itself: a rollback re-runs the previous release's installer from
+# there, so its firewall, units and helper come back with it (2026-10-06: a failed bundle's
+# files stayed behind after the app was rolled back).
 copy_deploy_files() {
-    mkdir -p "$DEPLOY_COPY"
-    local f
+    install_deploy_set "$DEPLOY_COPY"
+    local rel
+    rel="$(readlink -f "$CURRENT" 2>/dev/null || true)"
+    [ -n "$rel" ] && [ -d "$rel" ] && install_deploy_set "${rel}/deploy"
+}
+
+install_deploy_set() {
+    local dir="$1" f
+    mkdir -p "$dir"
     for f in install.sh perceptronics-cockpit.service nftables.conf cell.env.template perceptronics-doctor README.md \
         cell-dhcp.conf perceptronics-cell-dhcp.service 50-perceptronics-cell \
         perceptronics-admin perceptronics-admin.path perceptronics-admin.service; do
-        [ "${HERE}/${f}" -ef "${DEPLOY_COPY}/${f}" ] && continue
-        install -m 0644 "${HERE}/${f}" "${DEPLOY_COPY}/${f}"
+        [ "${HERE}/${f}" -ef "${dir}/${f}" ] && continue
+        install -m 0644 "${HERE}/${f}" "${dir}/${f}"
     done
-    chmod 0755 "${DEPLOY_COPY}/install.sh" "${DEPLOY_COPY}/perceptronics-doctor" "${DEPLOY_COPY}/50-perceptronics-cell" \
-        "${DEPLOY_COPY}/perceptronics-admin"
+    chmod 0755 "${dir}/install.sh" "${dir}/perceptronics-doctor" "${dir}/50-perceptronics-cell" "${dir}/perceptronics-admin"
 }
 
 # ---- rollback / uninstall -------------------------------------------------------------
 rollback() {
     [ -L "$PREVIOUS" ] || die "no previous release to roll back to"
-    local cur prev
+    local cur prev wheel=""
     cur="$(readlink -f "$CURRENT")"
     prev="$(readlink -f "$PREVIOUS")"
     [ -x "${prev}/bin/perceptronics" ] || die "previous release ${prev} is incomplete"
+    [ -f "${prev}/.wheel" ] && wheel="${APP_ROOT}/wheels/$(cat "${prev}/.wheel")"
+    if [ -x "${prev}/deploy/install.sh" ] && [ -f "$wheel" ]; then
+        # Everything that release's bundle installed comes back with it — firewall, units, the
+        # helper, the deploy copy — by re-running its own installer (which also swaps the links).
+        log "rolling back to $(basename "$prev") with its own installer"
+        bash "${prev}/deploy/install.sh" --wheel "$wheel" || die "the installer of $(basename "$prev") failed"
+        log "rolled back: current -> $(basename "$prev") (previous -> $(basename "$cur"))"
+        return
+    fi
     ln -sfn "$prev" "$CURRENT"
     ln -sfn "$cur" "$PREVIOUS"
     systemctl restart "$UNIT"
-    log "rolled back: current -> $(basename "$prev") (previous -> $(basename "$cur"))"
+    log "rolled back: current -> $(basename "$prev") (previous -> $(basename "$cur")); its deploy files were not kept (installed before 2026-10-06), the current firewall and units stay"
 }
 
 uninstall() {

@@ -599,6 +599,21 @@ def test_firewall_serves_the_cockpit_on_port_80_too():
     assert "dport 80" not in _chain("input")
 
 
+def _installer_functions(tmp_path: Path, **paths: Path) -> Path:
+    """A copy of install.sh to `source`: its functions, without the trailing `main "$@"`, with the
+    named readonly paths (NETWORK_ENV, APP_ROOT, DEPLOY_COPY, ...) pointed into tmp_path."""
+    code = _text(INSTALL).replace('\nmain "$@"\n', "\n")
+    for name, value in paths.items():
+        if name == "HERE":  # the bundle's deploy dir: set from BASH_SOURCE, then made readonly
+            code, n = re.subn(r"^HERE=.*$", f'HERE="{value}"', code, flags=re.M)
+        else:
+            code, n = re.subn(rf"^readonly {name}=.*$", f'readonly {name}="{value}"', code, flags=re.M)
+        assert n == 1, f"install.sh has no `{name}=` line to point at {value}"
+    copy = tmp_path / "install.sh"
+    copy.write_text(code)
+    return copy
+
+
 def test_a_network_change_recomputes_the_allowed_subnets(tmp_path):
     # Regression (2026-10-06, old card): after the portal moved the PC to 192.168.50.20 and back,
     # the firewall still admitted 192.168.50.0/24 — the saved ALLOW_FROM is the default of every
@@ -612,11 +627,7 @@ def test_a_network_change_recomputes_the_allowed_subnets(tmp_path):
     saved.write_text(
         "CELL_IF=eth0\nCELL_ADDRESS=192.168.50.20/24\nALLOW_FROM=192.168.50.0/24,192.168.3.0/24\n"
     )
-    # install.sh's functions, reading our network.env, without its trailing `main "$@"`
-    copy = tmp_path / "install.sh"
-    code = _text(INSTALL).replace('\nmain "$@"\n', "\n")
-    code = re.sub(r"^readonly NETWORK_ENV=.*$", f'readonly NETWORK_ENV="{saved}"', code, flags=re.M)
-    copy.write_text(code)
+    copy = _installer_functions(tmp_path, NETWORK_ENV=saved)
     script = f"""
         source {copy}
         id() {{ echo 0; }}
@@ -630,3 +641,86 @@ def test_a_network_change_recomputes_the_allowed_subnets(tmp_path):
     assert len(lines) >= 2, (out.stdout, out.stderr)
     assert lines[0] == "eth0|192.168.3.20/24||||auto||", out  # recomputed by apply_network
     assert lines[1] == "eth0|192.168.3.20/24||||auto|10.9.0.0/16|", out  # the explicit one wins
+
+
+# ----- rollback brings back the previous release's deploy files (2026-10-06) ---------------
+
+
+def _fake_app_root(tmp_path: Path) -> Path:
+    """releases/good (with its deploy files and wheel name kept) and releases/bad; current -> bad."""
+    root = tmp_path / "opt"
+    for name in ("good", "bad"):
+        rel = root / "releases" / name
+        (rel / "bin").mkdir(parents=True)
+        (rel / "bin" / "perceptronics").write_text("#!/bin/sh\n")
+        (rel / "bin" / "perceptronics").chmod(0o755)
+        (rel / ".complete").touch()
+    (root / "wheels").mkdir()
+    (root / "wheels" / "perceptronics-0.1.0-py3-none-any.whl").write_bytes(b"not really")
+    good = root / "releases" / "good"
+    (good / ".wheel").write_text("perceptronics-0.1.0-py3-none-any.whl\n")
+    (good / "deploy").mkdir()
+    stub = good / "deploy" / "install.sh"
+    stub.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > {tmp_path}/good-installer-argv\n')
+    stub.chmod(0o755)
+    (root / "current").symlink_to(root / "releases" / "bad")
+    (root / "previous").symlink_to(good)
+    return root
+
+
+def _run_installer_function(bash: str, copy: Path, body: str) -> subprocess.CompletedProcess:
+    script = f"""
+        source {copy}
+        systemctl() {{ echo "systemctl $*"; }}
+        {body}
+    """
+    return subprocess.run([bash, "-c", script], capture_output=True, text=True)
+
+
+def test_rollback_reinstalls_the_previous_release_with_its_own_installer(tmp_path):
+    # Regression (2026-10-06, old card): a broken bundle's install.sh rewrote the firewall, the
+    # units and /opt/perceptronics/deploy before its cockpit failed; --rollback swapped `current`
+    # back and left all of that in place (port 80 gone, an older install.sh for the next job).
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    root = _fake_app_root(tmp_path)
+    copy = _installer_functions(tmp_path, APP_ROOT=root)
+    out = _run_installer_function(bash, copy, "rollback")
+    assert out.returncode == 0, (out.stdout, out.stderr)
+    argv = (tmp_path / "good-installer-argv").read_text().split()
+    assert argv == ["--wheel", str(root / "wheels" / "perceptronics-0.1.0-py3-none-any.whl")], out.stdout
+    assert "systemctl" not in out.stdout, "the previous installer restarts the service itself"
+
+
+def test_rollback_to_a_release_without_kept_deploy_files_swaps_and_says_so(tmp_path):
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    root = _fake_app_root(tmp_path)
+    shutil.rmtree(root / "releases" / "good" / "deploy")  # installed before the files were kept
+    copy = _installer_functions(tmp_path, APP_ROOT=root)
+    out = _run_installer_function(bash, copy, "rollback")
+    assert out.returncode == 0, (out.stdout, out.stderr)
+    assert (root / "current").resolve() == root / "releases" / "good"
+    assert (root / "previous").resolve() == root / "releases" / "bad"
+    assert "systemctl restart perceptronics-cockpit.service" in out.stdout
+    assert "not kept" in out.stdout, out.stdout
+
+
+def test_the_installer_keeps_its_deploy_files_and_wheel_name_in_the_release(tmp_path):
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    root = _fake_app_root(tmp_path)
+    copy = _installer_functions(tmp_path, APP_ROOT=root, HERE=PI)
+    out = _run_installer_function(bash, copy, "copy_deploy_files")
+    assert out.returncode == 0, (out.stdout, out.stderr)
+    for where in (root / "deploy", root / "releases" / "bad" / "deploy"):  # current -> bad
+        assert (where / "install.sh").is_file() and (where / "nftables.conf").is_file(), where
+        assert (where / "install.sh").stat().st_mode & 0o111, where
+        assert (where / "perceptronics-admin").stat().st_mode & 0o111, where
+    # and install_app records which wheel made the release, for rollback to re-run its installer
+    assert re.search(r'basename "\$wheel"[^\n]*> *"\$\{dest\}/\.wheel"', _text(INSTALL)), (
+        "install_app writes .wheel"
+    )
