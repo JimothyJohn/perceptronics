@@ -582,3 +582,18 @@ def test_removing_the_cell_dhcp_clears_its_failed_state():
     body = body[: body.index("\n}\n")]
     assert "reset-failed" in body, body
     assert body.index("daemon-reload") < body.index("reset-failed"), body
+
+
+# ----- port 80: the portal without a port number (Nick, 2026-10-06) -----------------------
+
+
+def test_firewall_serves_the_cockpit_on_port_80_too():
+    # "Users won't be familiar with ports": http://<pick PC>/setup must work. The cockpit stays
+    # unprivileged on :7621; nftables rewrites :80 before the input chain sees it, from the
+    # same subnets that may reach :7621 (the input chain then admits it as :7621).
+    chain = _chain("prerouting")
+    assert re.search(r"type nat hook prerouting priority dstnat; policy accept;", chain)
+    rules = [ln.strip() for ln in chain.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    assert rules[1:] == [f"ip saddr $CELL_NET tcp dport 80 redirect to :{webapp.DEFAULT_PORT}"], rules
+    # and the input chain is unchanged: no separate accept for :80 (it never reaches input as :80)
+    assert "dport 80" not in _chain("input")

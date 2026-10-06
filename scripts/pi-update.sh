@@ -12,7 +12,7 @@
 # yet, because a cell PC has no internet to build one.
 # push: logs in as PERCEPTRONICS_ADMIN_USER / PERCEPTRONICS_ADMIN_PASSWORD (default admin/admin),
 # uploads, and prints the PC's install log until it reports done / failed / rolled back.
-# An operator does the same on http://<pick PC>:7621/setup with no tools at all.
+# An operator does the same on http://<pick PC>/setup with no tools at all.
 #
 # PYTHON=/path/to/python3 picks the Python that builds the wheel (default: the first with pip).
 set -euo pipefail
@@ -65,7 +65,7 @@ case "$cmd" in
         bundle="$("$py" "$admin" "${args[@]}")"
         "$py" "$admin" verify "$bundle" >/dev/null
         log "wrote ${bundle} ($(du -h "$bundle" | cut -f1))"
-        log "install it: scripts/pi-update.sh push ${bundle#"${repo}/"}   (or upload it on http://<pick PC>:7621/setup)"
+        log "install it: scripts/pi-update.sh push ${bundle#"${repo}/"}   (or upload it on http://<pick PC>/setup)"
         ;;
     push)
         [ $# -ge 1 ] || die "push needs a bundle (scripts/pi-update.sh bundle makes one)"

@@ -803,7 +803,7 @@ def test_a_network_change_is_queued_once(portal_server):
     )
     out = json.loads(body)
     assert status == 200 and out["ok"], out
-    assert out["new_url"] == "http://10.20.0.50:7621/setup" and out["rescue_address"] == "192.168.3.20"
+    assert out["new_url"] == "http://10.20.0.50/setup" and out["rescue_address"] == "192.168.3.20"
     jid = out["job"]
     queued = json.loads((portal.queue / f"{jid}.json").read_text())
     assert queued == {"kind": "network", "network": admin.validate_network(queued["network"])}

@@ -471,7 +471,7 @@ install_firewall() {
     rm -f "$rendered"
     systemctl enable -q nftables.service
     [ "$IMAGE" = 1 ] || systemctl restart nftables.service
-    log "firewall: inbound SSH from anywhere; :7621/:7622 from ${net} only; DHCP on ${cell_if}; everything else dropped"
+    log "firewall: inbound SSH from anywhere; :7621/:7622 (and :80 -> :7621) from ${net} only; DHCP on ${cell_if}; everything else dropped"
 }
 
 # ---- the cell port ---------------------------------------------------------------------

@@ -99,7 +99,7 @@ What READY looks like on this cell:
 | `approach` | fingertip, 0.163 m |
 | `robot.control` | `LOCAL` gates the **cockpit's** moves and `calibrate` only (the verdict says STATE ONLY); the 3D Pick node doesn't care |
 
-The cockpit's own page is at http://192.168.3.20:7621 from the Mac's cell interface (`.10`),
+The cockpit's own page is at http://192.168.3.20 (or `:7621`) from the Mac's cell interface (`.10`),
 or from anywhere through `ssh -L 7621:127.0.0.1:7621 nick@10.0.0.56`.
 
 ## 6. Calibrate when the camera has moved

@@ -508,7 +508,7 @@ range-scaled tolerance also loosens the height check; a fixed deployment could s
 empty-surface depth map instead of fitting the floor (not built).
 
 **Setup portal + update bundles (2026-10-03, Nick: "a setup portal ... at its default IP address",
-`admin`/`admin` for now; bundles checksummed, **not signed** — his call).** `http://<pick PC>:7621/setup`
+`admin`/`admin` for now; bundles checksummed, **not signed** — his call).** `http://<pick PC>/setup` (port 80 → :7621 in the firewall; `:7621` works too)
 (`perceptronics/setupportal.py`, `webui/setup.html`) changes the cell port's address/gateway/DNS, the
 robot's address and the cell DHCP, and installs `perceptronics-update-*.tar` bundles
 (`scripts/pi-update.sh bundle|push`). The cockpit only queues; root work is
