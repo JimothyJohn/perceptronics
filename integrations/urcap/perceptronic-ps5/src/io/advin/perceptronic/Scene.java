@@ -82,6 +82,44 @@ final class Scene {
         return nearest;
     }
 
+    /**
+     * Across the top of the picture when nothing will be picked (Nick, 2026-10-06: a node left at
+     * its default 110 × 50 × 30 saw 110 × 70 × 30 boxes and said "2 parts touching?"): the size to
+     * check, what was seen instead (the first near miss, with why), and the camera computer's
+     * notes. Null when a part is found, or when nothing at all is in view and there is no note.
+     * {@code part}: {@link PickScreen#sizeWords}. The same words as the PolyScope X node's
+     * sceneBanner.
+     */
+    String banner(String part) {
+        if (!parts.isEmpty()) return null;
+        List<Part> near = nearMisses();
+        String text;
+        if (!near.isEmpty()) {
+            Part r = near.get(0);
+            String size = r.lengthMm > 0 || r.widthMm > 0 || r.heightMm > 0
+                    ? " " + r.lengthMm + " × " + r.widthMm + " × " + r.heightMm + " mm" : "";
+            String why = r.why != null ? " (" + r.why + ")" : "";
+            String more = near.size() > 1 ? " and " + (near.size() - 1) + " more" : "";
+            text = "No part of " + part + " in view — check the part size under Part. Seen instead:" + size + why
+                    + more;
+        } else if (!rejected.isEmpty()) {
+            text = "Nothing like a part of " + part + " in view — check the part size under Part";
+        } else {
+            return notes.isEmpty() ? null : join(notes);
+        }
+        return notes.isEmpty() ? text : text + " · " + join(notes);
+    }
+
+    private static String join(List<String> xs) {
+        StringBuilder b = new StringBuilder();
+        for (String x : xs) {
+            if (x == null || x.isEmpty()) continue;
+            if (b.length() > 0) b.append(" · ");
+            b.append(x);
+        }
+        return b.toString();
+    }
+
     /** One line for the screen's status: how many parts will be picked, how many nearly. */
     String summary() {
         int near = nearMisses().size();

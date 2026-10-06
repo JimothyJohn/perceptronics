@@ -63,7 +63,7 @@ def test_the_script_is_one_move_sequence_from_the_survey_to_the_grip(java_client
     assert out["problem"] is None
     text = out["script"]
     assert text.isascii() and balanced(text)
-    assert text.startswith("# 3D Pick 0.9.0 ")
+    assert text.startswith("# 3D Pick 0.9.1 ")
     order = [
         "set_tcp(p[0, 0, 0, 0, 0, 0])",
         'socket_open("192.168.3.10", 7622, "rs_pick")',

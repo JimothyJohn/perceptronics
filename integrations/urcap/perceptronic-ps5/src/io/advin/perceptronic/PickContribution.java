@@ -607,6 +607,7 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
                     if (res.get("pick_port") instanceof Number) keepPort(((Number) res.get("pick_port")).intValue());
                     scene = Scene.parse(res);
                     view.screen().setScene(scene);
+                    view.screen().setBanner(scene.banner(PickScreen.sizeWords(s)));
                     if (!Boolean.TRUE.equals(res.get("ok")) && res.get("error") != null) {
                         view.screen().setStatus("the camera computer: " + res.get("error"), Ui.Kind.WARN);
                         announced = false;

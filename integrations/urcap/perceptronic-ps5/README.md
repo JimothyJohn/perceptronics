@@ -20,7 +20,7 @@ the same glyph is the toolbar button, every screen's header and a faint watermar
 Installation's and the popup's live picture (`Logo.java` draws it with Java2D; a test holds
 it equal to the SVG).
 
-Download: [`../dist/perceptronic-ps5-0.9.0.urcap`](../dist/perceptronic-ps5-0.9.0.urcap)
+Download: [`../dist/perceptronic-ps5-0.9.1.urcap`](../dist/perceptronic-ps5-0.9.1.urcap)
 
 ## Install on the robot
 
@@ -29,7 +29,7 @@ You need a USB stick and nothing else: no tools, no command line. Two files matt
 
 | File | What it is |
 | --- | --- |
-| [`perceptronic-ps5-0.9.0.urcap`](../dist/perceptronic-ps5-0.9.0.urcap) | The URCap. Always needed. |
+| [`perceptronic-ps5-0.9.1.urcap`](../dist/perceptronic-ps5-0.9.1.urcap) | The URCap. Always needed. |
 | [`urmagic_perceptronic.sh`](../dist/urmagic_perceptronic.sh) | Optional. Lets the robot install the URCap by itself when the stick goes in (B below). |
 
 ### 1. Put the files on a stick
@@ -46,14 +46,14 @@ You need a USB stick and nothing else: no tools, no command line. Two files matt
    Trash) before pulling it out. A stick pulled early can hold a half-written file.
 
 On a Mac, Finder also writes hidden `._…` companions next to each file. They are harmless
-except that PolyScope's file picker lists `._perceptronic-ps5-0.9.0.urcap` too — pick the
+except that PolyScope's file picker lists `._perceptronic-ps5-0.9.1.urcap` too — pick the
 one **without** `._`. `scripts/urcap5-usb.sh` does the whole of this step without them.
 
 ### 2A. Install by hand on the pendant (always works)
 
 1. Plug the stick into the pendant.
 2. Tap ☰ (top right) → **Settings** → **System** → **URCaps**.
-3. Tap **+**, tap `perceptronic-ps5-0.9.0.urcap`, tap **Open**.
+3. Tap **+**, tap `perceptronic-ps5-0.9.1.urcap`, tap **Open**.
 4. Tap **Restart** when PolyScope asks.
 5. After the restart: **Installation** tab → **URCaps** → **Perceptronic**.
 
@@ -191,7 +191,11 @@ drawn on it: every part that **will be picked in green, with its number** in the
 and every candidate that is nearly the part and **will not be in yellow, with why** —
 `too long`, `too flat`, `2 parts touching?`, `out of reach (no joint solution)`,
 `no room for a finger beside it`, `outside the pick area`, `cut off by the edge of the
-picture`. What is nothing like the part (a clamp, a cable) gets no graphic.
+picture`. What is nothing like the part (a clamp, a cable) gets no graphic. **When nothing will be
+picked, a banner across the top of the picture says what to check** (0.9.1, Nick 2026-10-06 — a node
+left at its default 110 × 50 × 30 saw 110 × 70 × 30 boxes and only said *2 parts touching?*): the part
+size entered, the first near miss's measured size with why, and the camera computer's notes (a rough
+surface, say).
 
 **Picture / Depth** — the toggle at the picture's top right, inside its frame — switches the
 stream between the camera's picture and the depth as a heatmap (near = violet, far =

@@ -112,7 +112,8 @@ if (req.cmd === "pick") {
   out.advice = Object.fromEntries(
     (req.advise || []).map(([kind, base, detail]) => [kind + " " + base, P.advise(kind, base, detail)]));
   out.near = (req.scenes || []).map(
-    (sc) => ({ drawn: P.nearMisses(sc).map((r) => r.why), summary: P.sceneSummary(sc) }));
+    (sc) => ({ drawn: P.nearMisses(sc).map((r) => r.why), summary: P.sceneSummary(sc),
+      banner: P.sceneBanner(sc, req.part || "110 × 50 × 30 mm") }));
   out.exports = Object.keys(P);
   out.orders = P.ORDER_TILES.map(([a, b]) => P.isOrder(a, b));
   out.badOrders = [["LR", "RL"], ["FB", "BF"], ["XX", "FB"]].map(([a, b]) => P.isOrder(a, b));
@@ -172,7 +173,7 @@ def test_the_script_is_one_move_sequence_from_the_survey_to_the_grip():
     assert out["problem"] is None
     text = out["script"]
     assert text.isascii() and balanced(text)
-    assert text.startswith("# 3D Pick 0.7.0 ")
+    assert text.startswith("# 3D Pick 0.7.1 ")
     order = [
         "global rs_pick_found = False",
         "set_tcp(p[0, 0, 0, 0, 0, 0])",
@@ -539,6 +540,63 @@ def test_the_picture_draws_only_the_near_misses():
         "0 parts to pick · 1 not (yellow, with why)",
         "no part in view",
     ]
+
+
+# The scenes both nodes must word the same way (tests/test_urcap5.py reads the Java's banner for them)
+SQ = [[0, 0], [1, 0], [1, 1], [0, 1]]  # every candidate the camera computer sends has its corners
+
+
+def _seen(pixel, size_mm, height_mm, why, near):
+    return {
+        "pixel": pixel,
+        "corners_px": SQ,
+        "size_mm": size_mm,
+        "height_mm": height_mm,
+        "why": why,
+        "near": near,
+    }
+
+
+ROUGH = "the surface reads rough (±13.6 mm) over much of the picture: move the camera closer"
+CHECK = "in view — check the part size under Part"
+# The scenes both nodes must word the same way (tests/test_urcap5.py reads the Java's banner for them)
+BANNER_SCENES = [
+    {  # Nick's 2026-10-06 picture: the node at its default size, 110 × 70 × 30 boxes in view
+        "ok": True,
+        "parts": [],
+        "rejected": [
+            _seen([430, 194], [114, 71], 33, "too wide", True),
+            _seen([455, 328], [107, 31], 73, "too tall", True),
+            _seen([3, 211], [15, 8], 134, "too short", False),
+        ],
+        "notes": [ROUGH],
+    },
+    {"ok": True, "parts": [{"pixel": [1, 1], "corners_px": SQ}], "rejected": []},
+    {"ok": True, "parts": [], "rejected": [_seen([9, 9], [15, 8], 2, "too short", False)]},
+    {"ok": True, "parts": [], "rejected": []},
+    {"ok": True, "parts": [], "rejected": [], "notes": ["nothing stands out of a carpet this rough"]},
+    # a cockpit before 0.7.0: no sizes, no near flag
+    {
+        "ok": True,
+        "parts": [],
+        "rejected": [{"pixel": [5, 5], "corners_px": SQ, "why": "out of reach (no joint solution)"}],
+    },
+]
+BANNERS = [
+    f"No part of 110 × 50 × 30 mm {CHECK}. Seen instead: 114 × 71 × 33 mm (too wide) and 1 more · {ROUGH}",
+    None,
+    f"Nothing like a part of 110 × 50 × 30 mm {CHECK}",
+    None,
+    "nothing stands out of a carpet this rough",
+    f"No part of 110 × 50 × 30 mm {CHECK}. Seen instead: (out of reach (no joint solution))",
+]
+
+
+def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits():
+    # Nick, 2026-10-06 ("if no parts are found you should prompt the user with a banner to ensure
+    # part dimensions are correct"): the yellow "2 parts touching?" alone read as a detection fault
+    out = ask(cmd="misc", scenes=BANNER_SCENES)["near"]
+    assert [o["banner"] for o in out] == BANNERS
 
 
 # -- the application node's part: areas, reach, cockpit ------------------------------------------
@@ -987,7 +1045,7 @@ def test_the_pick_worker_speaks_the_protocol_and_answers_script_builders():
     assert "camera computer's address" in result(by, "noapp")["errorMessageKey"]
     before = result(by, "before")
     assert before["type"] == "$$ScriptBuilder" and before["currentIndent"] == 0
-    assert before["script"].startswith("# 3D Pick 0.7.0") and before["script"].rstrip().endswith("end")
+    assert before["script"].startswith("# 3D Pick 0.7.1") and before["script"].rstrip().endswith("end")
     assert balanced(before["script"])  # the whole program is here: nothing is left for after the children
     assert 'socket_open("192.168.3.10", 7622, "rs_pick")' in before["script"]
     assert "arm=UR3e" in before["script"] and "reach=" not in before["script"]

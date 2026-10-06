@@ -35,7 +35,7 @@ board: `PI.md`. What the installer does, line by line: `deploy/pi/README.md`.
 
        scripts/urcap5-usb.sh
 
-   It puts `perceptronic-ps5-0.9.0.urcap` and its auto-install file on the "URE MODELS"
+   It puts `perceptronic-ps5-0.9.1.urcap` and its auto-install file on the "URE MODELS"
    stick, without macOS `._` files, then ejects.
 
 ## 2. At the robot: three cables
@@ -55,7 +55,7 @@ Power-up order doesn't matter. Give the Pi a minute after power-on.
    in the stick:
    - **automatic:** Settings → Security → General → **Run magic files** on, arm powered
      **off**, plug the stick in, and the robot installs and restarts by itself;
-   - **by hand:** ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.0.urcap`
+   - **by hand:** ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.1.urcap`
      → Open → Restart.
 
    (Step by step with pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)

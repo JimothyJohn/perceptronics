@@ -21,8 +21,8 @@ standing next to it.
 
 | Piece | State | Evidence |
 | --- | --- | --- |
-| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap` |
-| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.7.0.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
+| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.9.1.urcap` |
+| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.7.1.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
 | Pick PC (Pi, cockpit, pick server, firewall, DHCP for the robot) | Deployed and verified on one Pi 5; flashable image boots in ~30 s | `deploy/pi/README.md` §Verified on a board, `deploy/pi/image/README.md` |
 | Setup portal + update bundles (network from a browser, upload an update, auto-rollback) | Code + 115 tests, **never on a board** | PR #59, `perceptronics/setupportal.py`, `deploy/pi/perceptronics-admin` |
 | Camera bracket | Rev B.2 printed and on the UR3e; **Rev C and the UFACTORY print are unprinted** | `hardware/d435-tool-bracket/README.md` §7 (13 unchecked boxes) |
