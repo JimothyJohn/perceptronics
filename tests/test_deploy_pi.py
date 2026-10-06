@@ -558,3 +558,15 @@ def test_deploy_skips_a_python_without_pip(tmp_path):
     assert picked not in (str(nopip), "python3")  # never the pip-less one (a later install, or none)
     env["PYTHON"] = good
     assert subprocess.run([bash, "-c", script], env=env, capture_output=True, text=True).stdout == good
+
+
+def test_deploy_copies_the_whole_of_deploy_pi_including_its_directories():
+    # Regression (2026-10-06): the first deploy after #49 died at the copy with
+    # `scp: local ".../deploy/pi/image" is not a regular file` — deploy/pi/ grew a
+    # subdirectory and the scp of deploy/pi/* was not recursive.
+    assert any(p.is_dir() for p in PI.iterdir()), "deploy/pi has no subdirectory any more"
+    copies = [
+        line for line in _text(DEPLOY).splitlines() if line.startswith("scp ") and "deploy/pi/*" in line
+    ]
+    assert len(copies) == 1, copies
+    assert re.search(r"\bscp\s+(-\w+\s+)*-\w*r", copies[0]), copies[0]
