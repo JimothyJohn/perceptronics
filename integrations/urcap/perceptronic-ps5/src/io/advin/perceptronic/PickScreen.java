@@ -624,9 +624,18 @@ final class PickScreen extends JPanel {
 
     /** {@code 50 × 30 × 30 mm ±25 %} / {@code cylinder Ø40 × 30 mm ±25 %}. */
     static String partWords(PickScript s) {
+        return sizeWords(s) + "  ±" + Ui.value(s.n("partTolPct"), "%");
+    }
+
+    /** {@code 50 × 30 × 30 mm} / {@code cylinder Ø40 × 30 mm}: the size alone (the banner's words). */
+    static String sizeWords(PickScript s) {
         String size = s.round() ? "cylinder Ø" + Ui.value(s.longSide(), "")
                 : Ui.value(s.longSide(), "") + " × " + Ui.value(s.shortSide(), "");
-        return size + " × " + Ui.value(s.n("partHeightMm"), "mm") + "  ±" + Ui.value(s.n("partTolPct"), "%");
+        return size + " × " + Ui.value(s.n("partHeightMm"), "mm");
+    }
+
+    void setBanner(final String text) {
+        onEdt(() -> live.setBanner(text));
     }
 
     /** One short line beside the picture; the long story of a lost camera is on the picture itself. */

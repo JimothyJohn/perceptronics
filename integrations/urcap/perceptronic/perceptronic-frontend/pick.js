@@ -913,6 +913,24 @@
           ctx.fillText(r.why, x, y);
         }
       });
+      const banner = this._P.sceneBanner(sc, this._P.partWords(this.settings()));
+      if (banner) this.drawBanner(ctx, banner, w);
+    }
+    /** The no-part banner across the top of the picture, wrapped, clear of the Picture/Depth toggle. */
+    drawBanner(ctx, text, w) {
+      const maxW = Math.max(120, w - 170), lines = [];
+      ctx.font = "bold 13px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      let line = "";
+      text.split(" ").forEach((word) => {
+        const trial = line ? `${line} ${word}` : word;
+        if (ctx.measureText(trial).width > maxW && line) { lines.push(line); line = word; } else line = trial;
+      });
+      if (line) lines.push(line);
+      const lh = 18, bh = lines.length * lh + 12;
+      ctx.fillStyle = "rgba(20,26,34,.88)";
+      ctx.fillRect(8, 8, maxW + 16, bh);
+      ctx.fillStyle = "#ffc53d";
+      lines.forEach((l, i) => ctx.fillText(l, 16, 14 + i * lh));
     }
 
     // -- Check approach ------------------------------------------------------------------------------

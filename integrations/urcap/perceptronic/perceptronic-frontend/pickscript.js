@@ -20,7 +20,7 @@
 
   const APP_TYPE = "advin-perceptronic";
   const PICK_TYPE = "advin-perceptronic-pick";
-  const VERSION = "0.7.0";
+  const VERSION = "0.7.1";
   const DEFAULT_PICK_PORT = 7622;
   const DEFAULT_COCKPIT_PORT = 7621;
   // The pick PC's factory address on its cell port (perceptronics.cellnet.PICK_PC_ADDRESS,
@@ -770,6 +770,31 @@
     const s = `${parts} part${parts === 1 ? "" : "s"} to pick`;
     return near ? `${s} · ${near} not (yellow, with why)` : s;
   }
+  /** Across the top of the picture when nothing will be picked (Nick, 2026-10-06: a node left at
+   *  its default 110 × 50 × 30 saw 110 × 70 × 30 boxes and said "2 parts touching?"): the size to
+   *  check, what was seen instead (the first near miss, with why), and the camera computer's notes.
+   *  null when a part is found, or when nothing at all is in view and there is no note. `part`:
+   *  partWords(settings). The PolyScope 5 node's Scene.banner says the same words. */
+  function sceneBanner(scene, part) {
+    if (!scene || !scene.ok) return null;
+    const notes = (Array.isArray(scene.notes) ? scene.notes : []).filter((n) => typeof n === "string" && n);
+    if ((scene.parts || []).length) return null;
+    const near = nearMisses(scene);
+    let text;
+    if (near.length) {
+      const r = near[0];
+      const size = Array.isArray(r.size_mm) && r.size_mm.length === 2 && Number.isFinite(r.height_mm)
+        ? ` ${Math.round(r.size_mm[0])} × ${Math.round(r.size_mm[1])} × ${Math.round(r.height_mm)} mm` : "";
+      const why = r.why ? ` (${r.why})` : "";
+      const more = near.length > 1 ? ` and ${near.length - 1} more` : "";
+      text = `No part of ${part} in view — check the part size under Part. Seen instead:${size}${why}${more}`;
+    } else if ((scene.rejected || []).length) {
+      text = `Nothing like a part of ${part} in view — check the part size under Part`;
+    } else {
+      return notes.length ? notes.join(" · ") : null;
+    }
+    return notes.length ? `${text} · ${notes.join(" · ")}` : text;
+  }
 
   root.PerceptronicPick = {
     orderGrid, svgOrderTile, svgPart, svgApproach, areaCorners, farthest, svgReachMap,
@@ -782,6 +807,6 @@
     poseToMat, matToPose, matMul, matInv, poseTrans, poseInv, flangeMat, fingertip, plane, tiltDeg,
     cockpitBase, hostOf, areasOf, newNodeId, settings, isOrder, horizontal, words, orderText, partText, partWords,
     round, longSide, shortSide, problem, tokens, lines, script, render,
-    advise, nearMisses, sceneSummary,
+    advise, nearMisses, sceneSummary, sceneBanner,
   };
 })(typeof self !== "undefined" ? self : globalThis);

@@ -33,7 +33,7 @@ import urcap5  # noqa: E402
 
 SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.9.0.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.9.1.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")
@@ -331,6 +331,7 @@ public class Harness {
                 List<Object> drawn = new ArrayList<Object>();
                 for (Scene.Part p : sc.nearMisses()) drawn.add(p.why);
                 m.put("drawn", drawn); m.put("summary", sc.summary());
+                m.put("banner", sc.banner(a.length > 2 ? a[2] : "110 × 50 × 30 mm"));
                 m.put("orders", orders); m.put("whys", whys); m.put("surface", sc.surface);
                 m.put("width", sc.width); m.put("base", sc.baseFrame);
                 out = m;
@@ -941,3 +942,15 @@ def test_feed_poller_explains_a_dead_cockpit_and_keeps_going(java_client):
         "events"
     ]
     assert got["was_running"] and got["stopped"]
+
+
+def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits(java_client):
+    # the same scenes and the same words as the PolyScope X node (tests/test_urcapx_pick.py)
+    import importlib.util
+
+    words_py = Path(__file__).with_name("test_urcapx_pick.py")
+    spec = importlib.util.spec_from_file_location("urcapx_pick_words", words_py)
+    words = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(words)
+    got = [java_client("scene", json.dumps(sc))["banner"] for sc in words.BANNER_SCENES]
+    assert got == words.BANNERS
