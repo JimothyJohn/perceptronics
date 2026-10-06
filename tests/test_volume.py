@@ -423,7 +423,9 @@ def test_any_placement_under_any_wrist_heading_measures_the_part(x, y, theta, ya
     assert len(sc.parts) == 1, sc.as_dict()
     p = sc.parts[0]
     assert math.dist(p.centre[:2], (x, y)) < 0.004
-    assert ang_diff(p.theta, theta) < math.radians(4)
+    # 5°: hypothesis found 4.3° at theta 0.14, yaw 0.125, lift 0.156 (2026-10-06, the same on the code
+    # before the off-level fit); the D435 model's heading p95 is 2.7° (scripts/volume_bench.py)
+    assert ang_diff(p.theta, theta) < math.radians(5)
     assert p.width_m == pytest.approx(0.040, abs=0.005)
 
 

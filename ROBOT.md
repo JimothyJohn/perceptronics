@@ -11,7 +11,8 @@ office LAN; the Pi at `nick@10.0.0.56` on Wi-Fi and `192.168.3.20` on the cell).
 with a check that must be true before the next one; a phase that fails twice stops the session
 for a write-up, not a third try. Budget: about 2 hours for phases 0–5, the rest as time allows.
 
-Generic version for a customer's PolyScope 5 robot: `site/public/quickstart-ur.html`. The Pi on
+The same arm on a PolyScope X controller: `PSX.md`. Generic version for a customer's PolyScope 5
+robot: `site/public/quickstart-ur.html`. The Pi on
 this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: `CLAUDE.md`.
 
 ## What is true before the day
@@ -117,6 +118,23 @@ Nothing in phases 0–2 moves the arm. Before the first move:
 view (`http://192.168.3.20/`) shows the point cloud in the base frame under the arm's linkage,
 and the **LEVEL** lamp reads the fitted floor's tilt. Over ~0.5° → phase 4 before any pick.
 
+**The detector's own verdict, from the picture pose** (Claude, 2 min): with the blocks in view,
+
+    curl -s "http://192.168.3.20/api/pick/scene?opts=$(python3 -c 'import urllib.parse;print(urllib.parse.quote(" part=110x70x30 tol=25 order=LR,FB gripcheck=1 room=20 arm=UR3e proto=2"))')"
+
+(the part size of the blocks on the table — measure them with a rule first; the foam blocks of
+the 09-27 picks were ~60 × 40 × 30). Read, in this order:
+
+| Field | Want | If not |
+| --- | --- | --- |
+| `surface.source` / `surface.tilt_deg` | `fitted`, < 1° | > 1°: the hand-eye is out (phase 4); a note *the table reads N° off level in the robot's frame* means the camera is nowhere near where the robot says it is: the bracket, the cell's `PERCEPTRONICS_T_FLANGE_CAMERA` override, or the wrong cell file |
+| `notes` | empty | *surface reads rough (±N mm)*: carpet or a textured table — parts under 3.5× that spread are invisible; move the picture pose closer. *almost no depth*: sunlight on the table or a black surface |
+| `parts` | every block, `size_mm` within ±max(5 mm, 1.2 % of range) of the rule, `height_mm` likewise | `rejected` with `why`: *too wide / too tall / too flat* = the size entered is wrong (the node's banner says the same on the pendant); *cut off by the edge of the picture*: move the pose; *2 parts touching?*: separate them |
+| `status` | 1 | −7 with every block in `rejected`: the size; −4: the camera dropped (re-plug) |
+
+Save the frame while you are at it (`POST /api/snapshot`, and `GET /api/rgbd` → the fixture format
+in `tests/fixtures/d435/`): a real-cell frame of known parts is the detector's arbiter.
+
 Protective stop at any point: `python3 -m urctl --host 192.168.3.3 bring-up` clears it
 (`robot_mode` stays RUNNING through one; only `safety_mode` says so). Singularity (`C154A0`)
 after a `movel`: `movej` to a bent-elbow pose first; the cockpit's programs do.
@@ -150,10 +168,23 @@ the Hand-E open first (`urctl gripper open`), lift, set down.
     Gripper: close         ← Robotiq's node
     If rs_pick_found       ← lift 100 mm, set down, open
 
-In the 3D Pick node: Part tab — Box, the block's size, tolerance 25 %; Approach tab — Finger
-room 20 mm, Closer look on. One picture point: move the arm to the picture pose and tap **+**.
-The teach screen draws the pickable parts **green with their order**, near misses **yellow with
-why**. Then ▶.
+In the 3D Pick node, in this order (each a screen on the pendant to look at, nothing clipped,
+nothing scrolling — note anything that is):
+
+1. **Part tab: the size first.** The node's default (110 × 50 × 30) is not your part — on 2026-10-06
+   it turned 110 × 70 × 30 boxes into "too wide / too tall / 2 parts touching?" and nothing green.
+   Box, the rule's L × W × H, tolerance 25 %. Since 0.9.1 the picture carries a **banner** when
+   nothing will be picked: the size entered, the first near miss's measured size with why, and the
+   camera computer's notes. The banner must agree with the curl above.
+2. **Approach tab:** Finger room 20 mm, Closer look on, grip across the short side.
+3. **Picture point.** Jog the arm to the picture pose (≥ 0.3 m over the parts; the cell's
+   `PERCEPTRONICS_HOME_POSE` is right) and tap **+**: *picture point 1 taught at joints […]*. The
+   picture shows the parts **green with their pick order** within a second, near misses **yellow
+   with why**. Tap a part to teach its size from the picture (0.9.0) and compare with the rule.
+4. **Pick area** (Installation node): three fingertip touches on the table, then check the parts
+   fall inside it on the node's picture and the LEVEL lamp agrees with the taught plane
+   (`surface_check.tilt_deg` in the curl above, < 1°).
+5. ▶.
 
 Watch for, in order (each is a `textmsg` and a `LOG` line in the Pi's
 `captures/pick-server.log` / `GET /api/pick/log`): FIND from the picture point → the closer look
@@ -198,7 +229,20 @@ booted on the cell, `http://192.168.3.20/setup` with no SSH at all.
 - Memory: the `perceptronics-pi5-pickpc` and `ur-utils-pilots-seat` entries.
 - Snapshots (`POST /api/snapshot` at the picture point and at the closer look) into
   `tests/fixtures/d435/` if they show something the synthetic scene doesn't — the detector's
-  arbiter is real frames.
+  arbiter is real frames. Label them like `boxes_on_carpet_0p8m_oblique.json` (what, part_mm,
+  count, pixels, flange_pose, flange_to_color_pose) so `tests/test_volume.py` can hold the
+  detector to them.
+- The table below, filled in.
+
+| Phase | Date | Result |
+| --- | --- | --- |
+| 1 cables | | |
+| 2 URCap | | |
+| 3 first move + detector verdict | | |
+| 4 hand-eye | | |
+| 5A cockpit pick | | |
+| 5B pendant program | | |
+| 6 drills | | |
 
 ## Rules for the day
 
