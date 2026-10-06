@@ -655,9 +655,9 @@ def _fake_app_root(tmp_path: Path) -> Path:
         (rel / "bin" / "perceptronics").write_text("#!/bin/sh\n")
         (rel / "bin" / "perceptronics").chmod(0o755)
         (rel / ".complete").touch()
-    (root / "wheels").mkdir()
-    (root / "wheels" / "perceptronics-0.1.0-py3-none-any.whl").write_bytes(b"not really")
     good = root / "releases" / "good"
+    # every wheel has this name, so the release keeps its own copy (wheels/ holds only the newest)
+    (good / "perceptronics-0.1.0-py3-none-any.whl").write_bytes(b"not really")
     (good / ".wheel").write_text("perceptronics-0.1.0-py3-none-any.whl\n")
     (good / "deploy").mkdir()
     stub = good / "deploy" / "install.sh"
@@ -685,11 +685,12 @@ def test_rollback_reinstalls_the_previous_release_with_its_own_installer(tmp_pat
     if bash is None or sys.platform == "win32":
         pytest.skip("needs bash")
     root = _fake_app_root(tmp_path)
+    good = root / "releases" / "good"
     copy = _installer_functions(tmp_path, APP_ROOT=root)
     out = _run_installer_function(bash, copy, "rollback")
     assert out.returncode == 0, (out.stdout, out.stderr)
     argv = (tmp_path / "good-installer-argv").read_text().split()
-    assert argv == ["--wheel", str(root / "wheels" / "perceptronics-0.1.0-py3-none-any.whl")], out.stdout
+    assert argv == ["--wheel", str(good / "perceptronics-0.1.0-py3-none-any.whl")], out.stdout
     assert "systemctl" not in out.stdout, "the previous installer restarts the service itself"
 
 
@@ -720,7 +721,9 @@ def test_the_installer_keeps_its_deploy_files_and_wheel_name_in_the_release(tmp_
         assert (where / "install.sh").is_file() and (where / "nftables.conf").is_file(), where
         assert (where / "install.sh").stat().st_mode & 0o111, where
         assert (where / "perceptronics-admin").stat().st_mode & 0o111, where
-    # and install_app records which wheel made the release, for rollback to re-run its installer
-    assert re.search(r'basename "\$wheel"[^\n]*> *"\$\{dest\}/\.wheel"', _text(INSTALL)), (
-        "install_app writes .wheel"
+    # and install_app keeps the release's own wheel + its name, for rollback to re-run its installer
+    app = _text(INSTALL)
+    assert re.search(r'cp -f "\$wheel" "\$\{dest\}/\$\(basename "\$wheel"\)"', app), (
+        "the wheel goes into the release"
     )
+    assert re.search(r'basename "\$wheel" *>"\$\{dest\}/\.wheel"', app), "install_app writes .wheel"

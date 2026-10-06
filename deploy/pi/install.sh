@@ -314,7 +314,10 @@ install_app() {
         touch "${dest}/.complete"
     fi
     cp -f "$wheel" "${APP_ROOT}/wheels/"
-    basename "$wheel" >"${dest}/.wheel"   # --rollback re-runs this release's own installer with it
+    # The release keeps its own wheel (every wheel is named perceptronics-<version>-py3-none-any.whl,
+    # so wheels/ only ever holds the newest): --rollback re-runs the release's installer with it.
+    cp -f "$wheel" "${dest}/$(basename "$wheel")"
+    basename "$wheel" >"${dest}/.wheel"
     local now=""
     [ -L "$CURRENT" ] && now="$(readlink -f "$CURRENT")"
     if [ "$now" != "$dest" ]; then
@@ -795,7 +798,7 @@ rollback() {
     cur="$(readlink -f "$CURRENT")"
     prev="$(readlink -f "$PREVIOUS")"
     [ -x "${prev}/bin/perceptronics" ] || die "previous release ${prev} is incomplete"
-    [ -f "${prev}/.wheel" ] && wheel="${APP_ROOT}/wheels/$(cat "${prev}/.wheel")"
+    [ -f "${prev}/.wheel" ] && wheel="${prev}/$(cat "${prev}/.wheel")"
     if [ -x "${prev}/deploy/install.sh" ] && [ -f "$wheel" ]; then
         # Everything that release's bundle installed comes back with it — firewall, units, the
         # helper, the deploy copy — by re-running its own installer (which also swaps the links).
