@@ -436,7 +436,12 @@ header has the line).
 **Detection (`perceptronics/volume.py`, reworked 2026-10-03; Nick: "more robust ... from a distance
 similar to the robot arm", "assumed that they could be lying on either face", "drawing a line halfway
 up the expected part height", "tying [the tolerance] to the distance").** One frame → parts:
-1. **Surface**: a plane fitted near level (≤ 8°; > 1° adds a "hand-eye is out" note), then a **local
+1. **Surface**: a plane fitted near level (≤ 8°; > 1° adds a "hand-eye is out" note) — **unless the
+   table as seen (RANSAC, any angle) is further off level than that and holds ≥ 1.3× more of the
+   picture: then the base frame is lying** (a hand-eye badly out, a robot pose that isn't the
+   camera's — 2026-10-06: a D435 on the bench 19° oblique with a simulator's pose saying straight
+   down read every box 86-134 mm tall) and the table as seen is used, with a note that positions are
+   off by as much (`OFF_LEVEL_SUPPORT`; fixture `boxes_on_carpet_0p8m_oblique`). Then a **local
    floor** — median + MAD of near-floor heights in tiles of 3 part lengths (≥ 15 cm), interpolated:
    heights are off the floor *round each part* (carpet: one plane leaves 5-7 mm, local 1.7 mm).
 2. **Occupied** = over half the part's lowest face height *and* over 3.5 × the local spread (a note

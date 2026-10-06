@@ -607,3 +607,30 @@ def test_two_flat_and_two_standing_boxes_at_three_quarters_of_a_metre_are_four_p
 def test_flat_and_standing_boxes_are_not_a_part_of_another_size(dims):
     _, sc = real("boxes_flat_and_on_side_0p75m", PartSpec.from_mm(*dims))
     assert sc.parts == []
+
+
+def test_a_base_frame_that_puts_the_table_off_level_still_finds_the_parts(caplog):
+    # Regression (2026-10-06, Nick's failure.png): the D435 sat on the bench 19° oblique while the
+    # robot's pose said it looked straight down (a simulator stood in for the robot). The level-band
+    # fit in that base frame found a wrong table, every box read 86-134 mm tall ("too tall"), and the
+    # only note was a rough surface. A camera-only fit of the same frame found all four. When the
+    # base frame says the table is off level, the table as seen wins, and the note says why.
+    from urctl.pose import pose_trans
+
+    meta = json.loads((REAL / "boxes_on_carpet_0p8m_oblique.json").read_text())
+    T_bc = Transform.from_pose(pose_trans(meta["flange_pose"], meta["flange_to_color_pose"]))
+    depth = zlib.decompress((REAL / "boxes_on_carpet_0p8m_oblique.depth.zlib").read_bytes())
+    sc = find_parts(
+        meta["width"],
+        meta["height"],
+        depth,
+        meta["depth_scale_m"],
+        meta["intrinsics"],
+        T_bc,
+        spec=PartSpec.from_mm(110, 70, 30),
+    )
+    assert len(sc.parts) == 4, [(p.pixel, p.length_m, p.width_m, p.height_m, p.why) for p in sc.rejected]
+    for px in meta["pixels"]:
+        assert min(math.dist(px, p.pixel) for p in sc.parts) < 15
+    assert any("off level" in n for n in sc.notes), sc.notes
+    assert 15 < sc.surface.tilt_deg() < 35, sc.surface.tilt_deg()  # 19° at the lens + the hand-eye's own tilt
