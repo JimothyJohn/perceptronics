@@ -144,6 +144,11 @@ scripts/pi-update.sh bundle                       # target/pi-update/perceptroni
 scripts/pi-update.sh push target/pi-update/perceptronics-update-*.tar 192.168.3.20
 ```
 
+A release is named by its **wheel's hash**, so a bundle whose changes are only under `deploy/`
+or `tests/` reads "already installed": the firewall, units and helper are still re-run from the
+bundle, but no release switch happens (2026-10-06). To exercise the switch, change something
+under `perceptronics/` or `urctl/`.
+
 A cell PC has no internet. If a bundle pins a newer librealsense than the PC has, add the
 prebuilt library: `scripts/pi-update.sh bundle --librealsense
 target/pi-image/cache/librealsense-<ver>.tar`. Without it, `install.sh` fails before it
