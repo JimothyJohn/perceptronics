@@ -316,7 +316,8 @@ install_app() {
     cp -f "$wheel" "${APP_ROOT}/wheels/"
     # The release keeps its own wheel (every wheel is named perceptronics-<version>-py3-none-any.whl,
     # so wheels/ only ever holds the newest): --rollback re-runs the release's installer with it.
-    cp -f "$wheel" "${dest}/$(basename "$wheel")"
+    # (--rollback passes that very copy: cp onto itself is an error under set -e — seen 2026-10-06)
+    [ "$wheel" -ef "${dest}/$(basename "$wheel")" ] || cp -f "$wheel" "${dest}/$(basename "$wheel")"
     basename "$wheel" >"${dest}/.wheel"
     local now=""
     [ -L "$CURRENT" ] && now="$(readlink -f "$CURRENT")"

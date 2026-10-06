@@ -723,7 +723,10 @@ def test_the_installer_keeps_its_deploy_files_and_wheel_name_in_the_release(tmp_
         assert (where / "perceptronics-admin").stat().st_mode & 0o111, where
     # and install_app keeps the release's own wheel + its name, for rollback to re-run its installer
     app = _text(INSTALL)
-    assert re.search(r'cp -f "\$wheel" "\$\{dest\}/\$\(basename "\$wheel"\)"', app), (
-        "the wheel goes into the release"
+    # (--rollback passes the release's own copy as --wheel: on the old card the first rollback died
+    # on `cp: ... are the same file` and left the broken release running, 2026-10-06)
+    into_release = r'"\$\{dest\}/\$\(basename "\$wheel"\)"'
+    assert re.search(rf'\[ "\$wheel" -ef {into_release} \] \|\| cp -f "\$wheel" {into_release}', app), (
+        "the wheel goes into the release, unless it is that copy already"
     )
     assert re.search(r'basename "\$wheel" *>"\$\{dest\}/\.wheel"', app), "install_app writes .wheel"
