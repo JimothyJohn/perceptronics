@@ -295,7 +295,9 @@ Afterwards: fill in the log below, move PR #59 out of draft only if 2–8 passed
 
 | Step | Date | Result |
 | --- | --- | --- |
-| | | |
+| 1 Preflight | 2026-10-06 | pass. Old card booted after the 10-03 power yank. `cell.env` as deployed 10-03; no `network.env`; `netplan-eth0` 192.168.3.20 + Wi-Fi 10.0.0.56; D435 on USB 3 (5000 Mb/s); `get_throttled` 0x0. Release before: 0.1.0-389b242fb0fa. |
+| 2 Install | 2026-10-06 | pass, after one repo fix: the first run died at the copy (`scp: local .../deploy/pi/image is not a regular file` — #49 gave `deploy/pi/` a subdirectory; `deploy-pi.sh` now copies with `-r`, regression test in `tests/test_deploy_pi.py`). Second run: 15 s to the doctor (librealsense already built). `perceptronics-admin.path` active; `network.env` written (`CELL_IF=eth0`, `CELL_ADDRESS=192.168.3.20/24`, `CELL_DHCP=auto`); queue `perceptronics:perceptronics 750`; `/var/lib/perceptronics-admin` `root:perceptronics 750`; `/setup` 401 without login, 200 with `admin:admin`, 401 with a wrong password. Doctor: camera usb 3.2, cockpit 30 fps; `robot.reach` fails (UR3e unplugged, expected). |
+| 3 Page by eye | 2026-10-06 | pass. Chrome's own Basic-auth dialog (the extension can't drive it; Nick typed the login). Shows 192.168.3.20 (subnet 24), backup "none (same network)", robot 192.168.3.3 "handed out by this computer when asked", software 0.1.0-24e381386317, card image "installed by hand". |
 
 ---
 
