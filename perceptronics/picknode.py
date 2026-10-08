@@ -21,14 +21,16 @@ Requests (one line each, ASCII, ≤ 1 kB; the pose is URScript's ``to_str(pose)`
     ``(cx, cy, cz)`` (the FIND answer), seen from the flange pose sent.
 
 ``LOOK p[x, y, z, rx, ry, rz] p[cx, cy, cz, 0, 0, 0]``
-    Where to take the closer look from: the flange pose that puts the camera halfway
-    from where it is now to the block's top centre (never nearer than
-    :data:`LOOK_MIN_M` — the D435 has no depth closer than ~0.2 m), aimed so the block
-    sits :data:`LOOK_AIM_DEG` off the middle of the picture on the side away from the
-    gripper (the open fingers hang in the camera's view: a block in the middle of the
-    picture is behind them), and backed out along that line until the fingertips clear
-    the top by :data:`LOOK_TIP_CLEAR_M`. Status -6 when no such pose exists (the node
-    then measures again from where it is).
+    Where to take the closer look from: the flange pose that puts the camera **straight
+    above the block's top centre, looking straight down** — like the approach, with the
+    camera where the tool will be — halfway down from its height now (never nearer than
+    :data:`LOOK_MIN_M`; the D435 has no depth closer than ~0.28 m), the block in the
+    middle of the picture (:data:`LOOK_AIM_DEG` = 0 since 2026-10-08: Nick, at the cell,
+    "the closer look is supposed to move above the part similar to the approach
+    position" — the slanted, 12°-aimed look of 0.3.0–0.9.1 "moved up then at an angle";
+    a non-zero aim keeps the block off the fingers), backed up until the fingertips
+    clear the top by :data:`LOOK_TIP_CLEAR_M`. Status -6 when no such pose exists (the
+    node then measures again from where it is).
 
 ``part=<L>x<W>[x<H>] [tol=<pct>]`` (FIND and REFINE, optional): the part's rough size in
 mm — a box with a height on any of its faces, a cylinder on its end — and how far off it may measure
@@ -78,7 +80,7 @@ DEFAULT_PICK_PORT = 7622
 MAX_LINE = 1024
 REFINE_RADIUS_M = 0.06
 LOOK_MIN_M = 0.30  # camera to the block's top: past the D435's blind zone with room for the gripper
-LOOK_AIM_DEG = 12.0  # the block's bearing off the optical axis, away from the gripper
+LOOK_AIM_DEG = 0.0  # the block's bearing off the optical axis (0 = dead centre; Nick, 2026-10-08)
 LEANS_DEG = (0.0, 12.0, 24.0)  # the program's ladder when straight down has no joint solution
 LOOK_TIP_CLEAR_M = 0.06  # fingertips above the top at the look pose
 LOOK_MAX_TILT_DEG = 60.0  # tool Z from straight down
@@ -384,24 +386,24 @@ def look_pose(
 ) -> list[float] | None:
     """The flange pose for the closer look (see ``LOOK``), or None when none will do.
 
-    The camera goes halfway along the line from where it is to ``top`` (never nearer
-    than ``min_m``) and turns so ``top`` sits ``aim_deg`` off its optical axis, on the
-    side away from the gripper — the open fingertips are in the picture (9° off the
-    axis and 0.15 m out on the UR3e cell, inside the D435's blind zone), and a block
-    aimed at the middle is half hidden behind them (Nick, 2026-09-30: "the gripper is
-    blocking the view"). The image X is kept as close as it was (the least wrist
+    The camera goes straight above ``top`` and looks straight down — the approach's
+    geometry with the camera in the tool's place — halfway down from its height now
+    (never nearer than ``min_m``), turned so ``top`` sits ``aim_deg`` off its optical
+    axis on the side away from the gripper (0 = dead centre, the default since
+    2026-10-08; the 12° aim of 0.3.0–0.9.1 kept the block out from behind the open
+    fingers but, on a slanted line from the picture point, read as "moved up then at
+    an angle" on the UR3e). The image X is kept as close as it was (the least wrist
     roll). If the fingertips would come within ``tip_clear_m`` of the top's height,
-    the camera backs out along the same line; a tool tilted past ``max_tilt_deg``
-    from straight down is refused."""
+    the camera backs straight up; a tool tilted past ``max_tilt_deg`` from straight
+    down is refused."""
     T_fc = Transform.from_pose(handeye)
     T_bc = Transform.from_pose(flange).compose(T_fc)
     cam = T_bc.translation
-    away = [cam[i] - top[i] for i in range(3)]
-    d0 = math.hypot(*away)
+    d0 = cam[2] - top[2]  # height above the top
     if d0 < 1e-6:
         return None
-    unit = [a / d0 for a in away]
-    z = [-u for u in unit]  # the optical axis, toward the block
+    unit = [0.0, 0.0, 1.0]
+    z = [0.0, 0.0, -1.0]  # the optical axis: straight down
     x_cam = T_bc.rotate((1.0, 0.0, 0.0))
     dot = sum(x_cam[i] * z[i] for i in range(3))
     x = [x_cam[i] - dot * z[i] for i in range(3)]
