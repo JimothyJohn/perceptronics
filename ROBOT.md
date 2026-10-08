@@ -236,13 +236,13 @@ booted on the cell, `http://192.168.3.20/setup` with no SSH at all.
 
 | Phase | Date | Result |
 | --- | --- | --- |
-| 1 cables | | |
-| 2 URCap | | |
-| 3 first move + detector verdict | | |
-| 4 hand-eye | | |
-| 5A cockpit pick | | |
-| 5B pendant program | | |
-| 6 drills | | |
+| 1 cables | 2026-10-08 | The Pi reached the UR3e the first time (Dashboard, Primary, RTDE); the robot was already static 192.168.3.3, the lease path untested. The Air drove it from 192.168.3.10 (Claude on the Air, not the Studio). |
+| 2 URCap | 2026-10-08 | 0.9.1 installed from the stick by hand, feed up within seconds, Cockpit field empty. Notes: picture bounces after a tap; no highlight on the Installation tab; "Go" / "Here" read as one phrase; picture letterboxed to a third of its frame. |
+| 3 first move + detector verdict | 2026-10-08 | Home from the cockpit fine. The table is at base height now (no pedestal). Detector: foam block tops return 10-60 % depth (holes) → 1-2 of 4 found until the colour fusion (below). |
+| 4 hand-eye | 2026-10-08 | Orbit from the Air, three solves (RMS 3.1-3.9 mm); applied the first (10 views); LEVEL 1.2-2.3° depending on the side of the base — not the 0.5° target. The 0.21 m range returns no depth; views 0.5 m out are refused by the UR3e's IK. |
+| 5A cockpit pick | 2026-10-08 | Flange hovers over the detector's block centres: 65 mm for 60 commanded (first solve), "very close" in X/Y by eye. No gripper fitted. |
+| 5B pendant program | 2026-10-08 | Ran on hardware: FIND → REFINE → approach → grip, centred over each block, NEXT serves the queue, no protective stop. The 163 mm phantom tool put the flange 140 mm up (TIP_M → 50 mm on the Pi: 34 mm over the top). The closer look only rotated from a 0.31 m picture point (floor 0.30 m) and REFINE failed on foam holes; the look now goes straight above the part. With the colour + depth fusion deployed, four green from the picture point and picks from the queue. |
+| 6 drills | — | not run |
 
 ## Rules for the day
 
