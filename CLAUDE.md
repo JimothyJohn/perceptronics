@@ -537,6 +537,15 @@ first check after a move can say 24 (Speed Exceeds Limit) at rest; SET_TCP_OFFSE
 `set_state(0)`; joint-teaching mode is refused. When the sim disagrees with us, run UFACTORY's own SDK
 (`xArm-Python-SDK`) against it before deciding whose bug it is. Not yet seen on a real 850.
 
+**The door for a person, and the servers for a customer's agent (2026-10-06 night, Nick: "de-agentify
+this thing", "the customer said an MCP would be super useful").** `perceptronics init` (`perceptronics/wizard.py`:
+questions with defaults → an ordinary cell file; `--yes` for the test cell) and `perceptronics up` (`gui` with
+no flags; `up_bind` listens on every interface when the cell names a robot). `urctl-mcp --no-motion` and
+`perceptronics-vision-mcp` (= `perceptronics-mcp --vision-only`) are the customer servers: `MOTION_TOOLS` /
+`VISION_MOTION_TOOLS` are hidden from `tools/list` and refused by `tools/call` with the reason; `MCP.md` is the
+customer's page and `tests/test_mcp_doc.py` holds its tool tables to the registries (`tool_rows()`), so a new
+tool changes the page or fails the test. Add a tool that moves the arm to the right set.
+
 **Monocular scan** (`perceptronics scan`, `docs/mono-scan.md`) was removed on
 2026-09-25 (branch refactor/prune-2026-09-25); it lives in git history before
 that commit if the idea comes back.

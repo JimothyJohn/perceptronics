@@ -42,7 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Protocol
 
 from . import __version__
@@ -73,6 +73,28 @@ _INVALID_PARAMS = -32602
 _INTERNAL_ERROR = -32603
 
 
+# Tools that move the arm, actuate its I/O or run arbitrary code on it. ``--no-motion`` hides
+# them, so a customer can hand an agent the readings, the programs' names and the planning
+# without the keys (Nick, 2026-10-06: "an MCP would be super useful" — but nothing moves the
+# arm without a person's step in between).
+MOTION_TOOLS: frozenset[str] = frozenset(
+    {
+        "move_joints",
+        "move_tcp",
+        "move_tcp_path",
+        "move_trajectory",
+        "move_home",
+        "freedrive",
+        "gripper",
+        "run_script",
+        "dashboard_command",
+        "play",
+        "set_digital_output",
+        "position",
+    }
+)
+
+
 class McpServer:
     """A synchronous, transport-agnostic MCP server over the tool registry.
 
@@ -81,14 +103,26 @@ class McpServer:
     no pipes required. :meth:`serve_stdio` is the production loop.
     """
 
-    def __init__(self, robot: Robot, *, extra: Sequence[ToolProvider] = (), name: str = "urctl"):
+    def __init__(
+        self,
+        robot: Robot,
+        *,
+        extra: Sequence[ToolProvider] = (),
+        name: str = "urctl",
+        robot_tools: bool = True,
+        hidden: Iterable[str] = (),
+    ):
         """``extra`` providers add tool families beyond the robot registry (the
         perceptronics cockpit's ``cam_*`` tools); each must answer ``schemas()``,
         ``owns(name)`` and ``call(name, params)``. ``name`` is what the client
-        sees in ``serverInfo``."""
+        sees in ``serverInfo``. ``robot_tools=False`` serves only the extras (a
+        vision-only server); ``hidden`` names are left out of ``tools/list`` and
+        refused by ``tools/call`` with a reason (``--no-motion``)."""
         self.robot = robot
         self.extra = list(extra)
         self.name = name
+        self.robot_tools = robot_tools
+        self.hidden = frozenset(hidden)
 
     # -- JSON-RPC dispatch -----------------------------------------------------
 
@@ -139,21 +173,38 @@ class McpServer:
         }
 
     def _tools_list(self) -> dict:
-        schemas = list(get_tool_schemas())
+        schemas = list(get_tool_schemas()) if self.robot_tools else []
         for provider in self.extra:
             schemas.extend(provider.schemas())
         return {
             "tools": [
                 {"name": t["name"], "description": t["description"], "inputSchema": t["input_schema"]}
                 for t in schemas
+                if t["name"] not in self.hidden
             ]
         }
+
+    def _refused(self, name: str) -> str | None:
+        """Why ``name`` is not served here, or None when it is."""
+        if name in self.hidden:
+            return (
+                f"{name} is off on this server: it moves the arm, and the server was started with --no-motion"
+            )
+        if not self.robot_tools and not any(p.owns(name) for p in self.extra):
+            return (
+                f"{name} is a robot tool; this server serves the vision tools only "
+                "(started with --vision-only)"
+            )
+        return None
 
     def _tools_call(self, params: dict) -> dict:
         name = params.get("name")
         if not name:
             raise ToolError("tools/call requires a 'name'")
         try:
+            refused = self._refused(name)
+            if refused:
+                raise ToolError(refused)
             args = params.get("arguments") or {}
             provider = next((p for p in self.extra if p.owns(name)), None)
             result = provider.call(name, args) if provider is not None else call_tool(self.robot, name, args)
@@ -216,6 +267,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--dry-run", action="store_true", help="validate and audit tool calls without sending them"
     )
+    ap.add_argument(
+        "--no-motion",
+        action="store_true",
+        help="serve the readings and the planning only: no tool that moves the arm, actuates its I/O "
+        "or runs URScript (the safe setting for an agent a customer talks to)",
+    )
     args = ap.parse_args(argv)
 
     overrides: dict = {}
@@ -225,9 +282,12 @@ def main(argv: list[str] | None = None) -> int:
         overrides["robot_api_port"] = args.robot_api_port
     config = RobotConfig.from_env(host=args.host, **overrides)
     robot = make_controller(config, dry_run=args.dry_run)
-    print(f"urctl-mcp serving {config.host} over stdio", file=sys.stderr)
+    print(
+        f"urctl-mcp serving {config.host} over stdio{' (no motion tools)' if args.no_motion else ''}",
+        file=sys.stderr,
+    )
     try:
-        McpServer(robot).serve_stdio()
+        McpServer(robot, hidden=MOTION_TOOLS if args.no_motion else ()).serve_stdio()
     except KeyboardInterrupt:
         pass
     finally:

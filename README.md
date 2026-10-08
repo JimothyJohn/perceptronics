@@ -72,6 +72,25 @@ it tells you to restart. `URMAGIC_RESTART=always` (before `bash`) restarts regar
 and the `.sh` with its new checksum), then run the three lines above again.
 `scripts/urcap5-usb.sh` writes a stick from a Mac without the `._` files Finder leaves.
 
+## By hand: a cell in three commands
+
+The toolkit was built to be driven by an agent; this is the door for a person. From a checkout
+with any Python 3.10+ (nothing to install):
+
+    python3 -m perceptronics init                     # a few questions -> ./mycell.env
+    python3 -m perceptronics --cell ./mycell.env doctor   # camera, robot, calibration: what's wrong, with the fix
+    python3 -m perceptronics --cell ./mycell.env up       # the cockpit; the page opens; the pendant reaches it
+
+`init` asks for the robot (UR e-Series, PolyScope X, the simulator, or none), its address, the
+arm, the tool length, the bracket and the camera, every answer with a default, and writes an
+ordinary cell file you can edit. `up` is the cockpit with no flags: the camera, the robot from
+the cell, listening where the pendant can reach it. On macOS the camera needs `sudo` in front.
+
+**For an agent — the two MCP servers** (`MCP.md`): `urctl-mcp` for the robot and
+`perceptronics-vision-mcp` for the camera and the 3D guidance, each one line in an MCP client's
+config, each with a `--no-motion` setting that serves the readings and the planning without
+anything that moves the arm.
+
 ## More
 
 - [perceptronics/ARCHITECTURE.md](perceptronics/ARCHITECTURE.md): how it works, the code map, the cockpit's API, adding a robot, running it all without hardware
