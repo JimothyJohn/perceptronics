@@ -115,8 +115,16 @@ arch="$(ssh "${ssh_opts[@]}" "$target" uname -m)"
 
 stage_local="$(mktemp -d)"
 trap 'rm -rf "$stage_local"' EXIT
-log "building the wheel ($py -m pip wheel)"
-"$py" -m pip wheel "$repo" --no-deps --wheel-dir "$stage_local" -q
+# A Python that already has hatchling (the repo's .venv from requirements/dev.txt) builds
+# offline (--no-build-isolation); any other fetches hatchling from PyPI, so it needs internet
+# (the cell switch alone has none - 2026-10-08).
+if "$py" -c 'import hatchling' >/dev/null 2>&1; then
+    log "building the wheel ($py -m pip wheel, no build isolation: hatchling is installed)"
+    "$py" -m pip wheel "$repo" --no-deps --no-build-isolation --wheel-dir "$stage_local" -q
+else
+    log "building the wheel ($py -m pip wheel; hatchling from PyPI - needs internet)"
+    "$py" -m pip wheel "$repo" --no-deps --wheel-dir "$stage_local" -q
+fi
 wheel="$(find "$stage_local" -maxdepth 1 -name '*-py3-none-any.whl' | head -n 1)"
 [ -n "$wheel" ] || die "pip wheel produced no pure-Python wheel"
 log "built $(basename "$wheel")"
