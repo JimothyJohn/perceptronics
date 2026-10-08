@@ -26,6 +26,19 @@ IP `192.168.3.10`, mask `255.255.255.0`, no router. (Never DHCP on the cell: the
 one-lease DHCP server would hand the Air the robot's address.) The office switch has the
 robot (`192.168.3.3`), the pick PC (`192.168.3.20`) and the Air.
 
+**Learned on 2026-10-08 — read before anything else.** Claude on the Air can *read* the Pi over SSH
+but the auto-mode classifier blocks every *write* there (a file edit, `pip`, `systemctl`): each Pi
+change is a one-line script you run — `scripts/deploy-pi.sh`, `scripts/pi-vision-install.sh`, or a
+line Claude hands you. The Air's `id_ed25519` is passphrase-protected: `ssh-add --apple-use-keychain
+~/.ssh/id_ed25519` once per boot or every non-interactive `ssh` from Claude is refused with the key
+"accepted" by the server. The deploy builds the wheel **offline only with the repo `.venv`**
+(hatchling pinned): `PYTHON=.venv/bin/python scripts/deploy-pi.sh nick@192.168.3.20 --cell-if none
+--vision ~/piwheels` (`~/piwheels` = numpy + opencv-python-headless wheels for aarch64/cp313, needed
+for the colour+depth fusion; the Pi has no internet on the cell). The cockpit is `:7621` — the `:80`
+alias is gone after a `--cell-if none` deploy. The Pi's clock is ~12 h behind (no NTP on the cell):
+its log timestamps are wrong. Pick-server traffic is in `GET /api/events` (`kind: pick`); the
+`/api/pick/log` route exists only on the sidecar.
+
 **SSH to the pick PC** (optional; the HTTP path below covers the day):
 the Pi takes keys only. On the Air: `ssh-keygen -t ed25519` if there is none, then send
 `~/.ssh/id_ed25519.pub` to Claude on the Studio (it goes into the Pi's `authorized_keys`), or
@@ -79,7 +92,10 @@ compensated by the node's **closer look** (0.30 m). The simulated table is in
 today's measurement replaces it.
 
 Parts on the table: every block and box you have, sizes with a rule. Then, for each camera
-height over the parts — **0.30, 0.40, 0.50, 0.60, 0.80, 1.00 m** (jog the arm straight up
+height over the parts — **0.30, 0.40, 0.50 m** (0.55 m and up are **unreachable on a UR3e with the
+table at base height**: the controller's IK refuses a flange past ~0.57 m from the base, measured
+2026-10-08; the 0.60–1.00 m rows need a taller arm or a lower table — measured numbers so far are in
+`TODO.md` under 2026-10-08) (jog the arm straight up
 between runs, pendant in Local is fine; the cockpit page's live pose shows the height):
 
 ```bash

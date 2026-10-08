@@ -493,6 +493,14 @@ to process past them:
   carpet view). Fit locally.
 - **Positions inherit calibration.** The detector tolerates a hand-eye tilted 2.5° for *finding*
   parts, but every 1° of hand-eye error is ~9 mm of grip error at 0.5 m.
+- **Translucent tops are holes** (UR3e cell, 2026-10-08): white polyethylene foam returns 10-60 % depth
+  on its top (the grey table beside it 100 %, white paper and blue felt 100 %) at any laser power, and
+  the few pixels it does return are *biased*, not noisy (a consistent 62 mm on a 30 mm block) — never
+  take a sparse median as a height. Bare metal will be worse. The depth alone found 1-2 of 4 such
+  blocks; `perceptronics/fusion.py` (colour outline + depth, the `vision` extra) finds them when the
+  part differs from the table in colour, and is the detector on a cell with numpy/OpenCV.
+- **Matte black surfaces drop out entirely**: parts on a black rubber mat read 42-62 mm tall and
+  fragmented from 0.30 m (the floor under them is unknown). A datasheet caveat, not a tuning problem.
 - **Rest pose is ambiguous for near-cubes**: a box with two equal sides has no long axis (heading
   undefined), and faces of similar size can't be told apart by the camera.
 Known gaps: one harsh-bench false pick in 351 (a tall box's fragment fitting another face); the

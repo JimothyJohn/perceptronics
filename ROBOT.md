@@ -141,6 +141,13 @@ after a `movel`: `movej` to a bent-elbow pose first; the cockpit's programs do.
 
 ## Phase 4 — hand-eye (Claude, 10 min; only if needed)
 
+**Two traps (2026-10-08, both in TODO.md):** `calibrate --dry-run` plans from a made-up flange pose
+(`Robot(dry_run=True)` answers `[0.5, 0, 0.5, …]`), so its plan says nothing about the real arm — read
+only the "Mark:" line, from a *live* run; and the orbit's own reach gate (`max_reach − 0.05`) refuses
+every view when the block is ~0.5 m out on this table while the controller's IK would have answered
+— run with `UR_MAX_REACH_M=0.70` and let the IK refuse what it must. The 0.21 m range returns no
+depth (the D435's floor is ~0.28 m): `--range-m 0.30 0.40 0.50` keeps far more views.
+
 Re-solve if anything on the wrist moved since 2026-09-27, if LEVEL > 0.5°, or if phase 5's
 first approach lands visibly off. One block under the camera, arm at the picture pose, Remote:
 
