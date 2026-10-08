@@ -7,6 +7,7 @@
 #   scripts/deploy-pi.sh pi@192.168.3.10 --allow-from 192.168.3.0/24
 #   scripts/deploy-pi.sh pi@10.0.0.56 --cell-if eth0 --cell-address 192.168.3.20/24   # the defaults
 #   scripts/deploy-pi.sh pi@10.0.0.56 --cell-if none          # leave the PC's network alone
+#   scripts/deploy-pi.sh pi@10.0.0.56 --vision ~/piwheels    # + numpy/OpenCV wheels for the PC
 #   scripts/deploy-pi.sh pi@192.168.3.10 --doctor-only
 #   scripts/deploy-pi.sh pi@192.168.3.10 --rollback            # previous release, restart
 #
@@ -36,8 +37,13 @@ case "$target" in -*) die "first argument must be user@host, got ${target}" ;; e
 install_args=()
 mode=deploy
 reconfigure=0
+vision_dir=""
 while [ $# -gt 0 ]; do
     case "$1" in
+        --vision)
+            vision_dir="$2"
+            shift 2
+            ;;
         --cell | --robot-host | --allow-from | --cell-if | --cell-address)
             [ $# -ge 2 ] || die "$1 needs a value"
             install_args+=("$1" "$2")
@@ -122,6 +128,12 @@ log "copying to ${target}:${stage_remote}"
 # a bare scp of deploy/pi/* fails on it — seen 2026-10-08 at the cell)
 pi_files=()
 for f in "$repo"/deploy/pi/*; do [ -f "$f" ] && pi_files+=("$f"); done
+# the vision extra's wheels (numpy, OpenCV for the PC's arch + Python) ride along; install.sh
+# installs them into the release's venv and keeps them for the next one
+if [ -n "${vision_dir:-}" ]; then
+    for f in "$vision_dir"/*.whl; do [ -f "$f" ] && pi_files+=("$f"); done
+    log "vision wheels: $(find "$vision_dir" -maxdepth 1 -name '*.whl' | wc -l | tr -d ' ')"
+fi
 scp -q "${ssh_opts[@]}" "$wheel" "${pi_files[@]}" "${target}:${stage_remote}/"
 
 log "running install.sh on ${target} (sudo; the first run builds librealsense — tens of minutes)"

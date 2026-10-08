@@ -643,7 +643,7 @@ class PickPlanner:
         frame = self.frame_source(arrived + FRESH_FRAMES - 1)
         if frame is None:
             return -4, None, None
-        _, w, h, _ch, _rgb, depth, scale, K = frame
+        _, w, h, ch, rgb, depth, scale, K = frame
         T_bc = None if flange is None else Transform.from_pose(flange).compose(Transform.from_pose(he))
         scene = find_parts(
             w,
@@ -652,6 +652,8 @@ class PickPlanner:
             scale,
             K,
             T_bc,
+            colour=rgb,
+            colour_channels=ch,
             spec=opts.part,
             surface=opts.surface,
             reach=keep_out(opts),
