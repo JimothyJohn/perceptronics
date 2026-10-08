@@ -118,7 +118,11 @@ log "built $(basename "$wheel")"
 stage_remote="$(ssh "${ssh_opts[@]}" "$target" 'mktemp -d /tmp/perceptronics-deploy.XXXXXX')"
 [ -n "$stage_remote" ] || die "could not create a staging directory on ${target}"
 log "copying to ${target}:${stage_remote}"
-scp -q "${ssh_opts[@]}" "$wheel" "$repo"/deploy/pi/* "${target}:${stage_remote}/"
+# the files of deploy/pi/, not its directories (image/ is the card-image tooling, not for the PC;
+# a bare scp of deploy/pi/* fails on it — seen 2026-10-08 at the cell)
+pi_files=()
+for f in "$repo"/deploy/pi/*; do [ -f "$f" ] && pi_files+=("$f"); done
+scp -q "${ssh_opts[@]}" "$wheel" "${pi_files[@]}" "${target}:${stage_remote}/"
 
 log "running install.sh on ${target} (sudo; the first run builds librealsense — tens of minutes)"
 status=0
