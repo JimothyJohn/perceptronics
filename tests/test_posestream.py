@@ -122,8 +122,9 @@ def test_concurrent_adds_and_lookups_never_tear():
 # -- the cockpit side --------------------------------------------------------------------
 
 
-def test_frames_carry_the_pose_they_were_taken_at_and_objects_list():
+def test_frames_carry_the_pose_they_were_taken_at_and_no_objects_list():
     import json
+    import urllib.error
     import urllib.request
     from http.server import ThreadingHTTPServer
 
@@ -168,11 +169,13 @@ def test_frames_carry_the_pose_they_were_taken_at_and_objects_list():
         assert header["flange_pose"] == pytest.approx(SCRIPT_FLANGE) and header["pose_age_s"] < 0.25
         pose = json.load(urllib.request.urlopen(base + "/api/robot/pose", timeout=5))
         assert pose["ok"] and pose["flange_pose"] == pytest.approx(SCRIPT_FLANGE)
+        # the page's object list (POST /api/objects) went with the RANGE SCAN, 2026-10-08
         req = urllib.request.Request(
             base + "/api/objects", data=b"{}", headers={"Content-Type": "application/json"}
         )
-        objs = json.load(urllib.request.urlopen(req, timeout=10))
-        assert objs["ok"] and isinstance(objs["objects"], list)
+        with pytest.raises(urllib.error.HTTPError) as gone:
+            urllib.request.urlopen(req, timeout=10)
+        assert gone.value.code == 404
     finally:
         srv.shutdown()
         srv.server_close()
