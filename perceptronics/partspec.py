@@ -151,17 +151,18 @@ class PartSpec:
         # part's own: a thing twice the part every way is one big thing, not two parts (2026-10-09)
         # three across read 89 x 57 against 50 x 30 (UR3e, 2026-10-09): the long side is three
         # widths and the short side one length, so both assignments of the sides are tried and
-        # the one that fits best (then the fewer parts) is the count
+        # the fewer parts that fit (then the better fit) is the count: that frame is also a
+        # 2 x 2 at the tolerance's edge, and three is the simpler story
         counts = []
         is_one = multiple(major_m, length) == 1 and multiple(minor_m, width) == 1  # the part itself
         for a, b in () if is_one else ((length, width), (width, length)):
             n, m = multiple(major_m, a), multiple(minor_m, b)
             if n * m > 1:
                 off = abs(major_m - n * a) / sl(n * a) + abs(minor_m - m * b) / sl(m * b)
-                counts.append((off, n * m))
+                counts.append((n * m, off))
         fits_h = height is None or height_m is None or lo(height) <= height_m <= hi(height)
         if counts and fits_h:
-            return f"{min(counts)[1]} parts touching?"
+            return f"{min(counts)[0]} parts touching?"
         if major_m > hi(length):
             return "too long"
         if minor_m > hi(width):

@@ -173,6 +173,16 @@ that changes with reach is probably real.
    The datasheet line is reworded accordingly. The 10-08 reading (blocks 42–62 mm tall) was the
    laser at full power on the other preset.
 
+**Frames for items 2 and 4, captured 2026-10-09 evening** (`tests/fixtures/d435/`, from the parked
+0.35 m view with `cell_sweep.py view … --no-move`): `touch_side_0p35m`, `touch_end_0p35m`,
+`touch_three_0p35m` (one outline each, "2 / 2 / 3 parts touching?" once the side assignment was
+fixed), `stack_0p35m` and `stack_0p28m` ("too tall" from both heights; this stack's top returned
+99 % depth at 0.214 m), `lean_0p35m` (both tops 11–14 % depth: no tilt to read on foam, the
+outline is all there is), `covered_0p35m` (a T: the top block at 56 mm swallows the lower one's
+free end), `cable_0p35m` (the block passes at 49 × 34 with the cable clipped where it lies on the
+table), `cyl_lead_0p35m` (the puck by depth, the lead nothing). `tests/test_fusion.py` holds them
+to: nothing fused is ever a part, the counts are right, the cable and the lead cost nothing.
+
 Not the detector: the D435 returns full depth on foam tops over white paper where over the grey
 table it leaves 10–60 % holes (the surface's brightness decides); the side views past ~0.36 m
 out on a UR3e end in a protective stop (a `movel` to a stretched pose; the endpoint passed IK);

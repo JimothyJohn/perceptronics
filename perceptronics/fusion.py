@@ -62,8 +62,10 @@ RECT_FILL = 0.85  # a blob at least this much of its own rectangle: a clean outl
 DISTANCE_GAIN = 2.0  # Lab distance → 8-bit for Otsu (a 128-unit difference saturates)
 TOP_BAND_M = 0.008  # valid depth this far below the blob's top is not the top: a side face, a cable
 CLIP_KEEP_FRAC = 0.4  # a clip that keeps less of the blob than this is not trusted (the depth is lying)
-# The D435 at 848 x 480 returned depth on a top 0.25 m away and none at 0.22 m (UR3e, 2026-10-09):
-# nearer than this, no depth is the range, not the material.
+# The D435 at 848 x 480 returned depth on a foam top 0.25 m away and none on one at 0.22 m, then
+# 99 % on a stack's top at 0.214 m (UR3e, 2026-10-09, fixture ``stack_0p28m``): the floor is the
+# material's as much as the sensor's. Only a top with *no* depth is judged by this, and "look from
+# higher up" is the right advice for one this near either way.
 MIN_DEPTH_RANGE_M = 0.24
 
 

@@ -258,3 +258,64 @@ def test_a_hole_blob_nearer_than_the_camera_can_measure_is_too_close_not_foam():
         W, H, 3, *frame((120, 90, 200, 150), holes=True), 0.001, K, T_DOWN, SURF, spec
     )
     assert ok.why is None
+
+
+# -- the 2026-10-09 scenes: touching, stacked, leaning, covered, a cable, a lead ---------------------
+# Labelled frames from the cell (TESTING.md). The contract today: nothing in them is ever passed
+# as the part except the block under the cable and the puck beside its lead; the fused blobs are
+# near misses with the right count. Splitting them into parts is the detector's open item.
+
+
+def labelled(name: str):
+    meta = json.loads((REAL / f"{name}.json").read_text())
+    spec = PartSpec.from_mm(*meta["part_mm"], shape=meta.get("shape", "box"))
+    return real(name, spec)
+
+
+@pytest.mark.parametrize("name", ["touch_side_0p35m", "touch_end_0p35m", "touch_three_0p35m"])
+def test_touching_blocks_are_never_a_part_and_the_near_miss_counts_them(name):
+    meta, sc = labelled(name)
+    assert sc.parts == [], [(p.pixel, p.length_m, p.width_m) for p in sc.parts]
+    near = [p for p in sc.rejected if p.near]
+    assert len(near) == 1, [(p.pixel, p.why) for p in near]
+    assert math.dist(meta["near"][0], near[0].pixel) < 15
+    assert near[0].why == meta["near_why"]
+
+
+@pytest.mark.parametrize("name", ["stack_0p35m", "stack_0p28m", "covered_0p35m"])
+def test_a_block_standing_on_another_is_too_tall_not_a_part(name):
+    meta, sc = labelled(name)
+    assert sc.parts == []
+    # (the robot's base at the picture's edge is a "cut off" near miss in the 0.28 m frame)
+    near = [p for p in sc.rejected if p.near and math.dist(meta["near"][0], p.pixel) < 15]
+    assert len(near) == 1 and near[0].why == "too tall", [(p.pixel, p.why) for p in sc.rejected if p.near]
+    assert near[0].height_m * 1000 == pytest.approx(57, abs=4)
+
+
+def test_a_leaning_block_is_never_a_part():
+    # the two tops return 11-14 % depth, so there is no tilt to read: the fused outline is all
+    # there is, and it is not the part's
+    meta, sc = labelled("lean_0p35m")
+    assert sc.parts == []
+    assert any(math.dist(meta["near"][0], p.pixel) < 15 for p in sc.rejected if p.near)
+
+
+def test_a_white_cable_across_the_block_does_not_hide_it():
+    meta, sc = labelled("cable_0p35m")
+    assert len(sc.parts) == 1, [(p.pixel, p.why) for p in sc.rejected if p.near]
+    (p,) = sc.parts
+    assert math.dist(meta["pixels"][0], p.pixel) < 15
+    # the cable where it lies on the table is clipped away (the whole blob read 49 x 39, "too
+    # wide", before); the bit on the top stays and widens the block a few mm
+    assert p.length_m * 1000 == pytest.approx(50, abs=5) and 29 <= p.width_m * 1000 <= 36
+
+
+def test_a_pucks_lead_is_not_offered_as_parts_touching():
+    meta, sc = labelled("cyl_lead_0p35m")
+    assert len(sc.parts) == 1 and not [p for p in sc.rejected if p.near], [
+        (p.pixel, p.why) for p in sc.rejected if p.near
+    ]
+    (p,) = sc.parts
+    assert math.dist(meta["pixels"][0], p.pixel) < 15
+    assert p.length_m * 1000 == pytest.approx(75, abs=6) and p.width_m * 1000 == pytest.approx(75, abs=6)
+    assert 12 <= p.height_m * 1000 <= 19  # the dark anodized top reads small (datasheet)
