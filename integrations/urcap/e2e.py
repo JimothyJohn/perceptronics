@@ -617,6 +617,12 @@ def browser_checks(checks: Checks, port: int, cockpit_port: int, shots: Path | N
                 f"() => !/segmenting/.test(document.querySelector('{TAG} [data-rsp=status]').textContent)",
                 timeout=30_000,
             )
+            # the page moves on to locate as soon as its fetch resolves; Playwright's response
+            # event for that same answer can land a moment later (10.8.0, the slowest sim)
+            for _ in range(50):
+                if segment:
+                    break
+                time.sleep(0.1)
             checks.expect(
                 bool(segment) and segment[-1].get("ok") is True,
                 "click segments",
