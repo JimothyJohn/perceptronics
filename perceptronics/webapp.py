@@ -911,7 +911,9 @@ class ViewerApp:
     def objects(self) -> dict:
         """Every white block in the newest frame (pick-cycle's detector): per object
         the top-face centre and its white pixels back-projected at the top face's
-        depth, camera frame (m), with the frame's pose so the page can place them."""
+        depth, camera frame (m), with the frame's pose. The pick route's close-look
+        re-find (``_refind``) reads it; the page's ``POST /api/objects`` and its RANGE
+        SCAN were removed 2026-10-08 (Nick: "never made sense")."""
         from .pickcycle import WHITE_CHROMA, top_face, white_blobs, white_level
 
         seq, frame = self.latest()
@@ -1844,8 +1846,6 @@ class ViewerHandler(BaseHTTPRequestHandler):
             )
         elif route == "/api/robot/home":
             self._guarded(self.app.home)
-        elif route == "/api/objects":
-            self._guarded(self.app.objects)
         elif route == "/api/nearest":
             self._guarded(lambda: self.app.nearest(float(payload.get("near_ratio", 1.2))))
         elif route == "/api/pick/preview":

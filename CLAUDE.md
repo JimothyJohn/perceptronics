@@ -144,12 +144,11 @@ vertical path, and skips a block no lean solves.
 streams RTDE `actual_TCP_pose` + `tcp_offset` at 30 Hz; flange = tcp ∘ offset⁻¹ (identical
 to the `get_flange_pose` script on the UR3e, no Primary program, works in Local). Each
 `/api/rgbd` header carries `flange_pose`, `pose_age_s`, `flange_to_color_pose`; `GET
-/api/robot/pose`; `POST /api/objects` lists every white block with its top-face points.
-The page (`webui/index.html`) is a scan-first ship's-computer UI: the depth as a point
-cloud in the base frame (drag/wheel/WASD/Space/click-to-centre), light columns over
-objects, the feed's target box re-projected through the live pose; `/classic` is the
-old page (calibration lives there). Needs a cockpit restart to pick up server changes;
-the page itself is read from disk per request.
+/api/robot/pose`. The page (`webui/index.html`) is a ship's-computer UI around the wrist
+feed (hover to measure, click or drag to segment, the log and the prompt beside it); the
+RANGE SCAN point cloud, its object cards and `POST /api/objects` were removed 2026-10-08
+(Nick: "never made sense"). `/classic` is the old page (calibration lives there). Needs a
+cockpit restart to pick up server changes; the page itself is read from disk per request.
 
 **A lost link is named on the page (2026-09-30, Nick: "obvious to the user", "hotswapped without a
 reboot or refresh").** The cockpit page (`webui/index.html`, `health()`) raises one alarm strip under
