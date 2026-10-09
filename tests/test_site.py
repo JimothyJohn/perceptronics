@@ -217,8 +217,11 @@ def test_index_no_longer_carries_specs_or_install_steps(pages):
 def test_datasheet_says_its_figures_are_untested_estimates(built: Path):
     text = (built / "datasheet.html").read_text(encoding="utf-8")
     assert "Planning figures, not guarantees" in text
-    assert "have not been measured on a production cell" in text
-    assert "Estimate, not a measured or guaranteed value" in text
+    assert "nothing has been measured on a production cell" in text
+    assert "Estimate, not measured or guaranteed" in text
+    # the measured figures (2026-10-08) say where they come from: one bench cell, one part
+    assert "measured on one bench cell" in text
+    assert "<sup>M</sup> Measured, a D435 on the camera computer: 50 × 30 × 30 mm foam on a UR3e" in text
     values = site_build.facts()
     for key in ("PS5_VERSION", "PSX_VERSION", "PS5_RANGE", "PSX_RANGE", "SHEET_DATE"):
         assert values[key] in text, key

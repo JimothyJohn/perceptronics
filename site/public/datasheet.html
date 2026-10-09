@@ -45,6 +45,7 @@
     sup { font-size: 6pt; color: #8a5a00; font-weight: 700; line-height: 0; }
     ul { padding-left: 10pt; }
     .notfor ul { columns: 2; column-gap: 0.2in; }
+    .notfor li { break-inside: avoid; }
     .caps ul { columns: 3; column-gap: 0.2in; }
     .caps li { break-inside: avoid; margin: 1pt 0; }
     .caps { margin-top: 4pt; break-inside: avoid; }
@@ -71,7 +72,7 @@
 
     <p class="lede"><strong>3D picking for any industrial robot.</strong> A depth camera on the wrist and a small computer beside the robot find every part of the size you enter lying on a flat surface, number them in the pick order you choose, and bring the tool to the grip on each one. A connector puts this into the robot's own programs; the robot's program opens and closes the gripper.</p>
 
-    <p class="warn"><strong>Planning figures, not guarantees.</strong> The numbers below are deliberately conservative estimates derived from the software's limits, its programmed speeds and the camera's noise. This release is a beta and the figures have not been measured on a production cell. <strong>Test with your parts, gripper and layout before you commit to them.</strong></p>
+    <p class="warn"><strong>Planning figures, not guarantees.</strong> The numbers below are deliberately conservative estimates derived from the software's limits, its programmed speeds and the camera's noise, except the ones marked <sup>M</sup>, measured on one bench cell. This release is a beta and nothing has been measured on a production cell. <strong>Test with your parts, gripper and layout before you commit to them.</strong></p>
 
     <div class="cols">
       <div>
@@ -88,12 +89,12 @@
         <h2>Picking performance <span style="text-transform:none;letter-spacing:0;color:#5a6470;font-weight:400">(by camera-to-part distance; verify on your cell)</span></h2>
         <table class="perf">
           <tr><th></th><td class="h">0.30 to 0.60 m<br><span>working zone</span></td><td class="h">1.0 to 1.5 m<br><span>far limit</span></td><td class="n"></td></tr>
-          <tr><th>Parts found</th><td class="v">99 %<sup>S</sup></td><td class="v">4 of 4<sup>M</sup></td><td class="n">Right-size parts in view. Wrong ones picked: 0.</td></tr>
-          <tr><th>Size resolved to</th><td class="v">±5 mm</td><td class="v">±17 mm</td><td class="n">It checks a size; it does not measure one.</td></tr>
+          <tr><th>Parts found</th><td class="v">4 of 4<sup>M</sup></td><td class="v">4 of 4<sup>M</sup></td><td class="n">Colour + depth; 0 wrong. Depth alone: 1 of 4.</td></tr>
+          <tr><th>Size resolved to</th><td class="v">±5 mm<sup>E</sup></td><td class="v">±17 mm<sup>E</sup></td><td class="n">It checks a size; it does not measure one.</td></tr>
           <tr><th>Sizes told apart</th><td class="v">≥ 10 mm<sup>E</sup></td><td class="v">≥ 35 mm<sup>E</sup></td><td class="n">Closer sizes read as the same part.</td></tr>
           <tr><th>Smallest part found</th><td class="v">20×20×8 mm<sup>S</sup></td><td class="v">40×30×15<sup>S</sup></td><td class="n">Every time; 60×40×20 to 1.2 m.</td></tr>
           <tr><th>Lowest part</th><td class="v">5 mm<sup>E</sup></td><td class="v">15 mm<sup>M</sup></td><td class="n">Above the surface; rough ones raise it.</td></tr>
-          <tr><th>Part centre</th><td class="v">±3 mm<sup>S</sup></td><td class="v">±10 mm<sup>E</sup></td><td class="n">95 %, plus calibration: 9 mm per 1°.</td></tr>
+          <tr><th>Part centre</th><td class="v">±4 mm<sup>M</sup></td><td class="v">±10 mm<sup>E</sup></td><td class="n">Across views; plus calibration: 9 mm per 1°.</td></tr>
           <tr><th>Part heading</th><td class="v">±2.5°<sup>S</sup></td><td class="v">±8°<sup>E</sup></td><td class="n">95 %. None for a square top.</td></tr>
           <tr><th>Gap to neighbours</th><td class="v">≥ 25 mm</td><td class="v">≥ 40 mm<sup>E</sup></td><td class="n">20 mm finger room a side.</td></tr>
           <tr><th>Time to find</th><td class="v">0.9 s<sup>M</sup></td><td class="v">1.1 s<sup>M</sup></td><td class="n">Per picture, Raspberry Pi 5.</td></tr>
@@ -104,13 +105,13 @@
           <tr><th>Part pose</th><td class="v">Any face down</td><td class="n">Boxes on any face; cylinders on end.</td></tr>
           <tr><th>Cycle, node only</th><td class="v">15 s per part<sup>E</sup></td><td class="n">To the grip. ~2 parts/min with a short place.</td></tr>
         </table>
-        <p class="n" style="color:#5a6470;font-size:6.6pt;margin-top:3pt"><sup>M</sup> Measured with the camera computer and a D435, one setup. <sup>S</sup> Simulated: 720 parts, and 12 cells per size and distance, through a model of the D435's noise. <sup>E</sup> Estimate, not a measured or guaranteed value.</p>
+        <p class="n" style="color:#5a6470;font-size:6.6pt;margin-top:3pt"><sup>M</sup> Measured, a D435 on the camera computer: 50 × 30 × 30 mm foam on a UR3e, 0.32–0.50 m, straight down (read 49–51 × 29–31); boxes at 1.4 m. <sup>S</sup> Simulated: 720 parts, 12 cells per size and distance, a model of the D435's noise. <sup>E</sup> Estimate, not measured or guaranteed.</p>
       </div>
 
       <div>
         <figure>
           <img src="screens/pick-part.png" width="1000" height="560" alt="The 3D Pick node on the pendant, step 2 of 3: one tapped part taught its size; parts to pick outlined in green and numbered, rejected parts in yellow with the reason.">
-          <figcaption>The Universal Robots connector on a PolyScope 5 pendant (simulated scene).</figcaption>
+          <figcaption>The Universal Robots connector on a PolyScope 5 pendant.</figcaption>
         </figure>
 
         <h2>Connectors</h2>
@@ -133,9 +134,11 @@
           <ul>
             <li>Measuring parts or quality checks</li>
             <li>Defect, surface or print inspection</li>
-            <li>Telling apart parts of nearly the same size</li>
+            <li>Telling apart near-equal sizes</li>
             <li>Thin or flat parts: sheets, washers, labels</li>
             <li>Transparent, mirror-like or very dark parts</li>
+            <li>Black mats: not seen</li>
+            <li>Translucent or shiny tops by depth alone</li>
             <li>Bin picking: piled or leaning parts</li>
             <li>Shapes other than boxes and upright cylinders</li>
             <li>Direct sunlight on the work area</li>
@@ -148,7 +151,7 @@
     <div class="caps">
       <h2>Capabilities</h2>
       <ul>
-        <li><strong>Finds parts by volume, from depth alone:</strong> boxes on any face, cylinders on end; the floor is fitted round each part.</li>
+        <li><strong>Finds parts by volume,</strong> depth with the colour outline: boxes on any face, cylinders on end; the floor is fitted round each part.</li>
         <li><strong>Any position, any rotation.</strong> Fingers across the short side, or the long one.</li>
         <li><strong>Eight pick orders:</strong> by rows or by columns, from any corner.</li>
         <li><strong>Checks before it moves:</strong> reach by the arm's kinematics, finger room.</li>
