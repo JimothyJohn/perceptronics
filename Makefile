@@ -115,7 +115,6 @@ urcap5-sdk:  ## The URCap API jars of the oldest supported PolyScope (+ compat.s
 
 urcap5-package:  ## Rebuild the downloadable integrations/urcap/dist/perceptronic-ps5-<ver>.urcap (JDK; commit it).
 	$(PYTHON) integrations/urcap/urcap5.py package integrations/urcap/perceptronic-ps5 --out integrations/urcap/dist
-	$(PYTHON) integrations/urcap/urcap5.py magic integrations/urcap/perceptronic-ps5 --out integrations/urcap/dist
 
 urcap5-install: urcap5-package  ## Install it in the e-Series sim container $(URCAP5_CONTAINER) (restarts it).
 	$(PYTHON) integrations/urcap/urcap5.py install integrations/urcap/dist/perceptronic-ps5-*.urcap --container $(URCAP5_CONTAINER)

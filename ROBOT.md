@@ -37,8 +37,8 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
    `cockpit ~30 fps`, `network: this machine is 192.168.3.20 on 192.168.3.0/24` ok; `robot.*`
    fail (unplugged) — expected.
 2. **The stick**: `scripts/urcap5-usb.sh` ("URE MODELS"). It writes
-   `perceptronic-ps5-0.9.0.urcap` + `urmagic_perceptronic.sh` and ejects. Keep the magic file
-   for phase 2B; the by-hand install comes first.
+   `perceptronic-ps5-0.9.0.urcap` (and deletes any `urmagic_perceptronic.sh` an earlier run
+   left on it) and ejects.
 3. **Fresh frames of the real scene are the arbiter** (`CLAUDE.md` §Detection): clear
    `captures/` on the Mac of root-owned leftovers (`sudo chown -R nick captures` from a local
    Terminal) so snapshots can be written.
@@ -69,7 +69,7 @@ robot** — note what happens either way.
 
 ## Phase 2 — the URCap on the pendant (Nick, 20 min)
 
-**2A, by hand (always works):** ☰ → Settings → System → URCaps: select **RealSense Pilot**, **–**,
+**On the pendant:** ☰ → Settings → System → URCaps: select **RealSense Pilot**, **–**,
 restart. Then **+** → the stick → `perceptronic-ps5-0.9.0.urcap` → Open → Restart.
 (Pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)
 
@@ -82,10 +82,9 @@ The **P** button in the header drops the live picture over any screen. Note:
   too small?
 - the watermark bottom-right of the picture.
 
-**2B, the magic file (own test, after 2A works):** Settings → Security → General → **Run magic
-files** on, arm powered off, stick in: the robot installs 0.9.0 by itself and restarts. Its
-log is `urmagic_perceptronic.log` on the stick. Never run on a robot; a failure here is a
-finding, not a blocker (2A is the fallback).
+(The stick's auto-install file was removed on 2026-10-08 — it restarted the controller the
+moment the stick went in. **Run magic files** stays off.)
+
 
 If the picture never comes: the URCap names the cause first (*No answer from the camera
 computer at 192.168.3.20* → cable/power/robot subnet; *A computer answers … but not the camera

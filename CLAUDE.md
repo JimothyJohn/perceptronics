@@ -260,9 +260,10 @@ weird RealSense Pilot thing"), owned by Nick personally, namespaced by his domai
 PolyScope X 0.3.0 was released under that id):** PolyScope 5 bundle
 `io.advin.perceptronic` (Java package the same, `Bundle-Vendor: Nick Armenta`,
 `Bundle-Copyright: Copyright (c) 2026 Nick Armenta`, jar
-`integrations/urcap/dist/perceptronic-ps5-<ver>.urcap`, and beside it `urmagic_perceptronic.sh` — the
-stick's auto-install file filled in for that jar, written by `make urcap5-package`, held equal by
-a test), PolyScope X `advin/perceptronic` from 0.4.0
+`integrations/urcap/dist/perceptronic-ps5-<ver>.urcap`; the `urmagic_perceptronic.sh` auto-install
+file that sat beside it was **removed 2026-10-08** (Nick: it rebooted the controller the instant
+the stick went in — install only through the pendant's URCaps screen; `urcap5-usb.sh` deletes any
+copy left on a stick)), PolyScope X `advin/perceptronic` from 0.4.0
 (`integrations/urcap/perceptronic/`, element `advin-perceptronic`). A different bundle identity is a
 different URCap to PolyScope: the old one must be removed on a robot that had it, and its
 saved node data (cockpit address, pick areas) and programs' RealSense Pick nodes don't carry

@@ -37,7 +37,7 @@ the exact kit, and stop after two failed attempts at any step and read §5.
 | Pi 5 in its case, **the 27 W (5.1 V / 5 A) supply** | on less, USB caps at 600 mA and the D435 browns out mid-demo |
 | D435 on the bracket, the short **USB 3** Newnex cable, no hub | a USB 2 link drops the picture to 640 × 480 @ 15 |
 | the office switch, 3 Ethernet cables, the Air's Ethernet adapter | see §0 |
-| the **"URE MODELS" USB stick** with `perceptronic-ps5-0.9.1.urcap` + `urmagic_perceptronic.sh` | `scripts/urcap5-usb.sh` on the Studio with the stick in — the stick has 0.3.0 on it now |
+| the **"URE MODELS" USB stick** with `perceptronic-ps5-0.9.1.urcap` | `scripts/urcap5-usb.sh` on the Studio with the stick in — the stick has 0.3.0 on it now |
 | the **spare microSD** (build #3 image, flashed unseeded) | a dead card is a 2-minute swap; the image has the portal |
 | the white blocks, a rule, a flat board if the table is carpet | carpet reads ±3 mm rough; a board is 5× quieter |
 | the Air with a checkout of this repo (`git clone`, `dev`), Homebrew `python3` ≥ 3.10 | the runtime is stdlib: `python3 -m perceptronics …` runs from the clone, nothing to install |
@@ -64,8 +64,7 @@ its check — **stop at the first one that fails twice** and read §5:
    `handeye file:…`. `robot.control LOCAL` is fine. **This is the first time the Pi ever reaches
    a controller.**
 2. **The URCap goes on the pendant.** Remove RealSense Pilot (☰ → Settings → System → URCaps,
-   select, −, restart). Then + → the stick → `perceptronic-ps5-0.9.1.urcap` → Restart. **Install
-   by hand**, not the magic file (never run on a robot; keep it for later).
+   select, −, restart). Then + → the stick → `perceptronic-ps5-0.9.1.urcap` → Restart.
    Check: Installation → URCaps → **Perceptronic** shows the live picture, Cockpit field reads
    `192.168.3.20`. ☰ → Save Installation. The **P** button in the header drops the picture over
    any screen. Note anything clipped.
@@ -121,7 +120,7 @@ are all that); unplug the camera (it recovers, but it takes a few seconds and a 
 | Pendant: *No answer from the camera computer at 192.168.3.20* | the Pi's link light; power; the robot's Network screen on `192.168.3.x/24`. From the Air `ping 192.168.3.20`. Thirty seconds after power-on is normal |
 | *… but not the camera program* | the cockpit crashed or is restarting: `curl http://192.168.3.20/api/info`; the service restarts by itself within 10 s; after that, power-cycle the Pi (30 s) |
 | *camera gives no picture* / `camera` FAIL in the doctor | the D435's cable into a **blue** port, no hub, the 27 W supply; re-plug it — the cockpit re-opens it |
-| The URCap won't install (*invalid file*, or nothing after Restart) | the jar's validity was checked against PolyScope's own validator and installed on this pendant at 0.2.0 — but 0.9.1 never. Try the magic file (Settings → Security → General → Run magic files, arm off, stick in). If neither: **fallback demo** below |
+| The URCap won't install (*invalid file*, or nothing after Restart) | the jar's validity was checked against PolyScope's own validator and installed on this pendant at 0.2.0 — but 0.9.1 never. If it won't: **fallback demo** below |
 | Blocks yellow, banner says the size | the rule; Part tab |
 | Banner: *surface reads rough* | a board under the blocks; or the picture pose 0.1 m closer |
 | Banner / note: *off level in the robot's frame* | the hand-eye: §3 step 3. The demo can run (parts are found) but picks land off by the error |

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Install (or replace) the PolyScope X URCap on a robot as soon as its urservice answers —
-# the network-side stand-in for the PolyScope 5 stick's magic file, since PolyScope X runs
-# nothing from a USB stick. Run it from a checkout on any computer on the robot's network
+# Install (or replace) the PolyScope X URCap on a robot as soon as its urservice answers, over
+# the network (PolyScope X runs nothing from a USB stick). Run it from a checkout on any computer on the robot's network
 # (the pick PC at boot, a laptop); it waits for the robot, then installs through the same
 # endpoint System Manager uses (integrations/urcap/urcapx.py, no Remote mode needed).
 #
