@@ -185,13 +185,13 @@ def start_pose(fc_pose=TRUE_FC, range_m=0.30):
 
 @pytest.fixture
 def rig(monkeypatch):
-    def make(seed=SEED_NEAR, **cockpit_kw):
+    def make(seed=SEED_NEAR, cockpit_cls=FakeCockpit, **cockpit_kw):
         ctl = MovingController().install(monkeypatch)
         ctl.remote = True
         ctl.tcp_pose = start_pose()
         ctl.tcp_offset = [0.0] * 6
         robot = Robot(RobotConfig(host="fake-ur.invalid"))
-        cockpit = FakeCockpit(ctl, seed, **cockpit_kw)
+        cockpit = cockpit_cls(ctl, seed, **cockpit_kw)
         events: list[str] = []
         cal = OrbitCalibration(
             cockpit, robot=robot, min_blob_px=100, settle_s=0.0, say_fn=lambda ev: events.append(ev["text"])
@@ -282,6 +282,77 @@ def test_a_bad_click_is_trimmed_out(rig):
     assert out["ok"] and out["trimmed"] == 1 and out["rms_mm"] < 2.0
     assert any("Trim: dropped view 6" in e for e in events)
     assert ("/api/cal/remove", {"index": 5}) in cockpit.posts
+
+
+# -- the guards (2026-10-09: two orbits on the UR3e applied a camera 0.2-0.7 m off the flange) ----
+
+
+class FewViewsCockpit(FakeCockpit):
+    """A cell where the block disappears after a handful of looks (the 2026-10-09 symptom:
+    the top face lost in most views)."""
+
+    def frame(self):
+        if self.frames >= 6:
+            self.block = False
+        return super().frame()
+
+
+def test_a_solve_from_a_handful_of_views_is_never_applied(rig):
+    """Two orbits in a row solved on 4-6 views, trimmed to 4, and --apply put the result in
+    force: a camera 0.67 m along the flange's Z. With fewer than MIN_APPLY_VIEWS the cockpit
+    keeps what it had, and says so; --force-apply is the only way past."""
+    from perceptronics.orbitcal import MIN_APPLY_VIEWS
+
+    ctl, cockpit, cal, events = rig(cockpit_cls=FewViewsCockpit)
+    out = cal.run(apply=True)
+    assert out["ok"] and 1 <= out["views"] < MIN_APPLY_VIEWS
+    assert out["applied"] is False and cockpit.applied is None
+    assert out["apply_blocked"].startswith(f"only {out['views']} views")
+    assert any("Apply refused" in e and "keeps its current hand-eye" in e for e in events)
+    assert ("/api/cal/apply", {"method": "orbit"}) not in cockpit.posts
+    ctl2, cockpit2, cal2, events2 = rig(cockpit_cls=FewViewsCockpit)
+    out2 = cal2.run(apply=True, force_apply=True)
+    assert out2["applied"] and cockpit2.applied is not None and any("forced past" in e for e in events2)
+
+
+def test_a_solve_far_from_the_seed_is_never_applied(rig, monkeypatch):
+    """A solve that lands where no bracket could put the camera is refused whatever its RMS."""
+    ctl, cockpit, cal, events = rig()
+    real_post = cockpit.post
+    wild = [0.30, -0.10, 0.67, -2.88, 0.33, 0.81]  # the second orbit's answer, 2026-10-09
+
+    def post(path, body=None):
+        out = real_post(path, body)
+        if path == "/api/cal/solve" and out.get("ok", True) and "flange_to_color_pose" in out:
+            out = {**out, "flange_to_color_pose": wild, "flange_to_depth_pose": wild}
+        return out
+
+    monkeypatch.setattr(cockpit, "post", post)
+    out = cal.run(apply=True)
+    assert out["applied"] is False and cockpit.applied is None
+    assert "from the seed" in out["apply_blocked"] and "mm and" in out["apply_blocked"]
+
+
+def test_the_mark_is_predicted_from_the_seed_until_a_dozen_views_are_in(rig):
+    """Four bad early views no longer poison the prediction for every view after them."""
+    from perceptronics.orbitcal import TRACK_AFTER_VIEWS
+
+    assert TRACK_AFTER_VIEWS >= 12
+    ctl, cockpit, cal, events = rig(bad_views={0, 1, 2, 3})
+    out = cal.run()
+    assert out["ok"] and out["kept"] >= 20, out
+    mm, deg = _delta(cockpit.session.result["flange_to_color_pose"], TRUE_FC)
+    assert mm < 3.0 and deg < 1.0, (mm, deg)  # the four bad clicks were trimmed, the rest carried it
+
+
+def test_a_running_solve_that_wanders_is_not_used_for_prediction(rig, monkeypatch):
+    ctl, cockpit, cal, events = rig()
+    cal.prepare()
+    cal.seed_pose = list(TRUE_FC)
+    near = [v + d for v, d in zip(TRUE_FC, [0.02, 0.0, 0.0, 0.0, 0.0, 0.0], strict=True)]
+    assert cal.far_from_seed(near) is None
+    why = cal.far_from_seed([0.30, -0.10, 0.67, -2.88, 0.33, 0.81])
+    assert why and "from the seed" in why
 
 
 # -- faults -------------------------------------------------------------------------------------
@@ -382,6 +453,8 @@ def test_parser_and_runner_agree_on_every_option(monkeypatch, capsys):
     )
     ap = argparse.ArgumentParser()
     add_calibrate_args(ap)
-    args = ap.parse_args(["--via-cockpit", "--range-m", "0.25", "0.35", "--apply", "--no-reset", "--json"])
+    args = ap.parse_args(
+        ["--via-cockpit", "--range-m", "0.25", "0.35", "--apply", "--force-apply", "--no-reset", "--json"]
+    )
     assert run_calibrate(args) == 0
     assert '"ok": true' in capsys.readouterr().out
