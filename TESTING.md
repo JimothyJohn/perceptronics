@@ -143,7 +143,12 @@ that changes with reach is probably real.
 1. **Clip the colour outline to the depth footprint's half-height line.** A block at the
    picture's edge shows its side face and the outline swallows it (P1: 50 → 40 mm, rejected); a
    white cable on a white block is swallowed the same way (P14: 59 × 37 passed at 0.28 m); a
-   cylinder's lead too (P4). Three fixtures-to-be.
+   cylinder's lead too (P4). Three fixtures-to-be. **Done 2026-10-09** (`fusion.colour_parts`):
+   a blob pixel with valid depth more than 8 mm below the blob's top (or below the half-height
+   line when the top has no depth) is dropped, except within a blur width of the kept top — the
+   depth's blurred ring inside the colour's sharp edge reads low too and is the top; a clip that
+   would keep under 40 % of the blob is not trusted. Synthetic: a 4 mm cable off a block 171 → 99 mm,
+   a side-face ramp 116 → 105, a solid block unchanged at every blur. Still to check on the frames.
 2. **Split a blob by the part's size.** Touching blocks never split (P5, P6, P7); two bars in the
    oblique view read as one 151 × 60; a cylinder and its cable as 87 × 74. The seam is a visible
    line in colour for side-by-side blocks (P5, P7), invisible end to end (P6): the split must come
@@ -151,11 +156,16 @@ that changes with reach is probably real.
 3. **A "too close" guard at the camera's floor.** A white outline with no depth under it is taken
    for foam and given the part's height; when the blob's expected top sits inside the camera's
    minimum range, no depth means too close, not foam (P8: a 57 mm stack passed as 30 at 0.28 m).
+   **Done 2026-10-09**: a hole blob whose top at the spec's height would be nearer than 0.24 m
+   (`fusion.MIN_DEPTH_RANGE_M`) is refused as "too close to the camera to measure (0.23 m): look
+   from higher up", drawn yellow.
 4. **Partly covered and leaning parts** (P11): a footprint touching a taller blob is "partly
    covered?", not a part; a top face tilted more than a few degrees from the surface is not
    resting, and says so.
 5. **Reasons**: a part twice the size in every direction is "too long / too tall", not "2 parts
-   touching?" (P12).
+   touching?" (P12). **Done 2026-10-09** (`partspec._why_not_as`): "n parts touching?" only when
+   the other side is the part's own (or itself a multiple: a 2 × 2 is "4 parts touching?") and the
+   height, when seen, fits; otherwise too long / too wide / too tall.
 6. **Dark anodized tops read 3–5 mm small** (P2, P4; the cylinders' rim accounts for part of the
    height): a consistent bias for the datasheet, not a tuning target.
 7. **The black mat** (S4): the rubber returns depth; what drops out is its white velcro strips.

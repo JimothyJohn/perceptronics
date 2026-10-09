@@ -3,8 +3,12 @@
 Real frames from the UR3e cell, 2026-10-08 (``tests/fixtures/d435/foam_*``): white foam blocks
 whose tops return 10-60 % depth. The depth alone finds one or two of four; with the colour
 outline all four, 50 x 30 +-5 mm, and the e-stop box beside them when its size is asked for.
-Synthetic frames hold the two rules the fixtures can't isolate: a flat white thing on the
-table is not a part, and a hole in the depth the size of the part is one."""
+Synthetic frames hold the rules the fixtures can't isolate: a flat white thing on the table
+is not a part, a hole in the depth the size of the part is one, a white thing beside the part
+with depth that says it is low (a cable, a side face) is not the part's top, the depth's
+blurred edge inside the colour's is, and a hole blob nearer than the camera can measure is
+"too close", not foam (2026-10-09 on the UR3e: a 57 mm stack at 0.28 m passed as a 30 mm block,
+a block with a cable on it read 59 x 37 and passed)."""
 
 from __future__ import annotations
 
@@ -146,3 +150,111 @@ def test_without_the_vision_extra_the_depth_path_is_unchanged(monkeypatch):
     assert (
         fusion.colour_parts(W, H, 3, rgb, depth, 0.001, K, T_DOWN, SURF, PartSpec.from_mm(100, 75, 30)) == []
     )
+
+
+@pytest.mark.parametrize("name", ["black_mat_block_0p35m"])
+def test_a_foam_block_on_a_black_mat_is_found_by_its_colour(name):
+    # the mat returns depth, the foam's top mostly not, and the floor under the block is the mat,
+    # not the table (the datasheet's black-mat line); the colour outline still reads 50 x 30
+    meta, sc = real(name, PartSpec.from_mm(*meta_part(name)))
+    assert len(sc.parts) == meta["count"], [(p.pixel, p.why) for p in sc.rejected if p.near]
+    (p,) = sc.parts
+    assert math.dist(meta["pixels"][0], p.pixel) < 15
+    assert abs(p.length_m * 1000 - 50) <= 8 and abs(p.width_m * 1000 - 30) <= 8, (p.length_m, p.width_m)
+
+
+# -- the colour outline clipped by the depth --------------------------------------------------------
+
+
+def blurred(depth: bytes, sigma_px: float) -> bytes:
+    """The depth as the stereo matcher's window blurs it (sigma ~ 1 % of the range)."""
+    import cv2
+    import numpy as np
+
+    d = np.frombuffer(depth, np.uint16).reshape(H, W).astype(np.float32)
+    return np.round(cv2.GaussianBlur(d, (0, 0), sigma_px)).astype(np.uint16).tobytes()
+
+
+def sizes_mm(parts):
+    return [(round(p.length_m * 1000, 1), round(p.width_m * 1000, 1)) for p in parts]
+
+
+def test_the_depths_blurred_edge_inside_the_colour_outline_is_the_top():
+    # a solid block: the depth reads low in a ring just inside the sharp colour edge; the clip
+    # must not take that ring (it did, 5 mm per side at a realistic blur, before the blur width
+    # was given back)
+    rgb, depth = frame((120, 90, 200, 150), holes=False, raised_mm=30)
+    spec = PartSpec.from_mm(100, 75, 30)
+    sharp = fusion.colour_parts(W, H, 3, rgb, depth, 0.001, K, T_DOWN, SURF, spec)
+    for sigma in (2, 3, 5):
+        soft = fusion.colour_parts(W, H, 3, rgb, blurred(depth, sigma), 0.001, K, T_DOWN, SURF, spec)
+        assert len(soft) == 1 and sizes_mm(soft) == sizes_mm(sharp), (sigma, sizes_mm(soft), sizes_mm(sharp))
+
+
+def test_a_white_cable_lying_off_the_block_is_not_part_of_its_outline():
+    import numpy as np
+
+    rgb, depth = frame((120, 90, 200, 150), holes=False, raised_mm=30)
+    rgb = np.frombuffer(rgb, np.uint8).reshape(H, W, 3).copy()
+    d = np.frombuffer(depth, np.uint16).reshape(H, W).copy()
+    rgb[115:125, 200:260] = 245  # a white cable, 4 mm thick, running off the block's right side
+    d[115:125, 200:260] = round((Z - 0.004) / 0.001)
+    parts = fusion.colour_parts(
+        W, H, 3, rgb.tobytes(), blurred(d.tobytes(), 3), 0.001, K, T_DOWN, SURF, PartSpec.from_mm(100, 75, 30)
+    )
+    assert len(parts) == 1
+    # the colour alone reads the block + cable 171 mm long; the depth says the cable is on the table
+    assert parts[0].length_m * 1000 == pytest.approx(97, abs=4) and parts[0].width_m * 1000 == pytest.approx(
+        73, abs=4
+    )
+    assert parts[0].height_m == pytest.approx(0.030, abs=0.002)
+
+
+def test_a_side_face_showing_in_the_picture_is_not_the_top():
+    import numpy as np
+
+    # the block's right side face, seen in perspective at the picture's edge: white in the
+    # colour, a ramp from the top down to the table in the depth
+    rgb = np.full((H, W, 3), 120, np.uint8)
+    rgb[90:150, 120:215] = 245
+    d = np.full((H, W), round(Z / 0.001), np.float32)
+    d[90:150, 120:200] = round((Z - 0.030) / 0.001)
+    for i in range(15):
+        d[90:150, 200 + i] = round((Z - 0.030 * (1 - (i + 1) / 16)) / 0.001)
+    depth = blurred(d.astype(np.uint16).tobytes(), 2)
+    parts = fusion.colour_parts(
+        W, H, 3, rgb.tobytes(), depth, 0.001, K, T_DOWN, SURF, PartSpec.from_mm(100, 75, 30)
+    )
+    assert len(parts) == 1
+    # the colour alone reads 116 mm (top + side face); clipped, the top with its blur: ~105
+    assert parts[0].length_m * 1000 < 108, sizes_mm(parts)
+    assert parts[0].width_m * 1000 == pytest.approx(73, abs=4)
+
+
+def test_a_hole_blob_nearer_than_the_camera_can_measure_is_too_close_not_foam():
+    import numpy as np
+
+    # the camera 0.26 m over the table and a white outline with no depth under it: at the spec's
+    # 30 mm its top would be 0.23 m away, inside the D435's floor, so the holes are the range,
+    # not the material (a 57 mm stack read as a 30 mm block this way)
+    z = 0.26
+    rgb = np.full((H, W, 3), 120, np.uint8)
+    rgb[77:163, 102:218] = 245  # 116 x 86 px: 100 x 75 mm at 0.26 m
+    depth = np.full((H, W), round(z / 0.001), np.uint16)
+    depth[79:161, 104:216] = 0
+    rgb, depth = rgb.tobytes(), depth.tobytes()
+    T26 = Transform.from_pose([0.0, 0.0, z, 0.0, math.pi, 0.0])
+    spec = PartSpec.from_mm(100, 75, 30)
+    (p,) = fusion.colour_parts(W, H, 3, rgb, depth, 0.001, K, T26, SURF, spec)
+    assert p.source == "colour+spec" and p.why is not None and p.why.startswith("too close"), p.why
+    assert "0.23 m" in p.why and "higher" in p.why
+    # through find_parts: refused with that reason, drawn as a near miss
+    sc = find_parts(W, H, depth, 0.001, K, T26, spec=spec, colour=rgb, colour_channels=3)
+    assert sc.parts == []
+    near = [q for q in sc.rejected if q.near]
+    assert len(near) == 1 and near[0].why.startswith("too close"), [(q.why, q.near) for q in sc.rejected]
+    # the same part from 0.40 m is the part
+    (ok,) = fusion.colour_parts(
+        W, H, 3, *frame((120, 90, 200, 150), holes=True), 0.001, K, T_DOWN, SURF, spec
+    )
+    assert ok.why is None
