@@ -119,6 +119,7 @@ class FakeCockpit:
         self.session = CalibrationSession(seed=HandEye.from_pose(seed, source="bracket-nominal:test"))
         self.posts: list[tuple[str, dict]] = []
         self.applied = None
+        self.applied_method = None
         self.frames = 0
         self.last = None
 
@@ -171,6 +172,7 @@ class FakeCockpit:
             if not self.session.result:
                 return {"ok": False, "error": "not solved"}
             self.applied = self.session.result["flange_to_depth_pose"]
+            self.applied_method = body.get("method")
             return {"ok": True, "saved": "captures/calibration/handeye_test.json"}
         if path in ("/api/robot/stop", "/api/robot/bring_up"):
             return {"ok": True}
@@ -260,6 +262,8 @@ def test_apply_goes_through_the_cockpit(rig):
     ctl, cockpit, cal, events = rig()
     out = cal.run(apply=True)
     assert out["applied"] and cockpit.applied is not None and out["saved"].endswith(".json")
+    # the cockpit labels the hand-eye and the saved file by what made the views
+    assert cockpit.applied_method == "orbit"
     assert _delta(cockpit.session.result["flange_to_color_pose"], TRUE_FC)[0] < 2.0
 
 
@@ -325,16 +329,22 @@ def test_a_refused_move_is_skipped_and_the_run_continues(rig, monkeypatch):
     assert any("refused" in e for e in events)
 
 
-def test_views_beyond_the_arm_reach_are_skipped_not_sent(rig):
+def test_reach_is_the_controllers_call_not_a_sphere_round_the_base(rig):
+    # UR3e cell, 2026-10-08: the datasheet-radius check (rated reach − 50 mm from the base origin)
+    # refused every planned view over a table at base height while the controller's IK solved
+    # them all. The orbit no longer pre-judges reach: every view is offered to the controller,
+    # and one it refuses is skipped when it says so (test above).
     ctl, cockpit, cal, events = rig()
-    ctl.model = "UR3"  # the Dashboard reports a UR3e: the envelope sizes itself to 0.5 m on first use
+    ctl.model = "UR3"  # the Dashboard reports a UR3e; its 0.5 m rated reach decides nothing here
     out = cal.run()
-    beyond = [s for s in out["steps"] if s["status"] == "skipped" and "reach" in s["why"]]
-    assert beyond and out["ok"]
-    assert all("0.45 m" in s["why"] for s in beyond)
-    # exactly one program per view that was not skipped, plus the return to the start pose
+    assert out["ok"]
+    assert not [s for s in out["steps"] if s["status"] == "skipped" and "reach" in s["why"]]
+    # the far views are offered and refused by the controller's side (status "refused"), not
+    # pre-judged: one program per view that was neither skipped nor refused, plus the return
+    by_status = {k: sum(1 for s in out["steps"] if s["status"] == k) for k in ("skipped", "refused")}
+    assert by_status["refused"] > 0
     sent = [b for b in ctl.primary_sends if "movel(" in b and "urctl/flange" not in b]
-    assert len(sent) == sum(1 for s in out["steps"] if s["status"] != "skipped") + 1
+    assert len(sent) == len(out["steps"]) - by_status["skipped"] - by_status["refused"] + 1
 
 
 def test_dry_run_plans_and_moves_nothing(rig):

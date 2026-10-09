@@ -121,11 +121,20 @@ def check_host(report: Report, env=None) -> None:
         )
     )
     name = env.get(ENV_CELL)
+    values = {k: v for k, v in cell.items() if k != ENV_CELL}
+    if name:
+        ok, detail = None, f"{name} → {cell}"
+    elif values.get("UR_HOST"):
+        # a pick PC's service loads cell.env as plain environment (EnvironmentFile=): no name,
+        # but the cell is all there — that is a configured cell, not a missing one
+        ok, detail = None, f"from the environment (no cell name) → {values}"
+    else:
+        ok, detail = False, "no cell selected (env vars only)"
     report.add(
         Check(
             "cell",
-            None if name else False,
-            f"{name} → {cell}" if name else "no cell selected (env vars only)",
+            ok,
+            detail,
             fix="pass --cell sim|ur3|ur20 (or UR_CELL=…) so host/ports/bracket come from one profile",
             severity="warn",
             data=cell,

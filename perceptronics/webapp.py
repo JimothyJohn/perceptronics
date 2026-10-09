@@ -1219,9 +1219,22 @@ class ViewerApp:
         )
         return res
 
-    def cal_apply(self, save: bool = True, force: bool = False) -> dict:
+    def pick_log_text(self, limit: int = 400) -> str:
+        """The pick server's trace as text — the ``kind: pick`` events, one per line, oldest
+        first — for a browser beside the pendant (``GET /api/pick/log``, the route the
+        sidecar serves from its own file)."""
+        lines = []
+        for e in self.events.since(0, EVENT_LOG_SIZE):
+            if e["kind"] != "pick":
+                continue
+            stamp = time.strftime("%H:%M:%S", time.localtime(e["ts"]))
+            flag = "  " if e["ok"] is None else ("ok" if e["ok"] else "!!")
+            lines.append(f"{stamp} {flag} {e['message']}")
+        return "\n".join(lines[-limit:]) + ("\n" if lines else "")
+
+    def cal_apply(self, save: bool = True, force: bool = False, method: str | None = None) -> dict:
         link = self._link()
-        out = link.cal_apply(save=save, force=force)
+        out = link.cal_apply(save=save, force=force, method=method)
         if out.get("ok"):
             self.events.add(
                 "calibration",
@@ -1689,6 +1702,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self._guarded(self.app.info)
         elif route == "/api/doctor":
             self._guarded(lambda: self.app.doctor(robot=qs.get("robot", ["1"])[0] not in ("0", "false")))
+        elif route == "/api/pick/log":
+            self._send(self.app.pick_log_text().encode(), "text/plain; charset=utf-8")
         elif route == "/api/events":
             try:
                 after = int(qs.get("after", ["0"])[0])
@@ -1914,7 +1929,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self._guarded(self.app.cal_solve)
         elif route == "/api/cal/apply":
             self._guarded(
-                lambda: self.app.cal_apply(bool(payload.get("save", True)), bool(payload.get("force", False)))
+                lambda: self.app.cal_apply(
+                    bool(payload.get("save", True)),
+                    bool(payload.get("force", False)),
+                    str(payload["method"]) if payload.get("method") else None,
+                )
             )
         elif route == "/api/cal/reset":
             self._guarded(self.app.cal_reset)

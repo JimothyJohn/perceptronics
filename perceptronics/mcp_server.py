@@ -213,8 +213,15 @@ COCKPIT_TOOLS: list[CockpitTool] = [
         "Use the solved transform from now on and (save=true) write captures/calibration/handeye_<cell>.json "
         "so later starts load it (precedence: PERCEPTRONICS_T_FLANGE_CAMERA env > file > bracket seed). "
         "Refused while the solve has warnings unless force=true.",
-        _schema({"save": {"type": "boolean"}, "force": {"type": "boolean"}}),
-        lambda c, p: c.post("/api/cal/apply", {"save": p.get("save", True), "force": p.get("force", False)}),
+        _schema({"save": {"type": "boolean"}, "force": {"type": "boolean"}, "method": {"type": "string"}}),
+        lambda c, p: c.post(
+            "/api/cal/apply",
+            {
+                "save": p.get("save", True),
+                "force": p.get("force", False),
+                **({"method": p["method"]} if p.get("method") else {}),
+            },
+        ),
     ),
     CockpitTool(
         "cal_reset",
