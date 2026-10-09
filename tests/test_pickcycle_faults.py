@@ -55,7 +55,7 @@ def rig(monkeypatch):
     robot = Robot(RobotConfig(host="fake-ur.invalid"))
     events: list[str] = []
     # the tip length is the robot's: the first flange read takes it from the fake's TCP offset
-    # (since 0.10.0 pick-cycle carries none of its own); the fake's is the Hand-E's 0.163 m
+    # (since 0.10.0 pick-cycle carries none of its own); the fake's active TCP is 0.12 m out
     cycle = PickCycle(FakeCockpit(), robot=robot, say_fn=lambda ev: events.append(ev["text"]))
     cycle._flange()
     return fake, cycle, events
