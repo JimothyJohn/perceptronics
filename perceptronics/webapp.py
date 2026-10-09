@@ -1007,12 +1007,17 @@ class ViewerApp:
         return self.robot.handeye.as_dict().get("flange_to_color_pose")
 
     def pick_planner(self) -> PickPlanner:
-        return PickPlanner(
-            self.pick_frame,
-            lambda: self.latest()[0],
-            self._handeye_pose,
-            log=lambda text, ok: self.events.add("pick", text, ok=ok),
-        )
+        """The one planner the pick socket and the teach-screen routes share: the program's run
+        (quiet while it runs) and its last measurement live on it."""
+        planner = getattr(self, "_pick_planner", None)
+        if planner is None:
+            planner = self._pick_planner = PickPlanner(
+                self.pick_frame,
+                lambda: self.latest()[0],
+                self._handeye_pose,
+                log=lambda text, ok: self.events.add("pick", text, ok=ok),
+            )
+        return planner
 
     def pick_preview(
         self,

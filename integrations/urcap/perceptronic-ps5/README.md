@@ -20,12 +20,12 @@ the same glyph is the toolbar button, every screen's header and a faint watermar
 Installation's and the popup's live picture (`Logo.java` draws it with Java2D; a test holds
 it equal to the SVG).
 
-Download: [`../dist/perceptronic-ps5-0.10.0.urcap`](../dist/perceptronic-ps5-0.10.0.urcap)
+Download: [`../dist/perceptronic-ps5-0.10.1.urcap`](../dist/perceptronic-ps5-0.10.1.urcap)
 
 ## Install on the robot
 
 You need a USB stick and nothing else: no tools, no command line. One file matters, in
-[`../dist/`](../dist/): [`perceptronic-ps5-0.10.0.urcap`](../dist/perceptronic-ps5-0.10.0.urcap), the
+[`../dist/`](../dist/): [`perceptronic-ps5-0.10.1.urcap`](../dist/perceptronic-ps5-0.10.1.urcap), the
 URCap. It goes on through PolyScope's own URCaps screen, like every URCap; nothing on the
 stick runs by itself and the robot restarts only when you tap Restart.
 
@@ -40,14 +40,14 @@ stick runs by itself and the robot restarts only when you tap Restart.
    Trash) before pulling it out. A stick pulled early can hold a half-written file.
 
 On a Mac, Finder also writes hidden `._…` companions next to each file. They are harmless
-except that PolyScope's file picker lists `._perceptronic-ps5-0.10.0.urcap` too — pick the
+except that PolyScope's file picker lists `._perceptronic-ps5-0.10.1.urcap` too — pick the
 one **without** `._`. `scripts/urcap5-usb.sh` does the whole of this step without them.
 
 ### 2. Install it on the pendant
 
 1. Plug the stick into the pendant.
 2. Tap ☰ (top right) → **Settings** → **System** → **URCaps**.
-3. Tap **+**, tap `perceptronic-ps5-0.10.0.urcap`, tap **Open**.
+3. Tap **+**, tap `perceptronic-ps5-0.10.1.urcap`, tap **Open**.
 4. Tap **Restart** when PolyScope asks.
 5. After the restart: **Installation** tab → **URCaps** → **Perceptronic**.
 
@@ -337,7 +337,14 @@ through the arm's nominal geometry (UR3e/5e/10e/16e; `PoseMath.flange`, the rows
 `perceptronics/armfk.py`). `python3 integrations/urcap/urcap5.py check --sdk <dir>` holds the URCap to any
 version's jars (`urcap5.py sdk --image 5.12.8 --dir <dir>`).
 
-## Status (2026-10-08, 0.10.0)
+## Status (2026-10-08, 0.10.1)
+
+- 0.10.1: **quiet while the program runs** (Nick: "the depth camera throws considerable errors as
+  the table gets closer … disable errors while it's not actually in a measurement feedback
+  state"). From the program's first request to its "at the grip" / "no pick" (or 90 s of
+  silence) the camera computer judges no frame for the screen: the picture shows what the
+  program measured last (its FIND / REFINE), the status says *program running*, and there is
+  no banner. The same for the depth view. Unit suite + package only.
 
 - 0.10.0 (after the cell day, Nick's calls): the tool offset is the robot's active TCP and
   nothing else (protocol 3, `tcp=` on every request, TCP-frame answers, no `set_tcp` in the
