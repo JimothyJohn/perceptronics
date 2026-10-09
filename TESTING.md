@@ -52,19 +52,19 @@ Tick what has been run; put the tag and the date in the box.
 | P2 | 3 black anodized bars 90×40×12 | dark, low parts; the height floor | 2026-10-09 `bars2` |
 | P3 | 3 white cardboard boxes 100×60×60 | big parts, imprecise sizes, the picture's limits | 2026-10-09 `boxes` |
 | P4 | 3 black anodized cylinders 75 Ø × 18, as cylinders | round parts, no heading | 2026-10-09 `cyl` |
-| P5 | two blocks touching, long side to long side | splitting one blob into two parts | |
-| P6 | two blocks touching, end to end (a 100×30 bar) | the same, along the length | |
-| P7 | four blocks pushed into a 2×2 cluster | the same, in both directions | |
-| P8 | one block stacked on another | a 60 mm "part" must not pass as 30 | |
+| P5 | two blocks touching, long side to long side | splitting one blob into two parts | 2026-10-09 `p5_touching_long` (0/2, one blob) |
+| P6 | two blocks touching, end to end (a 100×30 bar) | the same, along the length | 2026-10-09 `p6_touching_end` (0/2, one blob) |
+| P7 | four blocks pushed into a 2×2 cluster | the same, in both directions | 2026-10-09 `p7_cluster` (0/4, one blob) |
+| P8 | one block stacked on another | a 60 mm "part" must not pass as 30 | 2026-10-09 `p8_stacked` (refused; a false pick at 0.28 m) |
 | P9 | one block half under another | the lower one must not pass; the upper may | |
-| P10 | a block on its side (30×30 face up, 50 tall) | any face down | |
-| P11 | a block on end, leaning on another | neither should pass | |
-| P12 | a 100×60×60 box among 50×30×30 blocks | a distractor of the wrong size, rejected with why | |
+| P10 | a block on its side (30×30 face up, 50 tall) | any face down | 2026-10-09 `p10_on_side` (1/1 in every view) |
+| P11 | a block on end, leaning on another | neither should pass | 2026-10-09 `p11_leaning` (false picks) |
+| P12 | a 100×60×60 box among 50×30×30 blocks | a distractor of the wrong size, rejected with why | 2026-10-09 `p12_distractor` (box rejected, blocks found) |
 | P13 | the bars among the blocks, part = the blocks | dark distractors | |
-| P14 | a block with a lead or cable across it | the outline, the finger room | |
+| P14 | a block with a lead or cable across it | the outline, the finger room | 2026-10-09 `p14_cable` (refused; a pick at 0.28 m) |
 | P15 | a block at each edge of the picture, side faces showing | the colour outline swallowing a side face | 2026-10-09 `v4` (one miss) |
 | P16 | one part only, then eight | count independence, the pick order | |
-| P17 | a hand or a tool in the picture during the look | clutter that must not pass | |
+| P17 | a hand or a tool in the picture during the look | clutter that must not pass | 2026-10-09 `p17_hand` (look-only; nothing picked) |
 
 ### Surfaces (the baseline blocks, P1 layout)
 
@@ -73,7 +73,7 @@ Tick what has been run; put the tag and the date in the box.
 | S1 | the grey table | the baseline | 2026-10-09 |
 | S2 | a basswood board on the table | a raised, patterned surface; its edge | 2026-10-09 `wood` |
 | S3 | white paper on the table | white on white (the depth returns on paper) | 2026-10-09 `paper` |
-| S4 | the black rubber mat | the datasheet says it drops out — confirm or retract under 0.10.1 | |
+| S4 | the black rubber mat | the datasheet says it drops out — confirm or retract under 0.10.1 | 2026-10-09 `s4_black_mat` (found; heights +2–8 mm; one false pick) |
 | S5 | the carpet (parts on the floor beside the table) | rough surface, the local floor fit | |
 | S6 | a glossy surface (a laminated sheet, a steel plate) | specular dropouts | |
 | S7 | a printed or patterned sheet (a page of text, a chessboard) | colour outline vs texture | |
@@ -110,30 +110,80 @@ pose (`urctl --host 192.168.3.3 state`, or the cockpit's `/api/robot/state`), th
 the detector's centres from the straight-down view: absolute error per part, which is the number
 the datasheet carries. Not done yet.
 
-## Results, 2026-10-09 (UR3e, grey table unless noted, hand-eye of 2026-10-08)
+## Results, 2026-10-09 (UR3e, grey table unless noted, the hand-eye of 2026-10-08)
 
-The table read 1.5–2.7° off level in every view all day: the calibration, to be redone first.
+The table read 1.2–2.7° off level in every view all day. Two orbit calibrations were tried to
+fix it and both applied a nonsense solve (see below), so every number here is with the 10-08
+solve. Nick: the robot is bolted to a sheet-metal table that flexes under overhang, so a tilt
+that changes with reach is probably real.
 
-| Parts | Surface | Straight-down views | Other views | Sizes read | Spread across views |
+### Parts and surfaces as laid out
+
+| Row | Scene | Straight-down views | Other views | Sizes read | Spread across views |
 | --- | --- | --- | --- | --- | --- |
-| foam blocks 50×30×30 | grey table | 3/3, 3/3, 2/3 (one at the edge read 40 wide, "too wide") | oblique 18° 3/3; 0.28 m 1/1 in view; turned 3/3 | 48–54 × 29–33 × 29–33 | 6–8 mm, 1° |
-| black bars 90×40×12 | grey table | 3/3 ×3 | oblique 1/3 (two merged; one lost finger room); 0.28 m 3/3; turned 3/3 | 89–97 × 38–43 × 10–12 | 4–8 mm, 1.5° |
-| cardboard boxes 100×60×60 | grey table | 3/3, 2/3, 3/3 (cut off at the edge) | oblique 3/3 (best sizes); 0.28 m 0/3 (none whole in the picture); turned 1/3 | 90–101 × 57–62 × 58–60 | 4–9 mm, 0.5° |
-| foam blocks ×4 | basswood board | 4/4 (sides out of reach) | oblique 4/4; 0.28 m 3/4; turned 3/4 | 45–50 × 25–30 × 29–32 | 2–5 mm, 2–6° |
-| foam blocks ×4 | white paper | 4/4, 4/4 (then a protective stop on the near-side view) | — | 46–49 × 28–30 × 28–30 | 3–5 mm, 6° |
-| black cylinders 75 Ø × 18 (a 3–4 mm rim) | grey table | 2/3 (a cable beside one), 3/3, 3/3 | oblique refused; 0.28 m 3/3; turned 3/3 (one merged with its cable) | 69–74 Ø × 14–16 | 8–13 mm |
+| P1 | foam blocks 50×30×30 | 3/3, 3/3, 2/3 (edge block read 40 wide: "too wide") | oblique 3/3; 0.28 m 1/1 in view; turned 3/3 | 48–54 × 29–33 × 29–33 | 6–8 mm, 1° |
+| P2 | black bars 90×40×12 | 3/3 ×3 | oblique 1/3 (two merged, one lost finger room); 0.28 m 3/3; turned 3/3 | 89–97 × 38–43 × 10–12 | 4–8 mm, 1.5° |
+| P3 | cardboard boxes 100×60×60 | 3/3, 2/3, 3/3 (cut off at the edge) | oblique 3/3 (best sizes); 0.28 m 0/3 (none whole in the picture); turned 1/3 | 90–101 × 57–62 × 58–60 | 4–9 mm, 0.5° |
+| P4 | black cylinders 75 Ø × 18 (a 3–4 mm rim) | 2/3 (a cable beside one), 3/3, 3/3 | oblique refused; 0.28 m 3/3; turned 3/3 (one merged with its cable) | 69–74 Ø × 14–16 | 8–13 mm |
+| P5 | two blocks touching, long sides | 0/2: one 57–59 × 49–51 blob, "2 parts touching?" (one view read the pair's edge as a block) | the same in every view | | 2026-10-09 `p5_touching_long` (0/2, one blob) |
+| P6 | two blocks end to end | 0/2: one 94–100 × 26–38 blob, "2 parts touching?" | oblique: nothing near at all | | 2026-10-09 `p6_touching_end` (0/2, one blob) |
+| P7 | 2×2 cluster | 0/4: one 99–106 × 58–68 blob | oblique: two slivers, "too narrow" | | 2026-10-09 `p7_cluster` (0/4, one blob) |
+| P8 | one block on another | 0 — 47–50 × 29–32 × 57–58 "too tall" (right) | **0.28 m: a false pick, 55 × 35 × 30** (the stack's top inside the camera's range returns no depth; the foam rule takes a hole for foam) | | 2026-10-09 `p8_stacked` (refused; a false pick at 0.28 m) |
+| P10 | a block standing on its 30×30 end | 1/1 in all seven | | 29–33 × 23–29 × 48–50 | 5 mm; heading arbitrary (square face) |
+| P11 | one block leaning on another ("P9" as laid out) | **false picks**: the lower block's uncovered 40 mm end (40–42 × 25–31 × 30) and the leaning block as "standing" (28–32 × 24–28 × 38–51) | 2 of 7 views refused the pair as "too long" / "touching" | | 2026-10-09 `p11_leaning` (false picks) |
+| P12 | a box among three blocks | 3/3 blocks, the box rejected (97–105 × 58–59 × 57–58, labelled "2 parts touching?" — right call, wrong reason) | 2/3 turned (one cut off) | 49–54 × 28–32 × 28–31 | 7–8 mm, 1–2° |
+| P14 | a white cable across a block | 0 ("too long" 63–71 × 40–51; "3 parts touching?" 140 × 48) | **0.28 m: a pick, 59 × 37 × 31** (block plus cable, inside the tolerance) | | 2026-10-09 `p14_cable` (refused; a pick at 0.28 m) |
+| P17 | a hand over the parts (look-only, no motion) | 0, twice, to the millimetre: the hand 195 × 95 "cut off", slivers of block "too short" | | | 2026-10-09 `p17_hand` (look-only; nothing picked) |
+| S2 | foam blocks ×4 on a basswood board | 4/4 (sides out of reach) | oblique 4/4; 0.28 m 3/4; turned 3/4 | 45–50 × 25–30 × 29–32 | 2–5 mm, 2–6° |
+| S3 | foam blocks ×4 on white paper | 4/4, 4/4 (then a protective stop on the near-side view) | — | 46–49 × 28–30 × 28–30 | 3–5 mm, 6° |
+| S4 | one block on the black rubber mat | 1/1, 1/1 (two views); near side "too tall" 38; **far side a false pick, 28 × 26 × 50 — a velcro strip's end** | oblique 1/1; 0.28 m 1/1; turned 1/1 (36 tall) | 42–53 × 28–37 × 30–38 | 8 mm |
 
-What the day put on the detector's list:
+### What it put on the detector's list, in order
 
-1. Clip the colour outline to the depth footprint's half-height line: a block at the picture's
-   edge shows its side face and the outline swallows it (50 → 40 mm wide, rejected).
-2. Split a blob by the part's size: two bars in the oblique view read as one 151 × 60; a cylinder
-   and its cable as 87 × 74.
-3. Dark anodized tops read 3–5 mm small in diameter and 3–4 mm low (the cylinders' rim accounts
-   for part of the height): a consistent bias for the datasheet, not a tuning target.
-4. The D435 returns full depth on foam tops over white paper, where over the grey table it left
-   10–60 % holes: the surface's brightness, not the part's, decides it.
+1. **Clip the colour outline to the depth footprint's half-height line.** A block at the
+   picture's edge shows its side face and the outline swallows it (P1: 50 → 40 mm, rejected); a
+   white cable on a white block is swallowed the same way (P14: 59 × 37 passed at 0.28 m); a
+   cylinder's lead too (P4). Three fixtures-to-be.
+2. **Split a blob by the part's size.** Touching blocks never split (P5, P6, P7); two bars in the
+   oblique view read as one 151 × 60; a cylinder and its cable as 87 × 74. The seam is a visible
+   line in colour for side-by-side blocks (P5, P7), invisible end to end (P6): the split must come
+   from the part's length, with colour as a tie-breaker.
+3. **A "too close" guard at the camera's floor.** A white outline with no depth under it is taken
+   for foam and given the part's height; when the blob's expected top sits inside the camera's
+   minimum range, no depth means too close, not foam (P8: a 57 mm stack passed as 30 at 0.28 m).
+4. **Partly covered and leaning parts** (P11): a footprint touching a taller blob is "partly
+   covered?", not a part; a top face tilted more than a few degrees from the surface is not
+   resting, and says so.
+5. **Reasons**: a part twice the size in every direction is "too long / too tall", not "2 parts
+   touching?" (P12).
+6. **Dark anodized tops read 3–5 mm small** (P2, P4; the cylinders' rim accounts for part of the
+   height): a consistent bias for the datasheet, not a tuning target.
+7. **The black mat** (S4): the rubber returns depth; what drops out is its white velcro strips.
+   Parts read taller by the mat's thickness and a strip's end passed as a standing block once.
+   The datasheet line is reworded accordingly. The 10-08 reading (blocks 42–62 mm tall) was the
+   laser at full power on the other preset.
 
-Not the detector: the side views past 0.36 m out on a UR3e end in a protective stop (a `movel`
-to a stretched pose; the endpoint passed IK); big parts don't fit the picture at 0.35 m once the
-view shifts; a cable beside a part costs its finger room, correctly.
+Not the detector: the D435 returns full depth on foam tops over white paper where over the grey
+table it leaves 10–60 % holes (the surface's brightness decides); the side views past ~0.36 m
+out on a UR3e end in a protective stop (a `movel` to a stretched pose; the endpoint passed IK);
+big parts don't fit the picture at 0.35 m once the view shifts; a cable beside a part costs its
+finger room, correctly.
+
+### The orbit calibration, twice
+
+Both runs found the mark, lost it in most views (17 of 21 "none within 40 mm of the predicted
+mark"; the 0.21 m range entirely, below this camera's floor), solved on four, and `--apply` put
+the result in force on the pick PC: a camera 0.23 m then 0.67 m off the flange, the table reading
+84° off level. Restored by hand on the Pi both times. The guard is PR #87 (predict from the seed
+until a dozen views; never apply under ten, or far from the seed); the mark finder itself (the
+old white-blob path: blind to a white block on white paper, loses foam tops over the grey table)
+is the TODO. **Do not run the orbit on this cell until that lands.**
+
+### Fixtures
+
+The day's sweeps saved the colour picture, the pose and the verdict but only the heat-map
+rendering of the depth, so none of them is a detector fixture. `scripts/cell_sweep.py` now saves
+the raw frame per view in the fixture's shape; the scenes to rerun for the bank, five minutes
+each: P5, P6, P7 (touching), P8 at 0.28 m (the stack), P11 (leaning), P14 (the cable), P1's edge
+block, S4's far-side view. One real fixture from the day is in the bank: the block on the black
+mat, straight down at 0.35 m (`black_mat_block_0p35m`).

@@ -14,8 +14,9 @@ oblique look-at through the cockpit's hand-eye; every move is ``POST /api/robot/
 with the cockpit's safety envelope and the controller's IK in front of it; a refused move is
 reported, not retried. The pendant must be in Remote. At each view the pick server is asked
 ``GET /api/pick/scene`` with the program's own options for the part, and the colour and depth
-pictures are saved — ``<out>/<tag>_<view>_{color,depth}.png`` and ``.json`` — so a view that
-misbehaves becomes a labelled fixture.
+pictures are saved — ``<out>/<tag>_<view>_{color,depth}.png`` and ``.json`` — and the raw frame
+in the fixture's shape (``.depth.zlib``, ``.colour.png``, ``.fixture.json``), so a view that
+misbehaves becomes a labelled fixture under ``tests/fixtures/d435/`` by copying.
 
 The sweep's views: straight down 0.35 m over the parts' centroid, the parts toward each side of the
 picture (``--no-sides`` when the parts sit past ~0.36 m out on a UR3e: those poses protective-stop),
@@ -149,7 +150,50 @@ def view(c: Cockpit, a: argparse.Namespace, out_dir: Path, part_opts: str) -> di
     (out_dir / f"{a.name}_color.png").write_bytes(c.get("/api/color.png"))
     (out_dir / f"{a.name}_depth.png").write_bytes(c.get("/api/depth.png"))
     (out_dir / f"{a.name}.json").write_text(json.dumps(rec, indent=1))
+    save_raw_frame(c, out_dir, a.name, d, part_opts)
     return rec
+
+
+def save_raw_frame(c: Cockpit, out_dir: Path, name: str, scene: dict, part_opts: str) -> None:
+    """The view's raw frame in the shape of ``tests/fixtures/d435/`` — ``<name>.depth.zlib`` (uint16
+    LE, zlib), ``<name>.colour.png`` (RGB8) and ``<name>.fixture.json`` (the camera, the poses, the
+    part asked for, and the detector's verdict as a starting label) — so a view that misbehaved is
+    promoted by copying it there, converting the colour to .jpg and writing ``what`` by hand. (The
+    first day's sweeps saved only the heat-map picture: none of them can be a fixture.)"""
+    from perceptronics.rgbd import unpack_rgbd
+
+    try:
+        hdr, png, depth_zlib = unpack_rgbd(c.get("/api/rgbd", timeout=20))
+    except Exception as exc:  # noqa: BLE001 — a missing frame must not lose the view's record
+        print(f"  raw frame not saved: {exc}")
+        return
+    (out_dir / f"{name}.depth.zlib").write_bytes(depth_zlib)
+    (out_dir / f"{name}.colour.png").write_bytes(png)
+    part = next((t.split("=", 1)[1] for t in part_opts.split() if t.startswith("part=")), "")
+    label = {
+        "width": hdr.get("width"),
+        "height": hdr.get("height"),
+        "depth_scale_m": hdr.get("depth_scale_m"),
+        "intrinsics": hdr.get("intrinsics"),
+        "flange_pose": hdr.get("flange_pose"),
+        "flange_to_color_pose": hdr.get("flange_to_color_pose"),
+        "what": "",
+        "part_mm": [float(v) for v in part.lower().split("x")] if part else None,
+        "count": len(scene.get("parts", [])),
+        "pixels": [p.get("pixel") for p in scene.get("parts", [])],
+        "verdict": {
+            "status": scene.get("status"),
+            "parts": [
+                [p.get("size_mm"), p.get("height_mm"), p.get("centre")] for p in scene.get("parts", [])
+            ],
+            "near_misses": [
+                [p.get("size_mm"), p.get("height_mm"), p.get("why")]
+                for p in scene.get("rejected", [])
+                if p.get("near")
+            ],
+        },
+    }
+    (out_dir / f"{name}.fixture.json").write_text(json.dumps(label, indent=1))
 
 
 def sweep(c: Cockpit, a: argparse.Namespace, out_dir: Path, part_opts: str) -> None:
