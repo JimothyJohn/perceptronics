@@ -14,7 +14,7 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
 | Cell (`--cell`) | Robot | Platform | Address | Camera bracket | Tool | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | `ur3` | **UR3e** (URSoftware 5.25.1 on 2026-09-27) | PolyScope 5, e-Series | `192.168.3.3` — Dashboard :29999, Primary :30001, RTDE :30004 | `eseries` print, D435 on the flange | Robotiq **Hand-E** (e-Series kit) | the demo cell; **unplugged 2026-09-29** |
-| `ur20` | UR20 | PolyScope X | not filled in (`UR_HOST=` empty) — Robot-API :80, Primary :30001, RTDE :30004 | `ur20` print, clocked 45° | none yet (`PERCEPTRONICS_TIP_M` unset) | test cell, never driven from this repo |
+| `ur20` | UR20 | PolyScope X | not filled in (`UR_HOST=` empty) — Robot-API :80, Primary :30001, RTDE :30004 | `ur20` print, clocked 45° | none yet (set its TCP on the pendant) | test cell, never driven from this repo |
 | `sim` | PolyScope X simulator, `ROBOT_TYPE=UR3` | PolyScope X 10.13.0 (arm64 image) | `localhost` — UI :8000, Primary :31001, RTDE :31004 | none (synthetic scene, `PERCEPTRONICS_FAKE=1`) | — | `HOST_ARCH=arm64 make simx-up` |
 
 ### The UR3e cell, as built
@@ -25,9 +25,10 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
   09-25 hand-eye solved a block top at base z = −0.270). The table is flat and parallel
   to base XY. Reach at that depth is the controller's IK's call, not the datasheet 0.5 m.
 - **Hand-E on the ISO-50 flange** through the bracket's 6 mm adapter: flange → fingertip
-  **0.163 m** along flange +Z (157 + 6). The fingers travel along flange **Y**. The
-  controller's active TCP is a 223 mm training offset the Hand-E does not match — never
-  used; every cockpit move sets the TCP to the fingertips itself.
+  **0.163 m** along flange +Z (157 + 6). The fingers travel along flange **Y**. Since
+  2026-10-08 the tool is the **pendant's active TCP** and nothing else: set 0.163 m there
+  and make it active (the 223 mm training offset must not be); the cockpit and the 3D Pick
+  node carry no tool length.
 - **D435 on `hardware/d435-tool-bracket` (`eseries` print, PPA-CF)**, re-clocked 180° about
   the flange axis on 2026-09-25 (camera opposite the tool connector). Hand-eye
   (`PERCEPTRONICS_T_FLANGE_CAMERA` in `perceptronics/cells/ur3.env`): re-solved 2026-09-27

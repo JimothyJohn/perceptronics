@@ -22,7 +22,7 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
 | Robot | UR3e, PolyScope 5.25.1, static `192.168.3.3` (checked 2026-09-27) | pendant, Settings → System → Network |
 | Pi pick PC | `192.168.3.20/24` on eth0, no gateway; cockpit :7621 (+ :80), pick server :7622; cell DHCP armed (hands a robot on DHCP `192.168.3.3`) | `deploy/pi/install.sh` |
 | Mac Studio | `192.168.3.10` on `en0` (manual), the dev shell | `networksetup -setmanual "Ethernet" 192.168.3.10 255.255.255.0` |
-| Tool | Hand-E through the bracket's 6 mm adapter: fingertips 0.163 m past the flange (`PERCEPTRONICS_TIP_M`); the controller's active TCP is a 223 mm training offset the cockpit never uses | `perceptronics/cells/ur3.env` → `/etc/perceptronics/cell.env` on the Pi |
+| Tool | Hand-E through the bracket's 6 mm adapter: fingertips 0.163 m past the flange — set as the pendant's **active TCP** (since 2026-10-08 the robot's TCP is the only tool offset; the 223 mm training offset must not be active) | the pendant (Installation → General → TCP); `perceptronics doctor`'s `approach` line |
 | Camera | D435 on the `eseries` bracket print, clocked 180° (camera opposite the tool connector), on a **blue** USB 3 port of the Pi, short cable, no hub | `hardware/d435-tool-bracket/` |
 | Hand-eye | the 2026-09-27 solve (RMS 2.5 mm) in `/var/lib/perceptronics/captures/calibration/handeye.json` on the Pi | `install.sh handeye_out_of_env` |
 | Picture pose | 0.37 m up, looking down in front of the stand (`PERCEPTRONICS_HOME_POSE`) | Nick, 2026-09-27 |
@@ -105,8 +105,8 @@ Nothing in phases 0–2 moves the arm. Before the first move:
        python3 -m urctl --host 192.168.3.3 bring-up
        python3 -m urctl --host 192.168.3.3 state          # RUNNING / NORMAL, control_mode REMOTE
 
-5. **First motion, joint space, small:** the picture pose, via the cockpit so the TCP is the
-   fingertips (`RobotLink.reference_tcp`):
+5. **First motion, joint space, small:** the picture pose, via the cockpit (it moves the
+   robot's active TCP as the pendant has it):
 
        curl -s -X POST http://192.168.3.20/api/robot/home     # or the cockpit's Pilot panel: Home
 
@@ -256,7 +256,7 @@ booted on the cell, `http://192.168.3.20/setup` with no SSH at all.
   URScript (`urctl move-*`, `run-script`, a cockpit APPROACH). A new program on :30001 replaces
   the running one silently.
 - **Moves go through the cockpit or the program**, never hand-rolled `movel` from a shell: the
-  cockpit sets the TCP to the fingertips and asks the controller's IK first.
+  cockpit moves the pendant's active TCP and asks the controller's IK first.
 - **Don't touch the pendant's installation, safety or network from the network** — there is no
   such path, and there shouldn't be.
 - **Two failed attempts at a phase → stop and write.** The list of "never seen on hardware"

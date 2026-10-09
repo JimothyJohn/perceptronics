@@ -26,7 +26,7 @@ down. Reference: `integrations/urcap/README.md` (the node, screen by screen), `D
 
 1. Pick PC on dev or newer (PR #67 for the portal; the banner PR for 0.7.1): `scripts/deploy-pi.sh nick@<pi>`.
 2. `cell.env` on the pick PC for a PolyScope X cell: `UR_PLATFORM=polyscopex`, `UR_ROBOT_API_PORT=80`,
-   `UR_PRIMARY_PORT=30001`, `UR_RTDE_PORT=30004`, `UR_ROBOT_MODEL=<model>`, `PERCEPTRONICS_TIP_M`,
+   `UR_PRIMARY_PORT=30001`, `UR_RTDE_PORT=30004`, `UR_ROBOT_MODEL=<model>`,
    `PERCEPTRONICS_BRACKET`, and **`PERCEPTRONICS_CORS=http://<robot address>`** (the origin of the
    pendant's page; add `:80` only if the controller's page says so). The UR20 cell (`cells/ur20.env`)
    is the stub to fill.
@@ -60,7 +60,7 @@ choose how to move* with the base point, the fingertip pose and the controller's
 Speed slider ≤ 30 %, a hand near the e-stop. With the click's target on the Application node:
 
 - **Move (PolyScope)** in Manual: PolyScope's hold-to-move screen; Nick holds, the arm goes to
-  the approach pose (fingertips `PERCEPTRONICS_STANDOFF_M` above the point along the tool axis).
+  the approach pose (the robot's active TCP `PERCEPTRONICS_STANDOFF_M` short of the point along the camera's ray).
 - **Move (cockpit)**: Automatic + Remote first (the node's page disappears; the request can still
   be sent from the pick PC: `POST /api/robot/move` with the pose the page showed). Verified in
   the UR10e sim 2026-10-06 with the real D435 on the bench: located 1.18 m from the base, moved,

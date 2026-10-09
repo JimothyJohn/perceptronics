@@ -111,7 +111,7 @@
       </table>
       <p>The camera computer comes set up: nothing to install on it. Power-up order does not matter. Give it a minute after power-on. It runs the camera software as a service, gives itself <strong>192.168.3.20</strong> on the robot's cable, and gives the robot <strong>192.168.3.3</strong> if the robot asks for an address (DHCP). It stays quiet if another DHCP server is already on that network.</p>
 
-      <p><strong>Changing the gripper later.</strong> The camera computer approaches by the fingertips, so it knows the distance from the flange face to them for the gripper on your order. For a different gripper, set that distance in metres as <code>PERCEPTRONICS_TIP_M</code> in <code>/etc/perceptronics/cell.env</code> on the camera computer, then <code>sudo systemctl restart perceptronics-cockpit</code>.</p>
+      <p><strong>Changing the gripper later.</strong> The tool is whatever the pendant's active TCP says: the camera computer carries no tool length of its own. For a different gripper, set its TCP on the pendant (Installation → General → TCP) and make it the active one — the 3D Pick node and the camera computer follow it from the next pick.</p>
     </div>
 
     <div class="step">
