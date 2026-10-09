@@ -560,16 +560,17 @@ def test_deploy_skips_a_python_without_pip(tmp_path):
     assert subprocess.run([bash, "-c", script], env=env, capture_output=True, text=True).stdout == good
 
 
-def test_deploy_copies_the_whole_of_deploy_pi_including_its_directories():
+def test_deploy_copies_the_files_of_deploy_pi_not_its_directories():
     # Regression (2026-10-06): the first deploy after #49 died at the copy with
     # `scp: local ".../deploy/pi/image" is not a regular file` — deploy/pi/ grew a
-    # subdirectory and the scp of deploy/pi/* was not recursive.
+    # subdirectory (image/, the card-image tooling, not for the PC). The fix that held at the
+    # cell (2026-10-08) copies deploy/pi's regular files only, never a bare `deploy/pi/*`.
     assert any(p.is_dir() for p in PI.iterdir()), "deploy/pi has no subdirectory any more"
-    copies = [
-        line for line in _text(DEPLOY).splitlines() if line.startswith("scp ") and "deploy/pi/*" in line
-    ]
-    assert len(copies) == 1, copies
-    assert re.search(r"\bscp\s+(-\w+\s+)*-\w*r", copies[0]), copies[0]
+    text = _text(DEPLOY)
+    assert 'for f in "$repo"/deploy/pi/*; do [ -f "$f" ] && pi_files+=("$f"); done' in text
+    copies = [line for line in text.splitlines() if line.lstrip().startswith("scp ")]
+    assert not [c for c in copies if "deploy/pi/*" in c], copies
+    assert any('"${pi_files[@]}"' in c for c in copies), copies
 
 
 def test_removing_the_cell_dhcp_clears_its_failed_state():
