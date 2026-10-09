@@ -30,7 +30,10 @@ SPEC = {
     "node": "e2e001",
     "points": [{"q": pick5_e2e.READY}],
     "popup": False,
+    "closeLook": True,  # the e2e's first two runs exercise the closer look (off by default since 0.10.0)
 }
+OFFSET = [0.0, 0.0, pick5_e2e.TOOL_M, 0.0, 0.0, 0.0]  # the tool the e2e sets as the controller's TCP
+TCP = " tcp=p[" + ", ".join(f"{v:.6f}" for v in OFFSET) + "]"
 needs_javac = pytest.mark.skipif(shutil.which("javac") is None, reason="javac is not installed")
 
 
@@ -45,7 +48,8 @@ def test_the_e2e_builds_every_script_it_runs(polyscope):
     assert "set_standard_digital_out" not in once and "63352" not in probe  # the node drives no gripper
     assert "popup(" in probe and "popup(" not in once
     for script in (once, no_look):  # each is a whole program on its own: the e2e runs them back to back
-        assert script.count("\n") > 100 and script.rstrip().endswith("set_tcp(rs_tcp0)")
+        assert script.count("\n") > 100 and script.rstrip().endswith("end")
+        assert "set_tcp(" not in script  # the tool is the controller's: the e2e sets it once, before the runs
 
 
 def _numbers(reply: str) -> list[float]:
@@ -69,12 +73,13 @@ class Controller:
         self.captured: list[str] = []
         self.tokens = tokens
         self.ready = armfk.frames(pick5_e2e.READY, "UR5E")[-1]
-        self.flange = pose_trans(self.ready, [0.05, 0.02, -0.1, 0.0, 0.0, 0.0])  # wherever the program starts
+        # the pose the script sends is the TCP's (the tool the e2e set on the controller); the
+        # world sees the flange the server recovers from it
+        self.tcp = pose_trans(pose_trans(self.ready, [0.05, 0.02, -0.1, 0.0, 0.0, 0.0]), OFFSET)
         planner = PickPlanner(
             self.source,
             lambda: self.seq,
             lambda: [0.0] * 6,
-            tip_m=0.163,
             min_radius_m=0.0,
             log=lambda text, ok: self.log.append(text),
         )
@@ -91,25 +96,23 @@ class Controller:
 
     def run(self, marker: str, close_look: bool) -> None:
         tok = self.tokens
-        r = self.ask(f"NEXT {_pose(self.flange)} node=e2e001 locs=1 proto=2")
+        r = self.ask(f"NEXT {_pose(self.tcp)} node=e2e001 locs=1 proto=3{TCP}")
         queued = close_look and r[0] == 1
         if queued:
             self.captured.append("3D Pick: next part already seen, #1")
         else:
-            self.flange = list(self.ready)  # the survey: movej to the picture point
-            r = self.ask(f"FIND {_pose(self.flange)}{tok}")
+            self.tcp = pose_trans(self.ready, OFFSET)  # the survey: movej to the picture point
+            r = self.ask(f"FIND {_pose(self.tcp)}{tok}{TCP}")
             assert r[0] == 1, self.log
         centre = r[1:4]
         c = _pose([*centre, 0, 0, 0])
         if close_look:
-            lk = _numbers(self._answer(f"LOOK {_pose(self.flange)} {c} stroke=50"))
+            lk = _numbers(self._answer(f"LOOK {_pose(self.tcp)} {c} stroke=50 proto=3{TCP}"))
             if lk[0] == 1:
-                self.flange = lk[4:10]
-        r = self.ask(f"REFINE {_pose(self.flange)} {c}{tok} lean=0")
+                self.tcp = lk[4:10]  # a TCP-frame pose: the node moves its TCP there
+        r = self.ask(f"REFINE {_pose(self.tcp)} {c}{tok}{TCP} lean=0")
         assert r[0] == 1, self.log
-        self.flange = pose_trans(
-            r[4:10], [0.0, 0.0, 0.015, 0.0, 0.0, 0.0]
-        )  # down to the grip, and it ends there
+        self.tcp = pose_trans(r[4:10], [0.0, 0.0, 0.015, 0.0, 0.0, 0.0])  # down to the grip; it ends there
         self.captured.append(f"rs_e2e/{marker}= True")
         if marker == "first":
             self.captured.append(f"rs_e2e/loc= {int(r[10])}")

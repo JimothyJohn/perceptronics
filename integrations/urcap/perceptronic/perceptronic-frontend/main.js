@@ -354,16 +354,13 @@
             </div>
             <div class="two hidden" data-rsp="tab-areas">
               <div class="card" data-rsp="areas-card">
-                <h3>Pick areas <small>for the 3D Pick node — touch the table with the fingertips at a corner, along one edge, and on the far side</small></h3>
+                <h3>Pick areas <small>for the 3D Pick node — touch the table with the tool (its TCP, as set on the pendant) at a corner, along one edge, and on the far side</small></h3>
                 <div data-rsp="areas"></div>
                 <div class="row"><button data-rsp="area-add">New area</button> <small data-rsp="areas-note"></small></div>
               </div>
               <div class="card reach-card" data-rsp="reach-card">
                 <h3>The arm's reach <small data-rsp="reach-model"></small></h3>
                 <div class="reach-map" data-rsp="reach-map"></div>
-                <div class="row">
-                  <label>Tool length <input type="text" inputmode="numeric" data-rsp="tipMm" /> mm</label>
-                </div>
                 <small data-rsp="reach-text"></small>
               </div>
             </div>
@@ -428,12 +425,6 @@
         return;
       }
       this.$("area-add").addEventListener("click", () => this.areaAdd());
-      this.$("tipMm").addEventListener("change", (ev) => {
-        const v = Math.round(parseFloat(String(ev.target.value).replace(",", ".")));
-        this._node.tipMm = Number.isFinite(v) ? Math.max(0, Math.min(500, v)) : this._node.tipMm;
-        this.persist();
-        this.syncAreas();
-      });
       this.syncAreas();
       await this.askRobotModel();
     }
@@ -458,7 +449,6 @@
       if (!P || !this._built) return;
       const node = this._node;
       const areas = Array.isArray(node.areas) ? node.areas : (node.areas = []);
-      const tip = Number.isFinite(node.tipMm) ? node.tipMm : P.DEFAULT_TIP_MM;
       const box = this.$("areas");
       box.innerHTML = "";
       areas.forEach((a, i) => {
@@ -483,7 +473,7 @@
           plane.textContent = "the three touches are in a line or too close — touch a corner, along one edge, and the far side";
           plane.className = "plane warn";
         } else {
-          plane.textContent = `touch ${missing} more point${missing === 1 ? "" : "s"} with the fingertips (${tip} mm past the flange)`;
+          plane.textContent = `touch ${missing} more point${missing === 1 ? "" : "s"} with the tool (the robot's TCP)`;
         }
         row.querySelector("input").addEventListener("change", (ev) => {
           const name = String(ev.target.value).replace(/[^A-Za-z0-9 ._-]/g, "").trim().slice(0, 24);
@@ -495,7 +485,6 @@
       });
       this.$("area-add").disabled = areas.length >= P.MAX_AREAS;
       this.$("areas-note").textContent = areas.length ? "" : "no pick area yet: the Pick node finds the table live";
-      this.$("tipMm").value = String(Number.isFinite(node.tipMm) ? node.tipMm : P.DEFAULT_TIP_MM);
       const model = node.robotModel || "";
       const mr = P.modelReach(model);
       const baseR = mr ? mr[0] : 0.064;
@@ -526,7 +515,9 @@
       this.setStatus("area removed — check the picture points of any Pick node that used it", "warn");
     }
 
-    // A touch: PolyScope's joint positions → its DH table → the flange → the fingertips (tipMm along +Z).
+    // A touch: the pose of PolyScope's active TCP — the tool as the pendant has it (0.8.0, Nick
+    // 2026-10-08: the node carries no tool length). convertJointPositionsToTcpPose is 10.10+;
+    // before that the TCP is taken at the flange (joints → PolyScope's DH table).
     async touch(i, key) {
       const P = this._lib;
       const rps = this._api && this._api.robotPositionService;
@@ -538,12 +529,18 @@
         const q = await withTimeout(firstValue(rps.getJointPositions()), 5000, "no joint positions from PolyScope in 5 s");
         const dh = await withTimeout(rps.getKinematicInfo(), 5000, "no kinematic info from PolyScope in 5 s");
         const qa = Array.isArray(q) ? q.map(Number) : ["base", "shoulder", "elbow", "wrist1", "wrist2", "wrist3"].map((k) => Number(q[k]));
-        const flange = matToPose(flangeMat(dh, qa));
-        const tip = P.fingertip(flange, Number.isFinite(this._node.tipMm) ? this._node.tipMm : P.DEFAULT_TIP_MM);
+        let tip, how = "the robot's TCP";
+        if (typeof rps.convertJointPositionsToTcpPose === "function") {
+          const t = await withTimeout(rps.convertJointPositionsToTcpPose(q), 5000, "no TCP pose from PolyScope in 5 s");
+          tip = [...t.position].slice(0, 3);
+        } else {
+          tip = matToPose(flangeMat(dh, qa)).slice(0, 3);
+          how = "the flange: this PolyScope can't report its TCP";
+        }
         this._node.areas[i][key] = tip.map((v) => Math.round(v * 1e5) / 1e5);
         await this.persist();
         this.syncAreas();
-        this.setStatus(`${this._node.areas[i].name}: ${key === "p0" ? "corner" : key === "p1" ? "edge" : "far side"} at [${fmtVec(tip)}] m (fingertips)`, "ok");
+        this.setStatus(`${this._node.areas[i].name}: ${key === "p0" ? "corner" : key === "p1" ? "edge" : "far side"} at [${fmtVec(tip)}] m (${how})`, "ok");
       } catch (err) {
         this.setStatus(`touch: ${err && err.message ? err.message : err}`, "err");
       }
@@ -729,8 +726,8 @@
         const reach = loc.reachable === false ? "OUT OF REACH" : loc.reachable === true ? "reachable" : "reach unknown";
         this.$("target").textContent =
           `object  base ${fmtVec(loc.point_base_m)} m  (${fmt(loc.point_distance_m, 2)} m from the base)\n` +
-          (loc.reference === "fingertip"
-            ? `fingertips ${fmtVec(loc.approach_pose)}  ${fmt(loc.standoff_m, 3)} m above the object (tool ${fmt(loc.tip_m, 3)} m)\n`
+          (loc.reference === "tcp"
+            ? `tool     ${fmtVec(loc.approach_pose)}  ${fmt(loc.standoff_m, 3)} m above the object (the robot's TCP)\n`
             : loc.reference === "flange" && loc.flange_target_pose
               ? `flange   ${fmtVec(loc.flange_target_pose)}  standoff ${fmt(loc.standoff_m, 2)} m above the object\n`
               : `approach ${fmtVec(loc.approach_pose)}  standoff ${fmt(loc.standoff_m, 2)} m\n`) +

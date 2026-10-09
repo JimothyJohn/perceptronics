@@ -12,21 +12,21 @@
 // (threads/dist/worker/index.js + dist/types/messages.js + dist/serializers.js).
 
 const NODE_TYPE = "advin-perceptronic";
-const NODE_VERSION = "1.1.0";
+const NODE_VERSION = "1.2.0";
 
 // The node's saved state. `cockpitUrl` is where the RealSense cockpit
 // (`perceptronics gui --cors …`) answers; empty = the page's own host on :7621.
-// `areas` (up to 8: name + the three fingertip touches, base frame, m), `tipMm` (the
-// fingertips past the flange) and `robotModel` (read from PolyScope: the pick server asks
-// that arm's kinematics what is in reach) are what the 3D Pick program node reads from this
-// node (pickscript.js `settings`). A node saved before 0.5.0 also carries `reachInnerMm` /
-// `reachOuterMm`, the margins of a pick ring nothing reads any more.
+// `areas` (up to 8: name + three touches of the table with the robot's own TCP, base frame,
+// m) and `robotModel` (read from PolyScope: the pick server asks that arm's kinematics what
+// is in reach) are what the 3D Pick program node reads from this node (pickscript.js
+// `settings`). A node saved before 0.5.0 also carries `reachInnerMm` / `reachOuterMm`, the
+// margins of a pick ring nothing reads any more, and one saved before 0.8.0 a `tipMm` (the
+// node's own tool length — the tool is the robot's active TCP since then, Nick 2026-10-08).
 const fresh = () => ({
   type: NODE_TYPE,
   version: NODE_VERSION,
   cockpitUrl: "",
   areas: [],
-  tipMm: 163,
   robotModel: "",
 });
 const behaviors = {

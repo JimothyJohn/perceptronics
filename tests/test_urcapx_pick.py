@@ -64,7 +64,7 @@ if (req.cmd === "pick") {
     shape: req.shape || "box",
     gripCheck: req.gripCheck !== false,
     gripLongSide: req.gripLong === true,
-    closeLook: req.closeLook !== false,
+    closeLook: req.closeLook === true,
     arm: req.arm || "",
     popupOnFail: req.popup !== false,
     foundVariable: req.found || P.FOUND_VARIABLE,
@@ -169,33 +169,33 @@ def balanced(text: str) -> bool:
 
 
 def test_the_script_is_one_move_sequence_from_the_survey_to_the_grip():
-    out = pick()
+    out = pick(closeLook=True)
     assert out["problem"] is None
     text = out["script"]
     assert text.isascii() and balanced(text)
-    assert text.startswith("# 3D Pick 0.7.1 ")
+    assert text.startswith("# 3D Pick 0.8.0 ")
     order = [
         "global rs_pick_found = False",
-        "set_tcp(p[0, 0, 0, 0, 0, 0])",
+        'rs_tcp = str_cat(" tcp=", to_str(get_tcp_offset()))',  # the operator's TCP rides every request
         'socket_open("192.168.3.10", 7622, "rs_pick")',
         '"NEXT "',
-        "movej([-1.370000, -0.490000, 1.610000, -2.690000, -1.570000, 0.610000]",  # the survey
+        "movej([-1.370000, -0.490000, 1.610000, -2.690000, -1.570000, 0.610000])",  # the survey
         '"FIND "',
         '"LOOK "',
         "get_inverse_kin_has_solution(rs_look",
         '"REFINE "',
-        "movel(rs_hover",
-        "movel(rs_grip, a=0.3, v=0.05)",
+        "movej(get_inverse_kin(rs_hover",
+        "movej(get_inverse_kin(rs_grip",
         "global rs_pick_found = True",
         "global rs_pick_loc = rs_loc",
         'socket_close("rs_pick")',
-        "set_tcp(rs_tcp0)",
         "popup(",
     ]
     at = [text.index(marker) for marker in order]
     assert at == sorted(at), "the stages are out of order"
     # it ends at the grip: the last motion is the descent; no children
-    assert text.rindex("movel(") == text.index("movel(rs_grip")
+    assert text.rindex("movej(") == text.index("movej(get_inverse_kin(rs_grip")
+    assert "set_tcp(" not in text and "movel(" not in text  # the pendant's TCP, the controller's speeds
     assert "rs_lift" not in text and "if rs_pick_found:" not in text
     assert out["childDepth"] == 0 and out["after"] == [] and "\n".join(out["before"]) + "\n" == text
     # no request line the program builds can exceed the server's 1 kB
@@ -306,7 +306,7 @@ def test_the_options_it_sends_are_what_the_pick_server_reads():
         assert (o.grip_below_m, o.approach_m) == (0.012, 0.035)
         # the grip check is on, with 20 mm of room on each side; no stroke: the node knows no gripper
         assert (o.grip_check, o.room_m, o.across) == (True, 0.02, "short") and "stroke=" not in tok
-        assert (o.node, o.locs, o.proto) == ("a1b2c3", 2, 2)
+        assert (o.node, o.locs, o.proto) == ("a1b2c3", 2, 3)
         assert o.loc == i  # tokens(-1) (the teach screen with no point yet) carries no loc
     plane = parse_options(out["tokens"][2]).surface
     want = Surface.from_pose(PLANE, (0.3, 0.2))
@@ -343,11 +343,13 @@ def test_a_cylinder_is_sent_by_its_diameter():
 
 
 def test_every_request_line_it_can_send_parses():
-    text = pick(arm="UR10e", shape="cyl", values={"partLengthMm": 40})["script"]
+    text = pick(arm="UR10e", shape="cyl", closeLook=True, values={"partLengthMm": 40})["script"]
     pose = "p[0.3, -0.1, 0.12, 3.14159, 0, 0]"
     toks = re.findall(r'rs_tok = "( [^"]+)"', text)
-    look_tail = re.search(r'to_str\(rs_c\), "( [^"]+)"\)\)\)\), "rs_pick"', text).group(1)
-    lines = [f"NEXT {pose} node=a1b2c3 locs=2 proto=2", f"LOOK {pose} p[0.3, 0, -0.24, 0, 0, 0]{look_tail}"]
+    look_tail = re.search(r'to_str\(rs_c\), str_cat\("( [^"]+)", rs_tcp\)', text).group(1)
+    tcp = " tcp=p[0.0, 0.0, 0.163, 0.0, 0.0, 0.0]"
+    lines = [f"NEXT {pose} node=a1b2c3 locs=2 proto=3{tcp}"]
+    lines += [f"LOOK {pose} p[0.3, 0, -0.24, 0, 0, 0]{look_tail}{tcp}"]
     lines += [f"FIND {pose}{t}" for t in toks]
     lines += [f"REFINE {pose} p[0.3, 0, -0.24, 0, 0, 0]{t} lean=12" for t in toks]
     for line in lines:
@@ -398,15 +400,16 @@ def test_without_the_popup_a_failed_run_just_leaves_the_result_false():
     assert "popup(" not in text and "global rs_pick_found = False" in text
 
 
-def test_the_nodes_travel_speed_is_fixed_and_the_last_stretch_is_slow():
-    text = pick()["script"]
-    assert "a=0.84, v=0.63)" in text  # movej: 60 % of 1.4 rad/s^2 and 1.05 rad/s
-    assert "movel(rs_hover, a=0.36, v=0.15)" in text
-    assert "movel(rs_grip, a=0.3, v=0.05)" in text
+def test_every_move_is_a_plain_movej_at_the_controllers_defaults():
+    text = pick(closeLook=True)["script"]
+    assert "movel(" not in text and " a=" not in text and " v=" not in text
+    assert "movej(get_inverse_kin(rs_look, get_actual_joint_positions()))" in text
+    assert "movej(get_inverse_kin(rs_hover, get_actual_joint_positions()))" in text
+    assert "movej(get_inverse_kin(rs_grip, get_actual_joint_positions()))" in text
 
 
 def test_without_the_closer_look_every_part_is_measured_from_its_picture_point():
-    text = pick(closeLook=False)["script"]
+    text = pick()["script"]  # off by default since 0.8.0
     assert balanced(text) and '"LOOK "' not in text and "rs_look" not in text
     assert "next part already seen" not in text
     lines = text.splitlines()
@@ -415,11 +418,12 @@ def test_without_the_closer_look_every_part_is_measured_from_its_picture_point()
     assert (
         nxt < movej and len(lines[movej]) - len(lines[movej].lstrip()) == 6
     )  # while > if rs_loc == 1 > movej
-    order = ['"FIND "', '"REFINE "', "movel(rs_hover", "movel(rs_grip", "global rs_pick_found = True"]
+    order = ['"FIND "', '"REFINE "', "movej(get_inverse_kin(rs_hover", "movej(get_inverse_kin(rs_grip"]
+    order += ["global rs_pick_found = True"]
     at = [text.index(marker) for marker in order]
-    assert at == sorted(at) and "- no closer look" in lines[0]
-    with_look = pick()["script"]
-    assert '"LOOK "' in with_look and "next part already seen" in with_look
+    assert at == sorted(at) and "closer look" not in lines[0]
+    with_look = pick(closeLook=True)["script"]
+    assert '"LOOK "' in with_look and "next part already seen" in with_look and "- closer look" in with_look
 
 
 def test_every_default_is_within_its_own_limits_and_the_defaults_generate():
@@ -697,7 +701,7 @@ def test_settings_read_the_application_node_the_way_the_pick_node_does():
     st_ = out["settings"]
     assert out["problem"] is None
     assert (st_["host"], st_["port"], st_["nodeId"]) == ("192.168.3.10", 7622, "0badf00d")
-    assert (st_["arm"], st_["shape"], st_["gripCheck"], st_["closeLook"]) == ("UR3e", "box", True, True)
+    assert (st_["arm"], st_["shape"], st_["gripCheck"], st_["closeLook"]) == ("UR3e", "box", True, False)
     assert st_["points"][0]["plane"] is None and st_["points"][1]["areaXmm"] == pytest.approx(300)
     o = parse_options(out["tokens"][1])
     assert o.surface is not None and o.surface.origin == pytest.approx([0.2, -0.1, -0.27], abs=1e-5)
@@ -1029,7 +1033,7 @@ def test_the_pick_worker_speaks_the_protocol_and_answers_script_builders():
         fresh["parameters"]["values"]["partLengthMm"] == 50 and fresh["parameters"]["foundVariable"] is None
     )
     p = fresh["parameters"]
-    assert (p["shape"], p["gripCheck"], p["gripLongSide"], p["closeLook"]) == ("box", True, False, True)
+    assert (p["shape"], p["gripCheck"], p["gripLongSide"], p["closeLook"]) == ("box", True, False, False)
     assert "gripper" not in p and "perPointRoutine" not in p
     label = result(by, "label")
     assert (
@@ -1045,7 +1049,7 @@ def test_the_pick_worker_speaks_the_protocol_and_answers_script_builders():
     assert "camera computer's address" in result(by, "noapp")["errorMessageKey"]
     before = result(by, "before")
     assert before["type"] == "$$ScriptBuilder" and before["currentIndent"] == 0
-    assert before["script"].startswith("# 3D Pick 0.7.1") and before["script"].rstrip().endswith("end")
+    assert before["script"].startswith("# 3D Pick 0.8.0") and before["script"].rstrip().endswith("end")
     assert balanced(before["script"])  # the whole program is here: nothing is left for after the children
     assert 'socket_open("192.168.3.10", 7622, "rs_pick")' in before["script"]
     assert "arm=UR3e" in before["script"] and "reach=" not in before["script"]
@@ -1057,7 +1061,7 @@ def test_the_pick_worker_speaks_the_protocol_and_answers_script_builders():
     assert result(by, "child") is False
     up = result(by, "upgrade")
     assert (
-        up["version"] == "1.0.0"
+        up["version"] == "1.1.0"
         and up["allowsChildren"] is False
         and re.fullmatch(r"[0-9a-f]{6}", up["parameters"]["nodeId"])
     )

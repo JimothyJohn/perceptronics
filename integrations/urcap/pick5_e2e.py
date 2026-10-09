@@ -49,6 +49,7 @@ from urctl.pose import Transform  # noqa: E402
 W, H = 320, 180
 K = {"fx": 230.0, "fy": 230.0, "ppx": W / 2, "ppy": H / 2}
 READY = [0.0, -1.0, 1.2, -1.8, -1.5708, 0.0]  # elbow bent, tool down: no singular movel
+TOOL_M = 0.163  # the tool the e2e sets as the controller's TCP (a Hand-E + adapter), like an operator would
 
 
 class World:
@@ -256,11 +257,17 @@ def main() -> int:
             "node": "e2e001",
             "points": [{"q": READY}],
             "popup": False,  # a blocking popup would hold the run until someone taps it
+            "closeLook": True,  # the first two runs exercise the closer look (off by default since 0.10.0)
             **({"polyscope": version} if version else {}),
         }
         once = generate(spec)
         no_look = generate({**spec, "closeLook": False})
-        body = once + 'textmsg("rs_e2e/first=", rs_pick_found)\n'
+        # the operator's tool, as a pendant would hold it: the node's script sends this offset with
+        # every request and the pick server answers in that frame (protocol 3); the simulator's own
+        # installation has none, and with the TCP at the flange the camera would sit inside the part
+        # at the grip, where the second run starts
+        body = f"set_tcp(p[0, 0, {TOOL_M}, 0, 0, 0])\n"
+        body += once + 'textmsg("rs_e2e/first=", rs_pick_found)\n'
         body += 'textmsg("rs_e2e/loc=", rs_pick_loc)\n'
         body += once + 'textmsg("rs_e2e/found=", rs_pick_found)\n'
         body += no_look + 'textmsg("rs_e2e/nolook=", rs_pick_found)\n'
