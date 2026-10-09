@@ -47,7 +47,7 @@ the exact kit, and stop after two failed attempts at any step and read §5.
 ## 2. The night before (done 2026-10-06, re-check in the morning)
 
 - The Pi runs the current code with the **UR3e profile** (`UR_HOST=192.168.3.3`, e-Series,
-  `PERCEPTRONICS_TIP_M=0.163`, the 09-27 hand-eye in the file, High Density) — redeployed from
+  the 09-27 hand-eye in the file, High Density; the tool is the pendant's active TCP) — redeployed from
   PR #67 rebased on dev; port 80 on. `curl -s http://192.168.3.20/api/info | head -c 200` from
   the cell says `realsense`.
 - The Pi's address on the cable is `192.168.3.20/24`; a robot on DHCP gets `192.168.3.3` from
@@ -124,7 +124,7 @@ are all that); unplug the camera (it recovers, but it takes a few seconds and a 
 | Blocks yellow, banner says the size | the rule; Part tab |
 | Banner: *surface reads rough* | a board under the blocks; or the picture pose 0.1 m closer |
 | Banner / note: *off level in the robot's frame* | the hand-eye: §3 step 3. The demo can run (parts are found) but picks land off by the error |
-| Fingertips land a constant few mm off | the hand-eye; also check `PERCEPTRONICS_TIP_M` (0.163 = Hand-E + 6 mm adapter) |
+| Fingertips land a constant few mm off | the hand-eye; also check the pendant's active TCP is the Hand-E's (0.163 m = 157 + 6 mm adapter) — `perceptronics doctor`'s `approach` line |
 | *3D Pick: no pick — …* popup | it names the reason: `no room for a finger`, `out of reach`, `the second look did not find the block again` (the block moved, or the closer look is too close for a tall block: Closer look off) |
 | Protective stop | `unlock protective stop` on the pendant; the node lifts and moves on. Twice in a row: speed down, check the table height vs the grip depth (a surface level with the base is 0.27 m higher than the 09-27 cell: the controller's IK decides reach, but the approach from above needs the elbow room) |
 | The Pi is dead (no link light, no `/api/info` after 2 min) | the spare card (build #3): power off, swap, power on, 60 s; it comes up with the same address and the 09-27 hand-eye. Picture point and part size are on the pendant, not the Pi |

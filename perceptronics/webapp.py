@@ -648,14 +648,13 @@ class ViewerApp:
         return out
 
     def _unreachable(self, legs: list[dict]) -> list[str]:
-        iks = self.robot.robot.inverse_kin([leg["pose"] for leg in legs], tcp=[0.0] * 6)
+        """The legs (TCP-frame poses) the controller's IK has no solution for, under the active TCP."""
+        iks = self.robot.robot.inverse_kin([leg["pose"] for leg in legs], tcp=None)
         return [leg["name"] for leg, a in zip(legs, iks, strict=True) if a.get("reachable") is False]
 
     def _run(self, legs: list[dict], gripper_first: int | None = None) -> dict:
-        params: dict = {
-            "legs": [{k: v for k, v in leg.items() if k != "name"} for leg in legs],
-            "tcp": [0.0] * 6,
-        }
+        """One program of TCP-frame legs, with the robot's active TCP as it is."""
+        params: dict = {"legs": [{k: v for k, v in leg.items() if k != "name"} for leg in legs]}
         if gripper_first is not None:
             params["gripper_first"] = int(gripper_first)  # the fingers travel while the arm does
         return self.robot._tool("move_tcp_path", params)
@@ -684,8 +683,9 @@ class ViewerApp:
         ``target`` — a stored object ``{centre [x y z], theta, major_m, minor_m}`` in the
         base frame — stands in for the clicked mask: no segmentation, and the object need
         not be in view. ``survey`` stops after the close look and returns its measurement."""
+        from urctl.pose import pose_inv, pose_trans
+
         from . import pickplan
-        from .handeye import tip_m_from_env
         from .pickcycle import grasp_rotation, grasp_yaw_deg
 
         if self.robot is None:
@@ -693,6 +693,12 @@ class ViewerApp:
         f_now = self._flange_at(time.time())
         if f_now is None:
             return {"ok": False, "error": "no flange pose (pose stream or controller)"}
+        # the tool is the robot's active TCP (Nick, 2026-10-08): the whole plan is made in
+        # that frame — the camera relative to it, the poses as TCP poses — and the programs
+        # run with the TCP as the pendant has it
+        offset = self.robot.tcp_offset() or [0.0] * 6
+        to_tcp = lambda flange: pose_trans(flange, offset)  # noqa: E731
+        f_now = to_tcp(f_now)
         if target is not None:
             try:
                 c = [float(v) for v in target["centre"]]
@@ -721,14 +727,14 @@ class ViewerApp:
             rect0 = self._rect_from_mask(mask, frame, f_then)
             if rect0 is None:
                 return {"ok": False, "error": "not enough depth on the target's top face"}
-        tip, hfc = tip_m_from_env(), self._handeye_fc()
+        hfc = pose_trans(pose_inv(offset), self._handeye_fc())  # the camera, seen from the TCP frame
         notes: list[str] = []
 
         def build(rect, start, *, with_look, skip=()):
             return pickplan.plan(
                 rect,
                 start,
-                tip_m=tip,
+                tip_m=0.0,
                 pick=pick,
                 fancy=fancy,
                 skip=skip,
@@ -781,7 +787,8 @@ class ViewerApp:
         if p["look"] is not None:
             # 2 — find the block again from up close, by identity (the real block nearest the
             # estimate), re-centre once if it is off the camera's axis, then measure it there
-            rect1, f_look, why_not = self._refind(rect0["centre"], p["look"])
+            rect1, f_look, why_not = self._refind(rect0["centre"], pose_trans(p["look"], pose_inv(offset)))
+            f_look = None if f_look is None else to_tcp(f_look)
             # re-centre only when the block sits far off the camera's axis (the look measures well
             # anywhere near the middle of the picture): one move and one look saved most times
             if rect1 is not None and math.dist(rect1["centre"][:2], rect0["centre"][:2]) > 0.04:
@@ -790,8 +797,9 @@ class ViewerApp:
                 look2 = pickplan.look_pose(rect1, rot, yaw, hfc, pickplan.LOOK_M)
                 if not self._unreachable([{"name": "look", "pose": look2}]):
                     self._run([{"name": "look", "pose": look2, **pickplan.SETTLE, "dwell_s": 0.15}])
-                    again, f2, _ = self._refind(rect1["centre"], look2)
+                    again, f2, _ = self._refind(rect1["centre"], pose_trans(look2, pose_inv(offset)))
                     if again is not None:
+                        f2 = to_tcp(f2)
                         d1 = math.dist(rect1["centre"][:2], rect0["centre"][:2]) * 1000
                         d2 = math.dist(again["centre"][:2], rect1["centre"][:2]) * 1000
                         notes.append(
@@ -826,7 +834,7 @@ class ViewerApp:
                 )
                 self.events.add("robot", f"pick: {why_blocked}", ok=False)
                 return {"ok": False, "error": why_blocked, "stage": "clearance", **summary}
-            p2 = pickplan.plan(rect, f_look, tip_m=tip, pick=pick, fancy=False, home=self._home_pose())
+            p2 = pickplan.plan(rect, f_look, tip_m=0.0, pick=pick, fancy=False, home=self._home_pose())
             if pick and not p2["fits"]:
                 return {
                     "ok": False,
@@ -999,13 +1007,10 @@ class ViewerApp:
         return self.robot.handeye.as_dict().get("flange_to_color_pose")
 
     def pick_planner(self) -> PickPlanner:
-        from .handeye import tip_m_from_env
-
         return PickPlanner(
             self.pick_frame,
             lambda: self.latest()[0],
             self._handeye_pose,
-            tip_m=self.robot.tip_m if self.robot is not None else tip_m_from_env(),
             log=lambda text, ok: self.events.add("pick", text, ok=ok),
         )
 
@@ -1043,33 +1048,38 @@ class ViewerApp:
             picked,
             pick_port=self.pick_port,
             handeye=self._handeye_pose() is not None,
-            tip_m=self.robot.tip_m if self.robot is not None else None,
             part=part,
         )
 
     def pick_scene(self, opts_text: str, approach_mm: float | None = None) -> dict:
         """The 0.5.0 node's teach screen (:func:`perceptronics.picknode.scene_report`): the same
         FIND the program would make with these options, from the live flange pose (the pose
-        stream, else the robot link; camera-only without either). With ``approach_mm`` each
-        part also carries ``polyscope_approach_pose``: the approach (fingertips that far over
-        its top, along the tool axis) in the controller's **active** TCP — what PolyScope's
-        hold-to-move screen takes."""
+        stream, else the robot link; camera-only without either). Every ``grasp_pose`` is a
+        pose of the controller's **active** TCP frame (the tool as the pendant has it — the
+        offset read here, unless the options carry a ``tcp=``); with ``approach_mm`` each
+        part also carries ``polyscope_approach_pose``: the approach (the TCP that far over
+        its top, along the tool axis) — what PolyScope's hold-to-move screen takes."""
+        import dataclasses
+
         from urctl.pose import pose_trans
 
         opts = parse_options(opts_text[:1024])
         flange = self.frame_pose().get("flange_pose")
         fp: dict = {}
-        if self.robot is not None and (flange is None or approach_mm is not None):
+        if self.robot is not None:
             fp = self.robot.flange_pose()
             if flange is None and fp.get("ok") and fp.get("flange"):
                 flange = list(fp["flange"])
-        out = scene_report(self.pick_planner(), flange, opts, pick_port=self.pick_port)
         offset = fp.get("tcp_offset") if fp.get("tcp_offset_consistent") is not False else None
-        if approach_mm is not None and offset is not None:
+        if opts.tcp_offset is None and offset is not None:
+            opts = dataclasses.replace(opts, tcp_offset=tuple(float(v) for v in offset))
+        out = scene_report(self.pick_planner(), flange, opts, pick_port=self.pick_port)
+        out["tcp_offset"] = list(opts.tcp_offset) if opts.tcp_offset is not None else None
+        if approach_mm is not None:
             for part in out.get("parts", []):
                 if "grasp_pose" in part:
                     hover = pose_trans(part["grasp_pose"], [0.0, 0.0, -approach_mm / 1000.0, 0.0, 0.0, 0.0])
-                    part["polyscope_approach_pose"] = [round(v, 6) for v in pose_trans(hover, offset)]
+                    part["polyscope_approach_pose"] = [round(v, 6) for v in hover]
         return out
 
     def workplane_check(self, name: str) -> dict:
@@ -1414,6 +1424,27 @@ class ViewerApp:
 
     def robot_state(self) -> dict:
         return self._link().state()
+
+    def robot_view(
+        self,
+        point_m: Sequence[float] | None = None,
+        height_m: float | None = None,
+        arm: str | None = None,
+    ) -> dict:
+        """The straight-down picture pose over ``point_m`` (:meth:`RobotLink.view`) for the
+        3D Pick node's Look down. Reads the flange pose; moves nothing."""
+        link = self._link()
+        if arm is not None and (not isinstance(arm, str) or not re.fullmatch(r"[A-Za-z0-9]{1,8}", arm)):
+            raise ValueError("arm must be a robot model name, like UR3e")
+        return self._robot_action(
+            "view",
+            lambda: link.view(point_m, height_m=height_m, arm=arm),
+            summary=lambda r: (
+                f"view → camera {r.get('height_m', 0):.2f} m over "
+                f"{[round(v, 3) for v in r.get('point_m', [])]}"
+                + (" OUT OF REACH" if r.get("reachable") is False else "")
+            ),
+        )
 
     def robot_locate(
         self,
@@ -1881,6 +1912,14 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     _number(payload, "standoff_m") if "standoff_m" in payload else None,
                     _vector(payload, "point_m", 3) if "point_m" in payload else None,
                     payload.get("reference"),
+                )
+            )
+        elif route == "/api/robot/view":
+            self._guarded(
+                lambda: self.app.robot_view(
+                    _vector(payload, "point_m", 3) if payload.get("point_m") is not None else None,
+                    _number(payload, "height_m") if "height_m" in payload else None,
+                    payload.get("arm"),
                 )
             )
         elif route == "/api/robot/move":

@@ -20,12 +20,12 @@ the same glyph is the toolbar button, every screen's header and a faint watermar
 Installation's and the popup's live picture (`Logo.java` draws it with Java2D; a test holds
 it equal to the SVG).
 
-Download: [`../dist/perceptronic-ps5-0.9.1.urcap`](../dist/perceptronic-ps5-0.9.1.urcap)
+Download: [`../dist/perceptronic-ps5-0.10.0.urcap`](../dist/perceptronic-ps5-0.10.0.urcap)
 
 ## Install on the robot
 
 You need a USB stick and nothing else: no tools, no command line. One file matters, in
-[`../dist/`](../dist/): [`perceptronic-ps5-0.9.1.urcap`](../dist/perceptronic-ps5-0.9.1.urcap), the
+[`../dist/`](../dist/): [`perceptronic-ps5-0.10.0.urcap`](../dist/perceptronic-ps5-0.10.0.urcap), the
 URCap. It goes on through PolyScope's own URCaps screen, like every URCap; nothing on the
 stick runs by itself and the robot restarts only when you tap Restart.
 
@@ -40,14 +40,14 @@ stick runs by itself and the robot restarts only when you tap Restart.
    Trash) before pulling it out. A stick pulled early can hold a half-written file.
 
 On a Mac, Finder also writes hidden `._…` companions next to each file. They are harmless
-except that PolyScope's file picker lists `._perceptronic-ps5-0.9.1.urcap` too — pick the
+except that PolyScope's file picker lists `._perceptronic-ps5-0.10.0.urcap` too — pick the
 one **without** `._`. `scripts/urcap5-usb.sh` does the whole of this step without them.
 
 ### 2. Install it on the pendant
 
 1. Plug the stick into the pendant.
 2. Tap ☰ (top right) → **Settings** → **System** → **URCaps**.
-3. Tap **+**, tap `perceptronic-ps5-0.9.1.urcap`, tap **Open**.
+3. Tap **+**, tap `perceptronic-ps5-0.10.0.urcap`, tap **Open**.
 4. Tap **Restart** when PolyScope asks.
 5. After the restart: **Installation** tab → **URCaps** → **Perceptronic**.
 
@@ -177,10 +177,13 @@ go back to it, **Next** to go on.
 
 ![Step 1: Look](screens/pick-look.png)
 
-1. **Look** — move the arm to where the camera sees the parts (≥ 0.3 m away: the D435 is
-   blind closer) and tap **Use this view**; PolyScope's own move screen confirms the
-   position. More views are optional: up to 12, a row of numbered buttons; tap one to
-   select it (**Go** moves back there, **Here** retakes it, **✕** removes it). The table is
+1. **Look** — choose a view position: move the arm to where the camera sees the parts
+   (≥ 0.3 m away: the D435 is blind closer) and tap **Use this view**; PolyScope's own move
+   screen confirms the position. More views are optional: up to 12, a row of numbered
+   buttons; tap one to select it (**Move** moves back there, **Retake** retakes it where the
+   arm is, **Look down** straightens it — the camera computer works out the view looking
+   straight down over the pick area, a little out from this arm's base, and PolyScope's move
+   screen takes the arm there (0.10.0, Nick 2026-10-08) — **✕** removes it). The table is
    found live in every picture; a **pick area** taught in the Installation is an extra, named
    under the view only when one is in use. The program visits the views in turn: an empty
    one sends the arm on to the next.
@@ -225,11 +228,10 @@ the Approach tab breaks the tie (left to right, front first; tap to change). Fro
 - **Grip across the long side** (boxes only; off): unticked, the fingers close across the
   part's **short** side; ticked, across its **long** side. The finger room is checked on
   whichever two sides that is.
-- **Closer look** (on): before the approach the arm moves in for a second measurement — the
-  camera 0.3 m from the part, the part held 12° off the middle of the picture on the side
-  away from the gripper, so the fingers are not in front of it. Off, the approach uses the
-  measurement from the picture point, and every part is measured from there (no part is
-  taken from the last survey's queue).
+- **Closer look** (off since 0.10.0 — Nick, 2026-10-08: "not helping anything"): on, before
+  the approach the arm moves in for a second measurement — the camera 0.3 m straight above
+  the part. Off, the approach uses the measurement from the picture point, and every part is
+  measured from there (no part is taken from the last survey's queue).
 
 **What is pickable is the arm's kinematics' answer.** The node names the arm
 (`arm=UR3`); the camera computer solves the arm's inverse kinematics for the approach and
@@ -285,17 +287,24 @@ circle), the keep-out round the base and every taught area — an area that goes
 reach is flagged. There are no reach margins to set: which parts can be picked is the
 kinematics' answer, part by part.
 
-## The wire (pick server protocol 2)
+## The wire (pick server protocol 3)
 
 One line per request, one parenthesised list per answer (URScript's
-`socket_read_ascii_float`). Every request carries the node's options:
+`socket_read_ascii_float`). The pose a request carries is the robot's pose under its
+**active TCP** (`get_actual_tcp_pose()`), and every request carries that offset too,
+`tcp=p[x, y, z, rx, ry, rz]` (`get_tcp_offset()`): the node has no tool length of its own
+(0.10.0, Nick 2026-10-08: "You must only use tool offsets inside of the robot not your own").
+Every request also carries the node's options:
 `part=50x30x30 tol=25 [shape=cyl] order=LR,FB grip=15 approach=25 gripcheck=1 room=20
-[across=long] [arm=UR3] [plane=p[…] area=300x200] node=<id> loc=<i> locs=<n> proto=2` (0.5 / 0.6 sent
+[across=long] [arm=UR3] [plane=p[…] area=300x200] node=<id> loc=<i> locs=<n> proto=3` (0.5 / 0.6 sent
 `reach=<min>,<max>` instead of `arm=`; the server still honours it)
 (`perceptronics/picknode.py` `parse_options`; the Java `PickScript.tokens` writes it, and a test
 reads the Java's tokens back with the Python parser). Verbs: `NEXT` (the queue), `FIND`,
-`LOOK`, `REFINE`, `LOG`. Answers: `(status, centre xyz, flange pose ×6, loc, order,
-remaining, L, W, H)`. The teach screen asks `GET /api/pick/scene?opts=<the same tokens>`
+`LOOK`, `REFINE`, `LOG`. Answers: `(status, centre xyz, TCP-frame pose ×6, loc, order,
+remaining, L, W, H)` — the pose puts the robot's TCP on the part, Z straight down, and the
+node reaches it with `movej(get_inverse_kin(pose))` under the TCP as it is. A node before
+0.10.0 (protocol 1 / 2, no `tcp=`) is answered `-14`: update the URCap; a camera computer
+before 0.10.0 answers this node `-9`. The teach screen asks `GET /api/pick/scene?opts=<the same tokens>`
 (and `&approach_mm=` for **Check approach**, which answers the approach in PolyScope's
 active TCP for its hold-to-move screen). The picture is `GET /api/color.png`, the depth view
 `GET /api/depth.png` — both long-polled by sequence number.
@@ -328,7 +337,14 @@ through the arm's nominal geometry (UR3e/5e/10e/16e; `PoseMath.flange`, the rows
 `perceptronics/armfk.py`). `python3 integrations/urcap/urcap5.py check --sdk <dir>` holds the URCap to any
 version's jars (`urcap5.py sdk --image 5.12.8 --dir <dir>`).
 
-## Status (2026-10-02, 0.9.0)
+## Status (2026-10-08, 0.10.0)
+
+- 0.10.0 (after the cell day, Nick's calls): the tool offset is the robot's active TCP and
+  nothing else (protocol 3, `tcp=` on every request, TCP-frame answers, no `set_tcp` in the
+  script, no tool length on the Installation node — a touch records the active TCP); every
+  move a plain `movej` at the controller's defaults (the pendant's speed slider is the
+  speed); the closer look off by default; **Move** / **Retake** / **Look down** on a view.
+  Unit suite, package and the e2e replay only — **not yet on a pendant**.
 
 - Compiles against PolyScope 5.4's URCap API (and each version's own, in the matrix) with
   `-Xlint:all -Werror`; the script, the option tokens, the order, the plane and pose

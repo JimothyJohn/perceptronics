@@ -30,9 +30,8 @@ from perceptronics.robotlink import RobotLink
 from perceptronics.webapp import ViewerApp, ViewerHandler
 from tests.test_pickcycle import SceneCamera
 from urctl import Robot, RobotConfig
-from urctl.pose import pose_trans
 
-FLANGE_LINE = "FIND p[0.4, 0.0, 0.5, 0.0, 3.141592653589793, 0.0]\n"
+FLANGE_LINE = "FIND p[0.4, 0.0, 0.5, 0.0, 3.141592653589793, 0.0] proto=3\n"
 
 
 @pytest.fixture
@@ -58,7 +57,7 @@ def cockpit():
 
 def _sidecar(base: str, robot: Robot | None = None):
     robot = robot or Robot(RobotConfig(host="fake-ur.invalid"), dry_run=True)
-    side = Sidecar(CockpitFrames(base, timeout_s=5.0), lambda: robot.get_flange_pose(), tip_m=0.163)
+    side = Sidecar(CockpitFrames(base, timeout_s=5.0), lambda: robot.get_flange_pose())
     pick = PickServer("127.0.0.1", 0, side.planner)
     side.pick_port = pick.server_address[1]
     http = SidecarServer("127.0.0.1", 0, side)
@@ -125,7 +124,7 @@ def test_preview_puts_the_fingertips_over_and_into_the_block(sidecar):
     )
     out = json.loads(body)
     assert status == 200 and out["ok"], out
-    tips = lambda pose: pose_trans(pose, [0.0, 0.0, side.tip_m, 0.0, 0.0, 0.0])[:3]  # noqa: E731
+    tips = lambda pose: list(pose[:3])  # noqa: E731 — the TCP frame's origin: the dry-run robot's TCP is the flange
     assert math.dist(tips(out["hover_pose"]), out["centre"]) == pytest.approx(0.040, abs=1e-6)
     assert math.dist(tips(out["grip_pose"]), out["centre"]) == pytest.approx(0.015, abs=1e-6)
 

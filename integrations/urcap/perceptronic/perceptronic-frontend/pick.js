@@ -526,7 +526,7 @@
         p.shape = "box";
         p.gripCheck = true;
         p.gripLongSide = false;
-        p.closeLook = true;
+        p.closeLook = false;
         this.save();
         this.sync();
       });
@@ -636,24 +636,26 @@
         add.textContent = "+";
         add.className = "add";
         add.dataset.pk = "add";
-        add.title = "add a picture point where the arm is now";
+        add.title = "choose a view position: add a picture point where the arm is now";
         add.addEventListener("click", () => this.addPoint());
         chips.appendChild(add);
       }
       const row = this.$("point");
       if (!points.length) {
-        row.innerHTML = "<small>tap + with the arm where the camera sees the parts</small>";
+        row.innerHTML = "<small>choose a view position: tap + with the arm where the camera sees the parts</small>";
       } else {
         const pt = points[sel];
         const area = pt.area >= 0 && pt.area < areas.length ? areas[pt.area] : null;
         const areaText = area ? (area.plane ? area.name : `${area.name} (not taught)`) : "live table";
         row.innerHTML = `<span class="what" title="tap to choose the pick area this picture looks at"><b>Picture ${sel + 1}</b><span>${esc(areaText)} ›</span></span>
-          <button class="small" data-act="go" title="PolyScope's auto-move screen to this picture point">Go</button>
-          <button class="small" data-act="here" title="retake this point from where the arm is">Here</button>
+          <button class="small" data-act="go" title="PolyScope's auto-move screen to this picture point">Move</button>
+          <button class="small" data-act="here" title="retake this point from where the arm is">Retake</button>
+          <button class="small" data-act="down" title="a straight-down view over the pick area, a little out from the base, for this arm — PolyScope's auto-move screen takes the arm there and the point is retaken">Look down</button>
           <button class="small" data-act="del" title="remove">✕</button>`;
         row.querySelector(".what").addEventListener("click", () => this.cycleArea(sel));
         row.querySelector('[data-act="go"]').addEventListener("click", () => this.goPoint(sel));
         row.querySelector('[data-act="here"]').addEventListener("click", () => this.addPoint(sel));
+        row.querySelector('[data-act="down"]').addEventListener("click", () => this.lookDown(sel));
         row.querySelector('[data-act="del"]').addEventListener("click", () => this.removePoint(sel));
       }
       this.$("points-count").textContent = `${points.length} of ${P.MAX_POINTS}`;
@@ -761,6 +763,54 @@
         this.tell(`PolyScope's move screen is open — hold Move To Position to go to picture point ${i + 1}`, "ok");
       } catch (err) {
         this.tell(`Go: ${err && err.message ? err.message : err}`, "err");
+      }
+    }
+
+    /**
+     * Look down (Nick, 2026-10-08: a view "looking straight down and slightly outreached ...
+     * unique for this robot"): the camera computer, which owns the hand-eye and the controller's
+     * IK, works out the flange pose that puts the camera straight above the point's pick area
+     * (or straight below the camera now), pushed out past this arm's base keep-out; PolyScope
+     * solves its joints for that target in the active TCP and its auto-move screen takes the arm
+     * there; the point is then those joints.
+     */
+    async lookDown(i) {
+      const P = this._P;
+      const p = this.params();
+      const rps = this.service("robotPositionService");
+      const rms = this.service("robotMoveService");
+      if (!rps || !rms) { this.tell("PolyScope's move services are not on this API", "warn"); return; }
+      const pt = p.points[i];
+      const areas = P.areasOf(this._app);
+      const area = pt && pt.area >= 0 && pt.area < areas.length && areas[pt.area].plane ? areas[pt.area] : null;
+      const body = { arm: this.settings().arm || null, point_m: area ? P.planeCentre(area.plane) : null };
+      this.tell("asking the camera computer for a straight-down view…");
+      try {
+        const res = await this.api("POST", "/api/robot/view", body, 15000);
+        if (!res || !res.ok) throw new Error((res && res.error) || "no view from the camera computer (is its robot link up?)");
+        if (res.reachable === false) throw new Error("the controller has no joint solution for a straight-down view there: move the parts in, or lower the camera");
+        const qNear = await firstValue(rps.getJointPositions());
+        let pose = Array.isArray(res.polyscope_pose) ? res.polyscope_pose : res.flange_target_pose;
+        if (typeof rps.convertJointPositionsToTcpPose === "function" && typeof rps.getKinematicInfo === "function") {
+          const dh = await rps.getKinematicInfo();
+          const t0 = await rps.convertJointPositionsToTcpPose(arrayToJoints([0, 0, 0, 0, 0, 0]));
+          pose = PerceptronicPickDialog.polyScopeTarget(P, res.flange_target_pose, dh, [...t0.position, ...t0.orientation]);
+        }
+        const joints = await withTimeout(
+          rps.getInverseKinematics({ position: [pose[0], pose[1], pose[2]], orientation: [pose[3], pose[4], pose[5]] }, qNear),
+          8000,
+          "PolyScope found no joint solution for the straight-down view in 8 s",
+        );
+        await rms.autoMove(joints);
+        const q = jointsToArray(joints);
+        p.points[i].q = q;
+        p.selectedPoint = i;
+        await this.save();
+        this.sync();
+        const notes = Array.isArray(res.notes) && res.notes.length ? ` (${res.notes.join("; ")})` : "";
+        this.tell(`PolyScope's move screen is open — hold Move To Position: camera ${P.num(res.height_m * 1000)} mm straight above the area; picture point ${i + 1} is that view${notes}`, "ok");
+      } catch (err) {
+        this.tell(`Look down: ${err && err.message ? err.message : err}`, "err");
       }
     }
 

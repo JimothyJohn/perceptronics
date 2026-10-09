@@ -33,7 +33,7 @@ import urcap5  # noqa: E402
 
 SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.9.1.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.10.0.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")
@@ -305,13 +305,6 @@ public class Harness {
                 for (double v : r) rr.add(v);
                 rr.add(PoseMath.tiltDeg(r));
                 out = rr;
-                break;
-            }
-            case "fingertip": {
-                double[] tcp = Cockpit.six(Json.parse(a[1]));
-                double[] off = Cockpit.six(Json.parse(a[2]));
-                double[] r = PoseMath.fingertip(tcp, off, Double.parseDouble(a[3]));
-                out = Arrays.asList(r[0], r[1], r[2]);
                 break;
             }
             case "trans": {
@@ -717,9 +710,9 @@ def test_target_text_says_which_check_judged_reach(java_client):
         "reachable": True,
         "reach_check": "controller_ik",
     }
-    tips = dict(loc, reference="fingertip", tip_m=0.163, approach_pose=[-0.2, 0.3, -0.2, 0, 3.14, 0])
-    assert java_client("target", json.dumps(tips)).splitlines()[1] == (
-        "fingertips -0.200, 0.300, -0.200, 0.000, 3.140, 0.000  0.075 m above the object (tool 0.163 m)"
+    tcp = dict(loc, reference="tcp", approach_pose=[-0.2, 0.3, -0.2, 0, 3.14, 0])
+    assert java_client("target", json.dumps(tcp)).splitlines()[1] == (
+        "tool     -0.200, 0.300, -0.200, 0.000, 3.140, 0.000  0.075 m above the object (the robot's TCP)"
     )
     text = java_client("target", json.dumps(loc))
     assert text.splitlines()[1].startswith("flange   -0.232, 0.310, -0.216")
@@ -734,7 +727,7 @@ def test_target_text_says_which_check_judged_reach(java_client):
         approach_pose=[0.1, 0.2, 0.3, 0, 3.14, 0],
     )
     text = java_client("target", json.dumps(sphere))
-    assert "approach 0.100, 0.200, 0.300" in text
+    assert "tool     0.100, 0.200, 0.300" in text
     assert text.endswith("OUT OF REACH  (0.50 m datasheet radius, UR3E — no IK answer)")
 
 

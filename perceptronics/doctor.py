@@ -608,43 +608,51 @@ def check_flange_and_handeye(report: Report, robot, handeye: HandEye, env=None) 
 
 
 def approach_check(active_offset, env=None) -> Check:
-    """What the cockpit's moves put where: the approach reference and, for the
-    fingertip default, the tool length every move runs with — against the
-    controller's active TCP, which those moves override."""
+    """What the cockpit's moves put where: the tool is the controller's **active TCP** —
+    the camera computer owns no tool length of its own (Nick, 2026-10-08: "You must only
+    use tool offsets inside of the robot not your own"). A zero offset means the flange
+    is the tool: fine with nothing fitted, a crash with a gripper on. The retired
+    ``PERCEPTRONICS_TIP_M`` / ``PERCEPTRONICS_APPROACH_REFERENCE`` are named as ignored."""
+    import math
     import os
 
-    from .handeye import DEFAULT_APPROACH_REFERENCE, ENV_APPROACH_REFERENCE, ENV_TIP_M, tip_m_from_env
+    from .handeye import RETIRED_VARIABLES
 
     env = os.environ if env is None else env
-    ref = (env.get(ENV_APPROACH_REFERENCE) or DEFAULT_APPROACH_REFERENCE).lower()
-    try:
-        tip = tip_m_from_env(env)
-    except ValueError as exc:
-        return Check("approach", False, str(exc), fix=f"set {ENV_TIP_M} to the flange→fingertip length in m")
-    off = [float(v) for v in (active_offset or [0.0] * 6)]
-    if ref != "fingertip":
+    stale = [k for k in RETIRED_VARIABLES if (env.get(k) or "").strip()]
+    note = (
+        f" ({', '.join(stale)} ignored since 0.10.0: the tool offset is the pendant's; drop it from the cell)"
+        if stale
+        else ""
+    )
+    data = {"reference": "tcp", "active_tcp_offset": None, "retired_set": stale}
+    if active_offset is None:
         return Check(
             "approach",
             None,
-            f"standoff measured from the {ref}, not the fingertips",
-            fix=f"{ENV_APPROACH_REFERENCE}=fingertip (and {ENV_TIP_M}) so the gripper stops above the part",
+            "the controller's active TCP is unknown (no robot link): every approach runs with whatever it is"
+            + note,
             severity="warn",
-            data={"reference": ref},
+            data=data,
         )
-    same = all(abs(a - b) < 0.002 for a, b in zip(off, [0.0, 0.0, tip, 0.0, 0.0, 0.0], strict=True))
-    detail = f"fingertips {tip * 1000:.0f} mm along the flange axis; every move runs with that TCP"
-    if not same:
-        detail += (
-            f" (the controller's active TCP [{', '.join(f'{v:.3f}' for v in off)}] differs and is overridden"
-            f" — measure the tool if {ENV_TIP_M} is a guess)"
+    off = [float(v) for v in active_offset]
+    data["active_tcp_offset"] = off
+    along = math.hypot(*off[:3])
+    if along < 0.002:
+        return Check(
+            "approach",
+            None,
+            "the controller's active TCP is the flange itself (offset 0): every approach stops with the"
+            " flange above the part — right with nothing fitted, a crash with a gripper on" + note,
+            fix="set the tool's TCP on the pendant (Installation → General → TCP) and make it the active one",
+            severity="warn",
+            data=data,
         )
-    return Check(
-        "approach",
-        True,
-        detail,
-        severity="info",
-        data={"reference": ref, "tip_m": tip, "active_tcp_offset": off, "matches_active_tcp": same},
+    detail = (
+        f"the tool is the pendant's active TCP: {off[2] * 1000:.0f} mm along the flange axis"
+        f" ({along * 1000:.0f} mm from it in all); every approach runs with it" + note
     )
+    return Check("approach", True, detail, severity="info", data=data)
 
 
 def cockpit_info(url: str) -> dict | None:
