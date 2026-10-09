@@ -169,7 +169,9 @@ yellow; the ramp spans what the frame holds):
 
 ![The depth view](screens/pick-depth.png)
 
-Beside the picture, **three steps** (0.9.0, Nick 2026-10-02: at most three simple stages,
+The controls are one column on the left, as on PolyScope's own screens; the picture takes the
+rest of the page (the Installation node's camera tab is laid out the same way). Beside the
+picture, **three steps** (0.9.0, Nick 2026-10-02: at most three simple stages,
 fewer screens). The rail at the top shows them, with a tick on each one done; tap a step to
 go back to it, **Next** to go on.
 

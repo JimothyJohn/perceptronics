@@ -385,6 +385,13 @@ diameter, wrist not turned; `gripcheck=0` drops the stroke and finger-room check
 the same URScript — `test_the_script_is_the_polyscope_5_nodes_line_for_line` (apart from `global x =`).
 `preview5.py --screens DIR` re-renders the README's pictures. **Not run on a robot**; the PolyScope X
 dialog was clicked through in the 10.13 sim (`integrations/urcap/e2e.py`: depth view, both option tabs fit).
+**The picture is the thing (Nick, 2026-10-08: "the stream ... should take up much more of the page").**
+On both platforms and both nodes the controls are one column on the **left** — where PolyScope's own
+screens keep their settings — and the picture fills everything right of it: PolyScope 5's Installation
+camera tab (`PilotView.CONTROLS` = 300 px, the feed centred in the rest, no size cap) and the 3D Pick
+screen (`PickScreen` sidebar `WEST`); PolyScope X's `.rsp .cam` / `.pk .cols` (the `.side`/`.ctl` first,
+the stage `flex: 1`, no `max-width`). The Installation camera tab has no off-pendant render (`PilotView`
+needs the UR API); the 3D Pick pictures in `screens/` are the layout.
 
 **3D Pick drives no gripper (URCap 0.8.0 / PolyScope X 0.6.0; Nick 2026-10-01 — this corrects the
 paragraph above where it says the node clamps).** "The node should not control the gripper
