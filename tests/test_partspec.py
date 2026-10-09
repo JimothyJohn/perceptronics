@@ -79,6 +79,15 @@ def test_a_thing_the_parts_size_in_every_direction_is_too_big_not_parts_touching
     assert spec.why_not(0.120, 0.080, 0.010) == "too long"
     assert spec.why_not(0.060, 0.040, 0.060) == "too tall"
     assert spec.why_not(0.120, 0.020, 0.030) == "too long"  # twice as long and half as wide
+    # parts side by side: the long side is n widths and the short side one length
+    assert spec.why_not(0.080, 0.060, 0.030) == "2 parts touching?"
+    assert spec.why_not(0.120, 0.060, 0.030) == "3 parts touching?"
+    assert spec.why_not(0.120, 0.060, 0.060) == "too long"
+    # the cell's frames (50 x 30 x 30 foam, +-25 %): two side by side, two end to end, three across
+    foam = PartSpec.from_mm(50, 30, 30)
+    assert foam.why_not(0.059, 0.051, 0.027) == "2 parts touching?"
+    assert foam.why_not(0.098, 0.029, 0.032) == "2 parts touching?"
+    assert foam.why_not(0.089, 0.057, 0.027) == "3 parts touching?"
 
 
 def test_a_box_is_the_part_lying_on_any_of_its_faces():

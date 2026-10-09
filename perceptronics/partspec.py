@@ -149,10 +149,18 @@ class PartSpec:
 
         # parts touching share the part's height, and the sides that are not n parts long are the
         # part's own: a thing twice the part every way is one big thing, not two parts (2026-10-09)
-        n, m = multiple(major_m, length), multiple(minor_m, width)
+        # three across read 89 x 57 against 50 x 30 (UR3e, 2026-10-09): the long side is three
+        # widths and the short side one length, so both assignments of the sides are tried and
+        # the one that fits best (then the fewer parts) is the count
+        counts = []
+        for a, b in ((length, width), (width, length)):
+            n, m = multiple(major_m, a), multiple(minor_m, b)
+            if n * m > 1:
+                off = abs(major_m - n * a) / sl(n * a) + abs(minor_m - m * b) / sl(m * b)
+                counts.append((off, n * m))
         fits_h = height is None or height_m is None or lo(height) <= height_m <= hi(height)
-        if n * m > 1 and fits_h:
-            return f"{n * m} parts touching?"
+        if counts and fits_h:
+            return f"{min(counts)[1]} parts touching?"
         if major_m > hi(length):
             return "too long"
         if minor_m > hi(width):
