@@ -148,7 +148,6 @@ class OrbitCalibration:
     min_blob_px: int = 400
     velocity: float = 0.08
     settle_s: float = 0.7
-    reach_margin_m: float = 0.05
     dry_run: bool = False
     log: list[dict] = field(default_factory=list)
     t0: float = field(default_factory=time.time)
@@ -199,18 +198,6 @@ class OrbitCalibration:
             self.robot.bring_up()
         else:
             self.cockpit.post("/api/robot/bring_up")
-
-    def _reach_limit(self) -> float:
-        if self.robot is None:
-            return 0.0
-        try:
-            probe = getattr(self.robot, "_ensure_reach", None)
-            if callable(probe):
-                probe()
-            reach = self.robot.max_reach
-            return float(reach() if callable(reach) else reach) - self.reach_margin_m
-        except Exception:
-            return 0.0
 
     def bail_out(self) -> None:
         """Ctrl-C / kill: stop whatever program is running; nothing is held, so no gripper."""
@@ -295,9 +282,6 @@ class OrbitCalibration:
         mx, my = w * self.margin_frac, h * self.margin_frac
         if pred is None or not (mx < pred[0] < w - mx and my < pred[1] < h - my):
             return {"name": name, "status": "skipped", "why": "mark predicted outside the frame"}
-        limit = self._reach_limit()
-        if limit and math.hypot(pose[0], pose[1], pose[2]) > limit:
-            return {"name": name, "status": "skipped", "why": f"beyond the arm's {limit:.2f} m working reach"}
         r = self._move(pose)
         if not r.get("ok"):
             if r.get("protective_stop") or "PROTECTIVE" in (self._state().get("safety_mode") or ""):
@@ -426,7 +410,7 @@ class OrbitCalibration:
             }
         )
         if apply:
-            a = self.cockpit.post("/api/cal/apply", {})
+            a = self.cockpit.post("/api/cal/apply", {"method": "orbit"})
             summary["applied"] = bool(a.get("ok"))
             summary["saved"] = a.get("saved")
             self.say(

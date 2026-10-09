@@ -812,3 +812,20 @@ def test_a_live_camera_is_not_stalled(server):
         time.sleep(0.01)
     info = json.loads(get(base, "/api/info")[2])
     assert info["stalled"] is False and info["frame_age_s"] < 2.0 and info["fps"] > 0
+
+
+def test_the_pick_trace_is_served_as_text_by_the_cockpit_itself(server):
+    # TODO 2026-10-08: `/api/pick/log` existed only on the sidecar; the cockpit's own pick-server
+    # lines were buried in /api/events as kind: pick. The cockpit now answers the same route.
+    base, app, _ = server
+    status, ctype, body = get(base, "/api/pick/log")
+    assert status == 200 and ctype.startswith("text/plain") and body == b""
+    app.events.add("calibration", "not a pick line", ok=True)
+    app.events.add("pick", "FIND part=60x40x30 tol=25: 2 parts", ok=True)
+    app.events.add("pick", "NEXT: queue empty", ok=None)
+    app.events.add("pick", "FIND: no fresh camera frame", ok=False)
+    status, _, body = get(base, "/api/pick/log")
+    lines = body.decode().splitlines()
+    assert status == 200 and len(lines) == 3 and "not a pick line" not in body.decode()
+    assert lines[0].endswith(" ok FIND part=60x40x30 tol=25: 2 parts")
+    assert lines[1].endswith("    NEXT: queue empty") and lines[2].endswith(" !! FIND: no fresh camera frame")

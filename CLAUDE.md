@@ -312,7 +312,8 @@ line; a failed pick raises a blocking popup naming the reason. The cockpit serve
 itself; a cockpit already running older code gets it from **`perceptronics pick-server`** — a sidecar
 on `:7631` (point the node's cockpit URL there) that answers from the cockpit's frames, forwards
 every other route, and writes the whole trace to `captures/pick-server.log` or, when that's
-root-owned, `~/Library/Logs/perceptronics/` (also `GET /api/pick/log`). **Kill the sidecar before
+root-owned, `~/Library/Logs/perceptronics/` (also `GET /api/pick/log`; the cockpit answers the same
+route from its `kind: pick` events since 2026-10-08). **Kill the sidecar before
 relaunching the cockpit** (`pkill -f "pick-server --bind"`): both bind `:7622`, and the cockpit
 just warns and runs without its pick server. The 0.3.0 script has not yet run on a controller.
 **Part size (0.4.0, `perceptronics/partspec.py`):** the node's Length × Width [× Height] ± tolerance
