@@ -224,6 +224,68 @@ def test_a_request_with_the_robots_tcp_is_answered_in_that_frame():
     assert ask(p, "FIND", f"node=t2 loc=1 locs=1 {OPTS.replace('proto=3', 'proto=2')}")["status"] == -14
 
 
+# -- the program's run: quiet in between its own measurements (Nick, 2026-10-08) ---------------
+
+
+def test_the_teach_screen_is_quiet_while_the_program_runs_and_shows_its_last_measurement():
+    """ "The depth camera throws considerable errors as the table gets closer": the arm coming down
+    to the part puts the camera inside its own range, and every frame judged in between is wrong.
+    From the program's first request (or its LOG start) to its LOG at the grip / no pick, the scene
+    route answers quiet with the program's own last measurement, and judges nothing."""
+    from perceptronics.picknode import QUIET_REASON, scene_report
+
+    now = {"t": 1000.0}
+    f = Frames(ROW)
+    p = planner(f, clock=lambda: now["t"])
+    opts = parse_options(OPTS)
+    assert not p.running() and p.run_state()["running"] is False
+    live = scene_report(p, FLANGE, opts, pick_port=7622)
+    assert live["ok"] and len(live["parts"]) == 3 and "quiet" not in live
+
+    p.answer("LOG start, tool p[0.35, 0, 0.12, 3.14, 0, 0]\n")
+    assert p.running() and p.last_measurement is None
+    quiet = scene_report(p, FLANGE, opts, pick_port=7622)
+    assert quiet == {
+        "ok": False,
+        "quiet": True,
+        "running": True,
+        "status": 0,
+        "error": QUIET_REASON,
+        "reason": QUIET_REASON,
+        "pick_port": 7622,
+        "run": p.run_state(),
+        "last": None,
+    }
+    taken = f.taken
+    assert f.taken == taken  # no frame was judged for the screen
+
+    r = ask(p, "FIND", f"node=q loc=1 locs=1 {OPTS}")
+    assert r["status"] == 1
+    quiet = scene_report(p, FLANGE, opts, pick_port=7622)
+    assert quiet["quiet"] and quiet["last"]["verb"] == "FIND" and quiet["last"]["loc"] == 1
+    assert len(quiet["last"]["parts"]) == 3 and quiet["last"]["parts"][0]["order"] == 1
+    assert quiet["run"]["last_measurement"] == {"verb": "FIND", "loc": 1, "age_s": 0.0}
+    # the camera comes down to the part: the frames are garbage, and nobody is asked to judge them
+    f.set([])
+    assert scene_report(p, FLANGE, opts)["quiet"] and len(p.last_measurement["parts"]) == 3
+
+    p.answer("LOG at the grip, part from point 1\n")
+    assert not p.running()
+    live = scene_report(p, FLANGE, opts)
+    assert live["ok"] and live["parts"] == [] and "quiet" not in live  # judged again, honestly
+
+    # a run that ends in no pick, and one that just stops talking (a protective stop)
+    p.answer("LOG start, tool p[0, 0, 0, 0, 0, 0]\n")
+    p.answer("LOG no pick - the part is too close to the robot base\n")
+    assert not p.running()
+    ask(p, "NEXT", "node=q locs=1 proto=3")  # any request is a program talking
+    assert p.running()
+    now["t"] += 89.0
+    assert p.running()
+    now["t"] += 2.0
+    assert not p.running() and scene_report(p, FLANGE, opts)["ok"]
+
+
 def test_no_hand_eye_no_frame():
     f = Frames(ROW)
     no_eye = PickPlanner(f.source, lambda: f.seq, lambda: None)

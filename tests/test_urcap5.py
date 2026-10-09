@@ -33,7 +33,7 @@ import urcap5  # noqa: E402
 
 SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.10.0.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.10.1.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")
@@ -937,3 +937,10 @@ def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits
     spec.loader.exec_module(words)
     got = [java_client("scene", json.dumps(sc))["banner"] for sc in words.BANNER_SCENES]
     assert got == words.BANNERS
+    # while the program runs (0.10.1): the program's last measurement, no banner, told as such
+    quiet = java_client("scene", json.dumps(words.QUIET_SCENE))
+    assert quiet["banner"] is None and quiet["orders"] == [1] and quiet["drawn"] == []
+    assert quiet["summary"] == "program running · last measured: 1 part to pick"
+    empty = java_client("scene", json.dumps(words.QUIET_EMPTY))
+    assert empty["banner"] is None and empty["orders"] == []
+    assert empty["summary"] == "program running · the picture is measured only where the program asks"

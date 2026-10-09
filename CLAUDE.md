@@ -199,6 +199,15 @@ UR3e the pendant must therefore hold the Hand-E's 0.163 m as the active TCP, not
 training offset. `pick-cycle` (the legacy routine) takes its tip length from the active offset's
 Z. A pick-area touch records the active TCP's pose (`RobotPositionCallback2`'s pose on
 PolyScope 5, `convertJointPositionsToTcpPose` on PolyScope X).
+
+**Quiet while the program runs (0.10.1 / 0.8.1, Nick 2026-10-08: "disable errors while it's not
+actually in a measurement feedback state").** As the arm comes down the camera is inside its own
+range and every frame judged in between is wrong. `PickPlanner` tracks the program's run (its first
+request or `LOG start` → `LOG at the grip` / `LOG no pick`, or `RUN_TTL_S` = 90 s of silence) and
+remembers what the program measured last (`last_measurement`, from `_find2` / `_refine2`); while it
+runs, `scene_report` answers `{quiet: true, last: …}` and judges no frame, both nodes draw the last
+measurement with no banner and say *program running*. The cockpit keeps **one** `PickPlanner`
+(`pick_planner()` is cached) so the socket and the teach-screen routes share that state.
 Cell files also note where the work surface is relative to the base (UR3e: parts ~0.27 m
 below it) — that height, not the datasheet radius, is what decides reach.
 

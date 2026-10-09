@@ -202,6 +202,11 @@ _ACROSS_RX = re.compile(r"\bacross=(short|long)(?=\s|$)")
 _ARM_RX = re.compile(r"\barm=([A-Za-z0-9]{1,8})(?=\s|$)")
 MAX_LOCS = 32
 QUEUE_TTL_S = 120.0  # a part seen at a picture point stays queued this long
+RUN_TTL_S = 90.0  # a program that stops talking (a protective stop, the pendant's Stop) is over after this
+QUIET_REASON = (
+    "the program is running: the picture is measured only where the program asks (FIND, REFINE) —"
+    " what it saw last is shown, nothing else is judged in between"
+)
 PROTO2_FIELDS = 16
 
 
@@ -537,6 +542,62 @@ class PickPlanner:
         self._queues: dict[str, dict] = {}  # node id -> {"t", "pointer", "items": [...]}
         self.stroke_m, self.min_radius_m, self.finger_axis = stroke_m, min_radius_m, finger_axis
         self.log = log or (lambda text, ok: None)
+        # the program's run (Nick, 2026-10-08: "disable errors while it's not actually in a
+        # measurement feedback state"): from its first request or "LOG start" until its "LOG at the
+        # grip" / "LOG no pick", or RUN_TTL_S of silence; while it runs the teach screens are told
+        # to stay quiet and get the program's own last measurement instead of judging every frame
+        self._run_since: float | None = None
+        self._run_last: float | None = None
+        self.last_measurement: dict | None = None
+
+    # -- the program's run -----------------------------------------------------------------
+
+    def _note_request(self) -> None:
+        now = self.clock()
+        with self._lock:
+            if self._run_since is None:
+                self._run_since = now
+            self._run_last = now
+
+    def _note_log(self, text: str) -> None:
+        low = text.strip().lower()
+        with self._lock:
+            if low.startswith("start"):
+                self._run_since = self._run_last = self.clock()
+            elif low.startswith(("at the grip", "no pick")):
+                self._run_since = self._run_last = None
+
+    def running(self) -> bool:
+        """Is a program talking to this server right now (its run not ended, not silent for
+        :data:`RUN_TTL_S`)?"""
+        with self._lock:
+            if self._run_since is None:
+                return False
+            if self.clock() - (self._run_last or self._run_since) > RUN_TTL_S:
+                self._run_since = self._run_last = None
+                return False
+            return True
+
+    def quiet(self) -> bool:
+        """Should a teach screen stay quiet — no judging of frames, no errors — now?"""
+        return self.running()
+
+    def run_state(self) -> dict:
+        running = self.running()
+        now = self.clock()
+        last = self.last_measurement
+        return {
+            "running": running,
+            "since_s": None if not running else round(now - (self._run_since or now), 1),
+            "last_request_s": None if self._run_last is None else round(now - self._run_last, 1),
+            "last_measurement": None
+            if last is None
+            else {
+                "verb": last.get("verb"),
+                "loc": last.get("loc"),
+                "age_s": round(now - last.get("t", now), 1),
+            },
+        }
 
     def answer(self, line: str) -> str:
         try:
@@ -547,7 +608,9 @@ class PickPlanner:
             return format_reply2(-9) if re.search(r"\bproto=[23]\b", line) else format_reply(-9)
         if req["verb"] == "LOG":
             self.log(f"robot: {req['text']}", True)
+            self._note_log(req["text"])
             return ""  # the program does not read a reply to LOG
+        self._note_request()
         proto = req["options"].proto
         if proto < PROTOCOL and req["options"].tcp_offset is None:
             # a node before 0.10.0 zeroed the TCP, never sent it, and expected flange poses for a
@@ -733,6 +796,33 @@ class PickPlanner:
             p.order = n
         return 1, scene, frame
 
+    def report(self, scene: Scene, frame: tuple, flange: Sequence[float] | None, opts: PickOptions) -> dict:
+        """``scene`` as a teach screen draws it (:func:`scene_report`'s body): every part with its
+        outline in picture pixels, its pick-order number and its grasp (a pose of the TCP frame
+        ``opts.tcp_offset``), every rejected candidate with why, the surface used."""
+        seq, w, h = frame[0], frame[1], frame[2]
+        out = scene.as_dict()
+        if flange is not None:
+            # the grasp for each part (the TCP on its top centre): the teach screen's "Check
+            # approach" backs it off along the tool axis for PolyScope's move screen
+            tcp_now = pose_trans(flange, list(opts.tcp_offset or ZERO_POSE))
+            for d, p in zip(out["parts"], scene.parts, strict=True):
+                d["grasp_pose"] = [round(v, 6) for v in self._grasp(p, tcp_now, 0.0, opts)]
+        out.update(
+            ok=True,
+            seq=seq,
+            width=w,
+            height=h,
+            base_frame=flange is not None,
+            status=scene_status(scene),
+            reason=STATUS.get(scene_status(scene), "?"),
+            part=None if opts.part is None else opts.part.as_dict(),
+            order=list(opts.order),
+        )
+        if flange is None:
+            out["notes"].append("no live robot pose: reach and the pick area are not checked")
+        return out
+
     def reachable(self, part, flange: Sequence[float], opts: PickOptions) -> bool:
         """Does ``opts.arm`` have a joint solution for the approach and the grip on ``part`` —
         straight down, or at one of the leans the program tries next? True when the arm is
@@ -780,11 +870,21 @@ class PickPlanner:
             "dims_mm": [round(v * 1000, 1) for v in (part.length_m, part.width_m, part.height_m)],
         }
 
+    def _remember(
+        self, verb: str, loc: int, scene, frame, flange: Sequence[float], opts: PickOptions
+    ) -> None:
+        """Keep what the program just measured: the teach screens show it while the program runs."""
+        got = self.report(scene, frame, flange, opts)
+        got.update(verb=verb, loc=loc, t=self.clock())
+        with self._lock:
+            self.last_measurement = got
+
     def _find2(self, req: dict, opts: PickOptions) -> dict:
         loc = opts.loc or 1
-        ok, scene, _ = self.scene(req["flange"], opts)
+        ok, scene, frame = self.scene(req["flange"], opts)
         if ok != 1:
             return {"status": ok, "loc": loc}
+        self._remember("FIND", loc, scene, frame, req["flange"], opts)
         for note in scene.notes:
             self.log(f"pick FIND at {loc}: {note}", False)
         for p in scene.rejected[:6]:
@@ -806,9 +906,10 @@ class PickPlanner:
             return {**items[0], "status": 1, "remaining": len(items) - 1}
 
     def _refine2(self, req: dict, opts: PickOptions) -> dict:
-        ok, scene, _ = self.scene(req["flange"], opts)
+        ok, scene, frame = self.scene(req["flange"], opts)
         if ok != 1:
             return {"status": ok, "loc": opts.loc}
+        self._remember("REFINE", opts.loc, scene, frame, req["flange"], opts)
         near = req["near"]
         # the close look sees the part from nearer: its neighbours may now be cut off or out of
         # the area, but the part itself is judged only by its size
@@ -936,31 +1037,27 @@ def scene_report(
     every part with its outline in picture pixels and its pick-order number, every
     candidate that isn't picked with why, the surface used; each part's ``grasp_pose`` is
     a pose of the TCP frame ``opts.tcp_offset`` (the flange when none). Moves nothing."""
+    if planner.quiet():
+        # Nick, 2026-10-08: as the arm comes down to the part the camera is inside its own
+        # minimum range and every frame would be judged wrong — the program is told nothing
+        # between its own FIND / REFINE, and neither is the operator
+        last = planner.last_measurement
+        return {
+            "ok": False,
+            "quiet": True,
+            "running": True,
+            "status": 0,
+            "error": QUIET_REASON,
+            "reason": QUIET_REASON,
+            "pick_port": pick_port,
+            "run": planner.run_state(),
+            "last": None if last is None else {**last, "pick_port": pick_port},
+        }
     ok, scene, frame = planner.scene(flange, opts, after=max(0, planner.latest_seq() - FRESH_FRAMES))
     if ok != 1:
         return {"ok": False, "status": ok, "error": STATUS.get(ok, "?")}
-    seq, w, h = frame[0], frame[1], frame[2]
-    out = scene.as_dict()
-    if flange is not None:
-        # the grasp for each part (the TCP on its top centre): the teach screen's "Check
-        # approach" backs it off along the tool axis for PolyScope's move screen
-        tcp_now = pose_trans(flange, list(opts.tcp_offset or ZERO_POSE))
-        for d, p in zip(out["parts"], scene.parts, strict=True):
-            d["grasp_pose"] = [round(v, 6) for v in planner._grasp(p, tcp_now, 0.0, opts)]
-    out.update(
-        ok=True,
-        seq=seq,
-        width=w,
-        height=h,
-        pick_port=pick_port,
-        base_frame=flange is not None,
-        status=scene_status(scene),
-        reason=STATUS.get(scene_status(scene), "?"),
-        part=None if opts.part is None else opts.part.as_dict(),
-        order=list(opts.order),
-    )
-    if flange is None:
-        out["notes"].append("no live robot pose: reach and the pick area are not checked")
+    out = planner.report(scene, frame, flange, opts)
+    out["pick_port"] = pick_port
     return out
 
 

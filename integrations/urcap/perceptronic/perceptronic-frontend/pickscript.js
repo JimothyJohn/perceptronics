@@ -20,7 +20,7 @@
 
   const APP_TYPE = "advin-perceptronic";
   const PICK_TYPE = "advin-perceptronic-pick";
-  const VERSION = "0.8.0";
+  const VERSION = "0.8.1";
   const PROTOCOL = 3; // the pick server's: the TCP offset rides every request
   const DEFAULT_PICK_PORT = 7622;
   const DEFAULT_COCKPIT_PORT = 7621;
@@ -763,9 +763,21 @@
   /** One line for the status: how many parts will be picked, how many nearly. */
   function sceneSummary(scene) {
     const parts = ((scene && scene.parts) || []).length, near = nearMisses(scene).length;
+    if (scene && scene.quiet) {
+      // the program is running: the picture shows its own last measurement, nothing is judged in between
+      return parts || near ? `program running · last measured: ${parts} part${parts === 1 ? "" : "s"} to pick`
+        : "program running · the picture is measured only where the program asks";
+    }
     if (!parts && !near) return "no part in view";
     const s = `${parts} part${parts === 1 ? "" : "s"} to pick`;
     return near ? `${s} · ${near} not (yellow, with why)` : s;
+  }
+  /** A camera computer's answer while the program runs (0.8.1): the scene to show is what the
+   *  program measured last (or nothing), flagged quiet so no banner and no judgement is drawn. */
+  function quietScene(res) {
+    if (!res || !res.quiet) return null;
+    const last = res.last && res.last.ok ? res.last : { parts: [], rejected: [], notes: [] };
+    return { ...last, ok: true, quiet: true, notes: [] };
   }
   /** Across the top of the picture when nothing will be picked (Nick, 2026-10-06: a node left at
    *  its default 110 × 50 × 30 saw 110 × 70 × 30 boxes and said "2 parts touching?"): the size to
@@ -773,7 +785,7 @@
    *  null when a part is found, or when nothing at all is in view and there is no note. `part`:
    *  partWords(settings). The PolyScope 5 node's Scene.banner says the same words. */
   function sceneBanner(scene, part) {
-    if (!scene || !scene.ok) return null;
+    if (!scene || !scene.ok || scene.quiet) return null;
     const notes = (Array.isArray(scene.notes) ? scene.notes : []).filter((n) => typeof n === "string" && n);
     if ((scene.parts || []).length) return null;
     const near = nearMisses(scene);
@@ -803,6 +815,6 @@
     poseToMat, matToPose, matMul, matInv, poseTrans, poseInv, flangeMat, planeCentre, plane, tiltDeg,
     cockpitBase, hostOf, areasOf, newNodeId, settings, isOrder, horizontal, words, orderText, partText, partWords,
     round, longSide, shortSide, problem, tokens, lines, script, render,
-    advise, nearMisses, sceneSummary, sceneBanner,
+    advise, nearMisses, sceneSummary, sceneBanner, quietScene,
   };
 })(typeof self !== "undefined" ? self : globalThis);

@@ -112,8 +112,11 @@ if (req.cmd === "pick") {
   out.advice = Object.fromEntries(
     (req.advise || []).map(([kind, base, detail]) => [kind + " " + base, P.advise(kind, base, detail)]));
   out.near = (req.scenes || []).map(
-    (sc) => ({ drawn: P.nearMisses(sc).map((r) => r.why), summary: P.sceneSummary(sc),
-      banner: P.sceneBanner(sc, req.part || "110 × 50 × 30 mm") }));
+    (raw) => {
+      const sc = P.quietScene(raw) || raw;
+      return { drawn: P.nearMisses(sc).map((r) => r.why), summary: P.sceneSummary(sc),
+        banner: P.sceneBanner(sc, req.part || "110 × 50 × 30 mm") };
+    });
   out.exports = Object.keys(P);
   out.orders = P.ORDER_TILES.map(([a, b]) => P.isOrder(a, b));
   out.badOrders = [["LR", "RL"], ["FB", "BF"], ["XX", "FB"]].map(([a, b]) => P.isOrder(a, b));
@@ -173,7 +176,7 @@ def test_the_script_is_one_move_sequence_from_the_survey_to_the_grip():
     assert out["problem"] is None
     text = out["script"]
     assert text.isascii() and balanced(text)
-    assert text.startswith("# 3D Pick 0.8.0 ")
+    assert text.startswith("# 3D Pick 0.8.1 ")
     order = [
         "global rs_pick_found = False",
         'rs_tcp = str_cat(" tcp=", to_str(get_tcp_offset()))',  # the operator's TCP rides every request
@@ -594,6 +597,33 @@ BANNERS = [
     "nothing stands out of a carpet this rough",
     f"No part of 110 × 50 × 30 mm {CHECK}. Seen instead: (out of reach (no joint solution))",
 ]
+
+
+# the camera computer while the program runs (0.8.1 / 0.10.1): what it measured last, no banner
+QUIET_SCENE = {
+    "ok": False,
+    "quiet": True,
+    "running": True,
+    "error": "the program is running: ...",
+    "last": {
+        "ok": True,
+        "parts": [{"pixel": [1, 1], "corners_px": SQ, "order": 1}],
+        "rejected": [],
+        "notes": [ROUGH],
+    },
+}
+QUIET_EMPTY = {"ok": False, "quiet": True, "running": True, "error": "the program is running", "last": None}
+
+
+def test_while_the_program_runs_the_picture_shows_its_last_measurement_and_no_banner():
+    """Nick, 2026-10-08: "disable errors while it's not actually in a measurement feedback
+    state" — as the arm comes down the camera is inside its range and every frame judged in
+    between is wrong. The scene shown is the program's own last FIND / REFINE, quietly."""
+    out = ask(cmd="misc", scenes=[QUIET_SCENE, QUIET_EMPTY])["near"]
+    assert [o["banner"] for o in out] == [None, None]
+    assert out[0]["summary"] == "program running · last measured: 1 part to pick"
+    assert out[1]["summary"] == "program running · the picture is measured only where the program asks"
+    assert out[0]["drawn"] == []
 
 
 def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits():
@@ -1049,7 +1079,7 @@ def test_the_pick_worker_speaks_the_protocol_and_answers_script_builders():
     assert "camera computer's address" in result(by, "noapp")["errorMessageKey"]
     before = result(by, "before")
     assert before["type"] == "$$ScriptBuilder" and before["currentIndent"] == 0
-    assert before["script"].startswith("# 3D Pick 0.8.0") and before["script"].rstrip().endswith("end")
+    assert before["script"].startswith("# 3D Pick 0.8.1") and before["script"].rstrip().endswith("end")
     assert balanced(before["script"])  # the whole program is here: nothing is left for after the children
     assert 'socket_open("192.168.3.10", 7622, "rs_pick")' in before["script"]
     assert "arm=UR3e" in before["script"] and "reach=" not in before["script"]

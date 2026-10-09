@@ -900,8 +900,8 @@
           await this.save();
         }
         const told = this._P.sceneSummary(this._scene);
-        this._scene = res;
-        if (res && res.ok && this._P.sceneSummary(res) !== told && Date.now() > (this._hold || 0)) this.sync();
+        this._scene = this._P.quietScene(res) || res;
+        if (this._scene && this._scene.ok && this._P.sceneSummary(this._scene) !== told && Date.now() > (this._hold || 0)) this.sync();
       } catch (e) {
         this._scene = null;
       } finally {
