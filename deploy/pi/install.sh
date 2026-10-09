@@ -262,6 +262,29 @@ ensure_user() {
         "${STATE_DIR}/captures" "${STATE_DIR}/captures/calibration"
 }
 
+# ---- the vision extra: numpy + OpenCV wheels shipped beside the app wheel -------------------
+# The colour + depth fusion (perceptronics/fusion.py: the parts whose tops the depth can't see —
+# foam, metal) needs numpy and OpenCV; the PC has no internet on the cell, so they come as
+# wheels (`deploy-pi.sh --vision DIR`, aarch64 / the PC's Python) and are kept in
+# ${APP_ROOT}/wheels/vision/ so every later release gets them too. Without any, the stdlib
+# depth-only path runs as before.
+install_vision_wheels() {
+    local dest="$1" stage="$2" f
+    mkdir -p "${APP_ROOT}/wheels/vision"
+    for f in "$stage"/*.whl; do
+        [ -f "$f" ] || continue
+        case "$(basename "$f")" in *-py3-none-any.whl) continue ;; esac
+        cp -f "$f" "${APP_ROOT}/wheels/vision/"
+    done
+    local have=()
+    for f in "${APP_ROOT}/wheels/vision"/*.whl; do [ -f "$f" ] && have+=("$f"); done
+    [ "${#have[@]}" -gt 0 ] || return 0
+    log "app: vision extra (${#have[@]} wheel(s): $(for f in "${have[@]}"; do basename "$f" | cut -d- -f1; done | tr '\n' ' '))"
+    if ! PIP_DISABLE_PIP_VERSION_CHECK=1 "${dest}/bin/pip" install -q --no-index --no-deps "${have[@]}"; then
+        log "app: WARNING the vision wheels did not install; the depth-only detector runs"
+    fi
+}
+
 # ---- the app: one venv per wheel, `current` / `previous` symlinks -------------------------
 install_app() {
     local wheel="$1"
@@ -287,6 +310,7 @@ install_app() {
             rm -rf "$dest"
             die "pip could not install ${wheel}"
         fi
+        install_vision_wheels "$dest" "$(dirname "$wheel")"
         touch "${dest}/.complete"
     fi
     cp -f "$wheel" "${APP_ROOT}/wheels/"

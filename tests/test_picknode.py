@@ -332,36 +332,48 @@ def _camera(flange, handeye):
         [-0.2, 0.30, 0.80, 0.3, 2.9, 0.1],
     ],
 )
-def test_the_look_pose_puts_the_camera_halfway_and_the_block_clear_of_the_gripper(flange):
-    from perceptronics.picknode import LOOK_AIM_DEG, LOOK_MIN_M, gripper_bearing, look_pose
+def test_the_look_pose_puts_the_camera_straight_above_the_block_looking_down(flange):
+    """Nick, at the UR3e 2026-10-08: "the closer look is supposed to move above the part
+    similar to the approach position" — the camera over the top centre, optical axis
+    vertical, the block dead centre, halfway down from where the camera was (never
+    nearer than LOOK_MIN_M)."""
+    from perceptronics.picknode import LOOK_AIM_DEG, LOOK_MIN_M, look_pose
 
+    assert LOOK_AIM_DEG == 0.0
     handeye = [0.0133, 0.0553, 0.0129, 0.10, -0.164, 3.119]  # the UR3e bracket's solve
     top = [0.25, 0.30, -0.26]
     pose = look_pose(flange, top, handeye, TIP)
     assert pose is not None
     before, after = _camera(flange, handeye), _camera(pose, handeye)
-    d0 = math.dist(before.translation, top)
-    d1 = math.dist(after.translation, top)
-    assert d1 == pytest.approx(max(LOOK_MIN_M, d0 / 2), abs=0.02) or d1 > d0 / 2  # halfway, or backed out
-    assert LOOK_MIN_M - 1e-9 <= d1 <= d0 + 1e-9
-    # the block is LOOK_AIM_DEG off the optical axis, on the side away from the gripper: the
-    # open fingers hang in the picture, and a block in its middle is half hidden behind them
+    h0 = before.translation[2] - top[2]
+    # straight above the top, looking straight down
+    assert after.translation[:2] == pytest.approx(top[:2], abs=1e-9)
+    assert after.rotate((0.0, 0.0, 1.0)) == pytest.approx([0.0, 0.0, -1.0], abs=1e-9)
+    # halfway down, never nearer than the D435's floor, or backed up for the fingertips
+    h1 = after.translation[2] - top[2]
+    assert h1 == pytest.approx(max(LOOK_MIN_M, h0 / 2), abs=0.02) or h1 > h0 / 2
+    assert LOOK_MIN_M - 1e-9 <= h1 <= max(h0, LOOK_MIN_M + 0.10) + 1e-9
+    # the block in the middle of the picture
     x, y, z = after.inverse().apply(top)
-    assert math.degrees(math.atan2(math.hypot(x, y), z)) == pytest.approx(LOOK_AIM_DEG, abs=1e-6)
-    gx, gy = gripper_bearing(handeye, TIP)
-    assert (x * gx + y * gy) / math.hypot(x, y) == pytest.approx(-1.0, abs=1e-9)
-    # ... which puts every fingertip at least 20 deg from it (it was 9 deg from the nearest)
-    for side in (0.0, 0.025, -0.025):
-        fx, fy, fz = Transform.from_pose(handeye).inverse().apply((0.0, side, TIP))
-        cos = (x * fx + y * fy + z * fz) / (math.hypot(x, y, z) * math.hypot(fx, fy, fz))
-        assert math.degrees(math.acos(cos)) > 20.0
-    # on the line from where the camera was: it moved toward the block, not sideways
-    away0 = [(before.translation[i] - top[i]) / d0 for i in range(3)]
-    away1 = [(after.translation[i] - top[i]) / d1 for i in range(3)]
-    assert away0 == pytest.approx(away1, abs=1e-9)
+    assert math.hypot(x, y) < 1e-9 and z > 0
     # the fingertips stay clear of the top
     tip = Transform.from_pose(pose).apply((0.0, 0.0, TIP))
     assert tip[2] >= top[2] + 0.06 - 1e-9
+
+
+def test_a_non_zero_aim_still_keeps_the_block_off_the_gripper_side():
+    """The 12° aim of 0.3.0–0.9.1 is kept as an option: the block leaves the axis on the
+    side away from the open fingers."""
+    from perceptronics.picknode import gripper_bearing, look_pose
+
+    handeye = [0.0133, 0.0553, 0.0129, 0.10, -0.164, 3.119]
+    top = [0.25, 0.30, -0.26]
+    pose = look_pose([0.30, 0.10, 0.60, 0.0, math.pi, 0.0], top, handeye, TIP, aim_deg=12.0)
+    assert pose is not None
+    x, y, z = _camera(pose, handeye).inverse().apply(top)
+    assert math.degrees(math.atan2(math.hypot(x, y), z)) == pytest.approx(12.0, abs=1e-6)
+    gx, gy = gripper_bearing(handeye, TIP)
+    assert (x * gx + y * gy) / math.hypot(x, y) == pytest.approx(-1.0, abs=1e-9)
 
 
 def test_a_camera_already_close_is_not_moved_nearer_than_the_d435_can_see():
