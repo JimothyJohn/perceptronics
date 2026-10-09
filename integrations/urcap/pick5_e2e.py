@@ -234,7 +234,6 @@ def main() -> int:
         source,
         lambda: seq["n"],
         lambda: [0.0] * 6,
-        tip_m=0.163,
         min_radius_m=0.0,
         log=lambda text, ok: log.append(text),
     )
