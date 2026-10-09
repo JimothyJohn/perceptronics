@@ -249,8 +249,9 @@ def test_a_spec_keeps_only_the_part_that_size():
     found, rejects = detect([BLOCK, SMALL, LONG], PartSpec.from_mm(54, 40, 40, tol_pct=15))
     assert [(round(b.major_m * 1000), round(b.minor_m * 1000)) for b in found] == [(54, 40)]
     # SMALL's footprint fits the 40 x 40 face, which stands 54 tall (a box lies on any face);
-    # LONG reads 108 x 54: twice the length but a third wider than two parts end to end would be
-    assert sorted(r["why"] for r in rejects) == ["too flat", "too long"]
+    # LONG reads 108 x 54: not two parts end to end (54 is a third wider than 40), but three
+    # side by side would be 120 x 54, within the 15 %
+    assert sorted(r["why"] for r in rejects) == ["3 parts touching?", "too flat"]
 
 
 def test_a_spec_can_ask_for_a_part_bigger_than_a_foam_block():

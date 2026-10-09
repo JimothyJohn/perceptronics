@@ -153,7 +153,8 @@ class PartSpec:
         # widths and the short side one length, so both assignments of the sides are tried and
         # the one that fits best (then the fewer parts) is the count
         counts = []
-        for a, b in ((length, width), (width, length)):
+        is_one = multiple(major_m, length) == 1 and multiple(minor_m, width) == 1  # the part itself
+        for a, b in () if is_one else ((length, width), (width, length)):
             n, m = multiple(major_m, a), multiple(minor_m, b)
             if n * m > 1:
                 off = abs(major_m - n * a) / sl(n * a) + abs(minor_m - m * b) / sl(m * b)
