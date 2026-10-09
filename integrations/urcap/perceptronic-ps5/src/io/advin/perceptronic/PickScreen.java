@@ -239,13 +239,15 @@ final class PickScreen extends JPanel {
         });
         buttons.add(opts);
         buttons.add(next);
-        // the column packs to the top at any screen height; the two buttons stay at the bottom
+        // the column packs to the top at any screen height; the two buttons stay at the bottom.
+        // Controls on the left, the picture filling the rest — where PolyScope's own nodes keep
+        // their settings and their 3D view (Nick, 2026-10-08)
         JPanel sidebar = new JPanel(new BorderLayout(0, 8));
         sidebar.setOpaque(false);
         sidebar.setPreferredSize(new Dimension(SIDE, 10));
         sidebar.add(side, BorderLayout.NORTH);
         sidebar.add(buttons, BorderLayout.SOUTH);
-        p.add(sidebar, BorderLayout.EAST);
+        p.add(sidebar, BorderLayout.WEST);
         return p;
     }
 

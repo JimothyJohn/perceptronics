@@ -31,7 +31,7 @@
   const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
   const CSS = `
-    .rsp { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2a37; padding: 12px 16px; max-width: 1100px; }
+    .rsp { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2a37; padding: 12px 16px; }
     .rsp h2 { margin: 0 0 8px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
     .rsp .dot { width: 10px; height: 10px; border-radius: 50%; background: #c0c8d2; display: inline-block; }
     .rsp .dot.live { background: #1d9a5a; } .rsp .dot.dead { background: #d64545; }
@@ -41,8 +41,16 @@
     .rsp button:disabled { opacity: .45; cursor: default; }
     .rsp button.primary { background: #1f5fbf; color: #fff; border-color: #1f5fbf; }
     .rsp button.danger { background: #d64545; color: #fff; border-color: #d64545; }
-    .rsp .stage { position: relative; display: inline-block; max-width: 100%; margin-top: 8px; background: #0f1620; border-radius: 8px; overflow: hidden; }
-    .rsp .stage img { display: block; max-width: 100%; max-height: max(180px, calc(100vh - 470px)); width: auto; height: auto; min-width: 320px; min-height: 180px; cursor: crosshair; }
+    /* the camera tab: the controls in a column on the left, the picture filling the rest of the
+       page — where PolyScope's own nodes keep their settings and their 3D view (Nick, 2026-10-08) */
+    .rsp .cam { display: flex; gap: 16px; align-items: flex-start; }
+    .rsp .cam .ctl { flex: 0 0 300px; width: 300px; }
+    .rsp .cam .ctl .row { flex-direction: column; align-items: stretch; }
+    .rsp .cam .ctl input[type=text] { flex: 1 1 auto; min-width: 0; width: 100%; box-sizing: border-box; }
+    .rsp .cam .ctl .row button { width: 100%; }
+    .rsp .cam .ctl small { display: block; margin-top: 8px; }
+    .rsp .stage { position: relative; flex: 1 1 0; min-width: 0; background: #0f1620; border-radius: 8px; overflow: hidden; }
+    .rsp .stage img { display: block; width: 100%; max-height: max(180px, calc(100vh - 200px)); height: auto; object-fit: contain; min-height: 180px; cursor: crosshair; }
     .rsp .stage .view { position: absolute; right: 10px; top: 10px; display: inline-flex; padding: 3px; border-radius: 20px; background: rgba(13,19,26,.85); }
     .rsp .stage .view button { padding: 6px 14px; border: 0; border-radius: 16px; background: none; color: #fff; font: inherit; font-weight: 600; }
     .rsp .stage .view button.on { background: #1f5fbf; }
@@ -317,19 +325,13 @@
             <h2><span class="dot" data-rsp="dot"></span> Perceptronic <small data-rsp="fps"></small>
               <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button></span>
             </h2>
-            <div data-rsp="tab-camera">
+            <div data-rsp="tab-camera" class="cam">
+            <div class="ctl">
             <div class="row">
               <label for="rsp-url">Cockpit</label>
               <input id="rsp-url" type="text" data-rsp="url" placeholder="the pick PC's address (192.168.3.20 out of the box)" />
               <button data-rsp="save">Save</button>
               <a data-rsp="open" href="#" target="_blank" rel="noopener">Open cockpit</a>
-            </div>
-            <div class="stage" data-rsp="stage">
-              <img data-rsp="img" alt="wrist camera" draggable="false" />
-              <div class="mark" data-rsp="mark"></div>
-              <div class="hover" data-rsp="hover">hover for depth · click a point</div>
-              <div class="nocam" data-rsp="nocam"><div><b>NO CAMERA CONNECTED</b><span data-rsp="nocam-text">connecting…</span></div></div>
-              <div class="view hidden" data-rsp="view"><button data-view="picture" class="on">Picture</button><button data-view="depth">Depth</button></div>
             </div>
             <div class="status" data-rsp="status">connecting…</div>
             <div class="target" data-rsp="target"></div>
@@ -340,7 +342,15 @@
               <button class="danger" data-rsp="stop">STOP</button>
               <button data-rsp="clear">Clear</button>
             </div>
-            <small>Click = segment at the pixel → point in the base frame through the hand-eye → approach pose above it. Reach is checked before a move is offered.</small>
+            <small>Click a point in the picture: it becomes a point in the base frame through the hand-eye and an approach pose above it. Reach is checked before a move is offered.</small>
+            </div>
+            <div class="stage" data-rsp="stage">
+              <img data-rsp="img" alt="wrist camera" draggable="false" />
+              <div class="mark" data-rsp="mark"></div>
+              <div class="hover" data-rsp="hover">hover for depth · click a point</div>
+              <div class="nocam" data-rsp="nocam"><div><b>NO CAMERA CONNECTED</b><span data-rsp="nocam-text">connecting…</span></div></div>
+              <div class="view hidden" data-rsp="view"><button data-view="picture" class="on">Picture</button><button data-view="depth">Depth</button></div>
+            </div>
             </div>
             <div class="two hidden" data-rsp="tab-areas">
               <div class="card" data-rsp="areas-card">

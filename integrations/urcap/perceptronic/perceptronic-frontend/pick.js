@@ -54,8 +54,10 @@
     .pk h2 { margin: 0 0 8px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
     .pk .dot { width: 10px; height: 10px; border-radius: 50%; background: #c0c8d2; display: inline-block; }
     .pk .dot.live { background: #1d9a5a; } .pk .dot.dead { background: #d64545; }
+    /* the controls in a column on the left, the picture filling the rest — where PolyScope's own
+       nodes keep their settings and their 3D view (Nick, 2026-10-08) */
     .pk .cols { display: flex; gap: 16px; align-items: flex-start; }
-    .pk .stage { position: relative; background: #0f1620; border-radius: 8px; overflow: hidden; flex: 1 1 640px; min-width: 0; max-width: 760px; aspect-ratio: 848 / 480; }
+    .pk .stage { position: relative; background: #0f1620; border-radius: 8px; overflow: hidden; flex: 1 1 640px; min-width: 0; aspect-ratio: 848 / 480; }
     .pk .stage img { display: block; width: 100%; height: 100%; object-fit: contain; }
     .pk .stage canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
     .pk .stage .view { position: absolute; right: 10px; top: 10px; display: inline-flex; padding: 3px; border-radius: 20px; background: rgba(13,19,26,.85); }
@@ -443,14 +445,6 @@
         <div class="pk">
           <div data-pk="main">
             <div class="cols">
-              <div class="stage" data-pk="stage">
-                <img data-pk="img" alt="wrist camera" draggable="false" />
-                <canvas data-pk="overlay"></canvas>
-                <div class="nocam" data-pk="nocam"><div><b>NO CAMERA CONNECTED</b><span data-pk="nocam-text">waiting for the camera computer…</span></div></div>
-                <div class="view" data-pk="view">
-                  <button data-view="picture" class="on">Picture</button><button data-view="depth">Depth</button>
-                </div>
-              </div>
               <div class="side">
                 <h2><span class="dot" data-pk="dot"></span> 3D Pick <small>v${P.VERSION}</small></h2>
                 <div class="card">
@@ -465,6 +459,14 @@
                 <div class="row">
                   <button data-pk="toggle">Options</button>
                   <button data-pk="check" title="PolyScope's auto-move screen over the first part: hold Move to see the fingers arrive open, Approach mm over it">Check approach</button>
+                </div>
+              </div>
+              <div class="stage" data-pk="stage">
+                <img data-pk="img" alt="wrist camera" draggable="false" />
+                <canvas data-pk="overlay"></canvas>
+                <div class="nocam" data-pk="nocam"><div><b>NO CAMERA CONNECTED</b><span data-pk="nocam-text">waiting for the camera computer…</span></div></div>
+                <div class="view" data-pk="view">
+                  <button data-view="picture" class="on">Picture</button><button data-view="depth">Depth</button>
                 </div>
               </div>
             </div>
