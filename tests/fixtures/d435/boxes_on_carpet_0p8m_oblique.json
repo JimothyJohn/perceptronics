@@ -1,0 +1,66 @@
+{
+ "width": 848,
+ "height": 480,
+ "depth_scale_m": 0.0010000000474974513,
+ "intrinsics": {
+  "width": 848,
+  "height": 480,
+  "fx": 617.8555908203125,
+  "fy": 618.2134399414062,
+  "ppx": 426.5736999511719,
+  "ppy": 243.31895446777344,
+  "model": "inverse_brown_conrady",
+  "coeffs": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "fov_deg": [
+   68.91929456404054,
+   42.4339616103857
+  ]
+ },
+ "what": "4 boxes 110 x 70 x 30 mm on carpet, two flat and two on a side, white labels, camera on the bench 19 deg off the floor normal, 0.72-0.85 m away, dim room; pick PC (Pi 5) D435 fw 5.12.7.100, High Density, 2026-10-06. The robot was a PolyScope X UR10e simulator whose flange pose said the camera looked straight down: in that base frame the floor is 19 deg off level (flange_pose + flange_to_color_pose below)",
+ "part_mm": [
+  110,
+  70,
+  30
+ ],
+ "count": 4,
+ "pixels": [
+  [
+   455,
+   328
+  ],
+  [
+   345,
+   244
+  ],
+  [
+   540,
+   259
+  ],
+  [
+   430,
+   194
+  ]
+ ],
+ "flange_pose": [
+  -1.014402,
+  -0.17415,
+  0.469719,
+  -2.206721,
+  -2.20672,
+  0.03222
+ ],
+ "flange_to_color_pose": [
+  0.027999055992151835,
+  0.0553480579126206,
+  0.011645727439702418,
+  0.11228376538059685,
+  -0.16164915800691426,
+  3.125343376402868
+ ]
+}

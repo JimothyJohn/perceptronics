@@ -156,7 +156,7 @@ be nested inside another `def`).
 ```bash
 urctl run-script 'popup("hi")'
 urctl run-script --capture --marker "x/" --collect-for 5 'textmsg("x/done", 1)'
-urctl run-script --raw --capture --collect-for 50 < programs/Foo/Foo.script   # run a whole program file
+urctl run-script --raw --capture --collect-for 50 < tests/fixtures/programs/Foo/Foo.script   # run a whole program file
 ```
 
 **Fire-and-forget motion via run-script is racy** — closing the Primary socket

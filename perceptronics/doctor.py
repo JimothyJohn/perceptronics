@@ -3,7 +3,7 @@
 One command answers "why doesn't it work?" for the four things that break
 independently: the SDK, the camera, the network path to the controller, and
 the controller's own state. Every check carries a **fix** in words (the
-troubleshooting tables in ``docs/realsense.md`` and ``CLAUDE.md``, encoded),
+troubleshooting tables in ``perceptronics/README.md`` and ``CLAUDE.md``, encoded),
 so the report is actionable on its own — on a Windows laptop at the cell, in
 the cockpit's Health panel, or read by an agent through the ``cell_doctor``
 tool.
@@ -121,11 +121,20 @@ def check_host(report: Report, env=None) -> None:
         )
     )
     name = env.get(ENV_CELL)
+    values = {k: v for k, v in cell.items() if k != ENV_CELL}
+    if name:
+        ok, detail = None, f"{name} → {cell}"
+    elif values.get("UR_HOST"):
+        # a pick PC's service loads cell.env as plain environment (EnvironmentFile=): no name,
+        # but the cell is all there — that is a configured cell, not a missing one
+        ok, detail = None, f"from the environment (no cell name) → {values}"
+    else:
+        ok, detail = False, "no cell selected (env vars only)"
     report.add(
         Check(
             "cell",
-            None if name else False,
-            f"{name} → {cell}" if name else "no cell selected (env vars only)",
+            ok,
+            detail,
             fix="pass --cell sim|ur3|ur20 (or UR_CELL=…) so host/ports/bracket come from one profile",
             severity="warn",
             data=cell,
@@ -244,7 +253,7 @@ def check_stream(report: Report, camera, frames: int = STREAM_FRAMES) -> None:
     except Exception as exc:
         hint = platform_hint(exc) if isinstance(exc, RealSenseError) else ""
         report.add(
-            Check("stream", False, f"{type(exc).__name__}: {exc}", fix=hint or "see docs/realsense.md")
+            Check("stream", False, f"{type(exc).__name__}: {exc}", fix=hint or "see perceptronics/README.md")
         )
         return
     finally:

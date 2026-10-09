@@ -1,4 +1,4 @@
-"""urcap/track.py: finding UR's newest PolyScope X release and the SDK that pairs with
+"""integrations/urcap/track.py: finding UR's newest PolyScope X release and the SDK that pairs with
 it, deciding when the pin is behind, and checking the URCap against that SDK.
 
 The network half runs against a real local HTTP server that impersonates the four
@@ -23,10 +23,10 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import track  # noqa: E402
 
-FRONTEND = ROOT / "urcap" / "perceptronic" / "perceptronic-frontend"
+FRONTEND = ROOT / "integrations" / "urcap" / "perceptronic" / "perceptronic-frontend"
 
 
 # -- fixtures: a synthetic UR ---------------------------------------------------------------------
@@ -576,7 +576,7 @@ def test_the_real_docs_carry_the_marker_and_match_target_json():
     target = track.load_target()
     for doc in track.DOCS:
         (m,) = track.DOC_MARK.findall(doc.read_text(encoding="utf-8"))
-        assert m[1] == track.doc_line(target), f"{doc.name}: run `python3 urcap/track.py update`"
+        assert m[1] == track.doc_line(target), f"{doc.name}: run `python3 integrations/urcap/track.py update`"
 
 
 # -- compat: API surface --------------------------------------------------------------------------
@@ -650,9 +650,11 @@ def test_api_surface_covers_every_call_the_urcap_makes():
 
 
 def test_read_yaml_reads_the_real_manifest():
-    manifest = track.read_yaml((ROOT / "urcap/perceptronic/manifest.yaml").read_text(encoding="utf-8"))
+    manifest = track.read_yaml(
+        (ROOT / "integrations/urcap/perceptronic/manifest.yaml").read_text(encoding="utf-8")
+    )
     assert manifest["metadata"]["vendorID"] == "advin"
-    assert manifest["metadata"]["version"] == "0.7.0"
+    assert manifest["metadata"]["version"] == "0.7.1"
     assert manifest["artifacts"]["webArchives"] == [
         {"id": "perceptronic-frontend", "folder": "perceptronic-frontend"}
     ]
@@ -695,7 +697,9 @@ def test_read_yaml_fuzz_raises_only_trackerror():
     ],
 )
 def test_validate_catches_what_a_new_spec_would_reject(mutate, expect):
-    manifest = track.read_yaml((ROOT / "urcap/perceptronic/manifest.yaml").read_text(encoding="utf-8"))
+    manifest = track.read_yaml(
+        (ROOT / "integrations/urcap/perceptronic/manifest.yaml").read_text(encoding="utf-8")
+    )
     mutate(manifest)
     assert any(expect in e for e in track.validate(manifest, SPEC))
 

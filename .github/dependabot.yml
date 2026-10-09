@@ -1,5 +1,5 @@
 # Automated dependency maintenance. Three ecosystems:
-#   - pip:           requirements-dev.txt / requirements-vision.txt (pinned, hashed) + pyproject.toml
+#   - pip:           requirements/dev.txt / requirements/vision.txt (pinned, hashed) + pyproject.toml
 #   - github-actions: the workflow action pins
 #   - docker-compose: the URSim / PolyScope X simulator images
 # Minor + patch bumps are grouped into one weekly PR per ecosystem so the
@@ -11,7 +11,7 @@
 version: 2
 updates:
   - package-ecosystem: "pip"
-    directory: "/"
+    directories: ["/", "/requirements"]
     target-branch: "dev"
     schedule:
       interval: "weekly"

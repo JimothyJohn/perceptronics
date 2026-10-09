@@ -30,7 +30,7 @@ captures/
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 
-# Local build output (the downloadable URCap is committed under urcap/dist/)
+# Local build output (the downloadable URCap is committed under integrations/urcap/dist/)
 target/
 *.wic
 

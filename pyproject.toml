@@ -24,6 +24,7 @@ urctl-mcp = "urctl.mcp_server:main"
 perceptronics = "perceptronics.cli:main"
 perceptronics-gui = "perceptronics.webapp:main"
 perceptronics-mcp = "perceptronics.mcp_server:main"
+perceptronics-vision-mcp = "perceptronics.mcp_server:main_vision"
 
 [build-system]
 requires = ["hatchling"]
@@ -35,13 +36,15 @@ build-backend = "hatchling.build"
 # the wheel ships a build-time copy as urctl/_urp_convert.py so installs work
 # without the checkout (the CI package job smoke-tests exactly that).
 packages = ["urctl", "perceptronics"]
+# developer notes and the cell explainer sit beside the code; the wheel does not ship them
+exclude = ["perceptronics/*.md", "perceptronics/cell.html", "urctl/*.md"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "scripts/urp_convert.py" = "urctl/_urp_convert.py"
 
 # Development tools (pytest, hypothesis, ruff, build, hatchling) are not declared here:
-# requirements-dev.in lists them, requirements-dev.txt pins them with hashes for every
-# supported Python and OS. `python3 -m pip install --require-hashes -r requirements-dev.txt`.
+# requirements/dev.in lists them, requirements/dev.txt pins them with hashes for every
+# supported Python and OS. `python3 -m pip install --require-hashes -r requirements/dev.txt`.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

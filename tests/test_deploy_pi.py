@@ -137,7 +137,9 @@ def test_librealsense_is_pinned_to_the_binding_release():
     minor = re.search(r"written against librealsense (\d+\.\d+)", binding).group(1)
     assert tag.lstrip("v").startswith(minor + "."), f"{tag} is not librealsense {minor}.x"
     # and the container builds the same release
-    docker_ref = re.search(r"LIBREALSENSE_REF=(\S+)", _text(ROOT / "Dockerfile.perceptronics")).group(1)
+    docker_ref = re.search(r"LIBREALSENSE_REF=(\S+)", _text(ROOT / "deploy/Dockerfile.perceptronics")).group(
+        1
+    )
     assert docker_ref == tag
     assert 'rev-parse HEAD)"' in text and "$LIBREALSENSE_COMMIT" in text, "the clone's commit is checked"
 
@@ -164,7 +166,9 @@ def test_installed_library_is_what_the_template_points_at():
 
 
 def test_installer_copies_only_files_that_exist():
-    m = re.search(r"for f in ([^;]+); do", _text(INSTALL))
+    # the loop inside copy_deploy_files (install_vision_wheels has a `for f in` of its own, before it)
+    body = _text(INSTALL).split("copy_deploy_files() {", 1)[1]
+    m = re.search(r"for f in ([^;]+); do", body)
     names = [n for n in m.group(1).split() if n != "\\"]
     assert names, "copy_deploy_files names no files"
     for name in names:

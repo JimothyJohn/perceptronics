@@ -94,7 +94,9 @@ maxTcpSpeed = 0.75
 
 class TestInstallationParser:
     def test_repo_sample_is_flange_tcp(self):
-        info = parse_installation_file(REPO / "programs" / "InspectionBot" / "InspectionBot.installation")
+        info = parse_installation_file(
+            REPO / "tests" / "fixtures" / "programs" / "InspectionBot" / "InspectionBot.installation"
+        )
         assert info["active_tcp"] == "TCP"
         assert info["flange_tcp"] is True
         assert info["payload"]["mass"] == 0.0

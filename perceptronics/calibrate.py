@@ -171,6 +171,9 @@ class CalibrationSession:
     views: list[View] = field(default_factory=list)
     extrinsics: Mapping | None = None  # depth→colour, from camera.describe()
     result: dict | None = None
+    # what made the views: "touch-and-click" (the cockpit's Calibrate panel) or "orbit"
+    # (``perceptronics calibrate``); it labels the applied hand-eye and the saved file
+    method: str = "touch-and-click"
 
     def record_mark(self, tcp_position: Sequence[float]) -> dict:
         vals = [float(v) for v in tcp_position[:3]]
@@ -278,7 +281,7 @@ class CalibrationSession:
         if not self.result:
             raise CalibrationError("not solved yet")
         return HandEye.from_pose(
-            self.result["flange_to_depth_pose"], source="calibrated:touch-and-click"
+            self.result["flange_to_depth_pose"], source=f"calibrated:{self.method}"
         ).with_extrinsics(self.extrinsics)
 
     # -- persistence ----------------------------------------------------------------------
@@ -290,6 +293,7 @@ class CalibrationSession:
             "seed": self.seed.as_dict(),
             "extrinsics": dict(self.extrinsics) if self.extrinsics else None,
             "result": self.result,
+            "method": self.method,
             "min_views": MIN_VIEWS_WITH_MARK if self.mark_base is not None else MIN_VIEWS_WITHOUT_MARK,
         }
 
@@ -301,7 +305,7 @@ class CalibrationSession:
         p.parent.mkdir(parents=True, exist_ok=True)
         body = {
             "flange_to_depth_pose": self.result["flange_to_depth_pose"],
-            "source": "touch-and-click",
+            "source": self.method,
             "saved_at": time.time(),
             "rms_m": self.result["rms_m"],
             "session": self.as_dict(),

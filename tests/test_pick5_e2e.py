@@ -1,4 +1,4 @@
-"""``urcap/pick5_e2e.py`` without a controller: it builds the node's scripts with the harness
+"""``integrations/urcap/pick5_e2e.py`` without a controller: it builds the node's scripts with the harness
 the URCap tests use, and its pass criteria hold for the session the scripts drive.
 
 The matrix (every PolyScope 5 minor) is where the script really runs; this is what must be
@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import pick5_e2e  # noqa: E402
 
 from perceptronics import armfk  # noqa: E402

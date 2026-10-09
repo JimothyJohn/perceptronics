@@ -1,0 +1,75 @@
+{
+ "width": 848,
+ "height": 480,
+ "depth_scale_m": 0.0010000000474974513,
+ "intrinsics": {
+  "width": 848,
+  "height": 480,
+  "fx": 617.8555908203125,
+  "fy": 618.2134399414062,
+  "ppx": 426.5736999511719,
+  "ppy": 243.31895446777344,
+  "model": "inverse_brown_conrady",
+  "coeffs": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "fov_deg": [
+   68.91929456404054,
+   42.4339616103857
+  ]
+ },
+ "flange_pose": [
+  -0.349998,
+  0.050003,
+  0.400009,
+  1.806496,
+  2.541943,
+  -0.046941
+ ],
+ "flange_to_color_pose": [
+  0.03112997240687331,
+  0.0548782744673415,
+  0.003581321767294142,
+  0.00922855356259433,
+  -0.2074501470238745,
+  3.0922861898065688
+ ],
+ "what": "UR3e cell 2026-10-08, the pick PC's D435 on the eseries bracket, laser 150 mW, High Density: four white polyethylene foam blocks 50x30x30 mm lying flat on the grey table at base height, the e-stop box (108x84x44) beside them. The foam tops return 10-60 % depth (holes): the depth alone finds 1-2 of 4, the colour outline all four.",
+ "part_mm": [
+  50,
+  30,
+  30
+ ],
+ "count": 4,
+ "pixels": [
+  [
+   579,
+   304
+  ],
+  [
+   391,
+   222
+  ],
+  [
+   573,
+   161
+  ],
+  [
+   398,
+   102
+  ]
+ ],
+ "estop_mm": [
+  108,
+  84,
+  44
+ ],
+ "estop_pixel": [
+  455,
+  396
+ ]
+}

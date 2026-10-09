@@ -9,9 +9,9 @@
 # What it does, in order: checks Docker Desktop (Linux containers, WSL 2 engine),
 # shares the RealSense with WSL through usbipd-win (installs it, binds the camera
 # once - both raise a UAC prompt - and attaches it), builds and starts
-# docker-compose.windows.yml, waits for the first frames and opens the browser.
+# deploy/windows/docker-compose.yml, waits for the first frames and opens the browser.
 # Idempotent: re-run it after a reboot or after re-plugging the camera (an attach
-# does not survive either). docs\windows-docker.md is the walk-through.
+# does not survive either). deploy\windows\README.md is the walk-through.
 #
 # Nothing here needs Python or the RealSense SDK on Windows.
 # Kept ASCII and Windows PowerShell 5.1 compatible on purpose.
@@ -38,7 +38,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
-$composeFile = "docker-compose.windows.yml"
+$composeFile = "deploy/windows/docker-compose.yml"
 $url = "http://localhost:7621"
 $firewallRule = "perceptronics cockpit (7621-7622, local subnet)"
 
@@ -275,7 +275,7 @@ if (-not $info) {
 [void](Show-Info)
 if ($info.frames_read -le 0) {
     Compose logs --tail 40 cockpit
-    Fail "the cockpit is up but the camera delivers no frames" "re-plug the camera into a USB 3 port, then re-run this script (docs\windows-docker.md, Troubleshooting)"
+    Fail "the cockpit is up but the camera delivers no frames" "re-plug the camera into a USB 3 port, then re-run this script (deploy\windows\README.md, Troubleshooting)"
 }
 
 Write-Host "`ncockpit: $url" -ForegroundColor Green

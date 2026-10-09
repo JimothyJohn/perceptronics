@@ -16,7 +16,7 @@ import pytest
 from perceptronics import handeye, webapp
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCKERFILE = ROOT / "Dockerfile.perceptronics"
+DOCKERFILE = ROOT / "deploy/Dockerfile.perceptronics"
 COMPOSE = ROOT / "docker-compose.yml"
 
 

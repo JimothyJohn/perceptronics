@@ -1,4 +1,4 @@
-"""``urcap/preview5.py``: the URCap's screens on a desktop. Runs the real launcher headless
+"""``integrations/urcap/preview5.py``: the URCap's screens on a desktop. Runs the real launcher headless
 (``--snapshot``) and reads the picture it wrote — the simulated camera computer's parts on the
 picture, and the NO CAMERA CONNECTED card when there is no camera computer."""
 
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import preview5  # noqa: E402
 
 pytestmark = pytest.mark.skipif(shutil.which("javac") is None, reason="javac is not installed")
@@ -68,6 +68,11 @@ def count(img: tuple[int, int, bytes], test, box=None) -> int:
     )
 
 
+# where the picture is in a 1280 x 772 snapshot: right of the 300 px column of controls
+# (controls on the left, the picture filling the rest, 2026-10-08)
+PICTURE = (330, 60, 1270, 760)
+PICTURE_INNER = (330, 150, 1270, 670)  # inside the simulated scene's two red banners
+PICTURE_CX = 800  # a column through the middle of the picture (the no-camera card's frame crosses it)
 GREEN = lambda r, g, b: g > 180 and r < 200 and b < 200 and g - r > 30  # noqa: E731 — a pickable part's outline (Ui.PART)
 AMBER = lambda r, g, b: r > 240 and 180 < g < 215 and b < 90  # noqa: E731 — a near miss's outline (Ui.JAW)
 
@@ -77,7 +82,7 @@ def test_the_preview_shows_parts_green_and_near_misses_yellow_and_says_it_is_sim
     assert preview5.main(["--snapshot", str(out)]) == 0
     img = pixels(out)
     assert img[:2] == (1280, 772)
-    picture = (8, 60, 960, 760)
+    picture = PICTURE
     # the seven parts it will pick are green (0.8.0); the three it won't are outlined in yellow
     assert count(img, GREEN, picture) > 300
     assert count(img, AMBER, picture) > 150
@@ -89,7 +94,7 @@ def test_the_depth_view_is_the_heatmap_with_the_same_outlines(tmp_path):
     out = tmp_path / "depth.png"
     assert preview5.main(["--snapshot", str(out), "--view", "depth"]) == 0
     img = pixels(out)
-    picture = (8, 150, 960, 670)
+    picture = PICTURE_INNER
     # no camera picture: no banner; the table and the parts' tops are two ends of the ramp
     assert count(img, lambda r, g, b: r == 0xB4 and g == 0x23 and b == 0x23, picture) == 0
     far = count(img, lambda r, g, b: r > 150 and g > 180 and b < 120, picture)  # the table: yellow-green
@@ -102,7 +107,7 @@ def test_without_a_camera_computer_the_picture_is_the_no_camera_card(tmp_path):
     out = tmp_path / "nocam.png"
     assert preview5.main(["--cockpit", "http://127.0.0.1:1", "--snapshot", str(out)]) == 0
     img = pixels(out)
-    picture = (8, 60, 960, 760)
+    picture = PICTURE
     # the card's red frame and no green part overlay anywhere
     assert count(img, lambda r, g, b: r > 190 and g < 90 and b < 90, picture) > 100
     assert count(img, GREEN, picture) == 0 and count(img, AMBER, picture) == 0
@@ -110,6 +115,8 @@ def test_without_a_camera_computer_the_picture_is_the_no_camera_card(tmp_path):
     card = [
         y
         for y in range(60, 760, 2)
-        if count(img, lambda r, g, b: r > 190 and g < 90 and b < 90, (300, y, 400, y + 2))
+        if count(
+            img, lambda r, g, b: r > 190 and g < 90 and b < 90, (PICTURE_CX - 5, y, PICTURE_CX + 5, y + 2)
+        )
     ]
     assert max(card) - min(card) > 120

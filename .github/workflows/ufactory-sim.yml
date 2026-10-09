@@ -40,9 +40,9 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: requirements-*.txt
+          cache-dependency-path: requirements/*.txt
       - name: install deps
-        run: python -m pip install --require-hashes -r requirements-dev.txt
+        run: python -m pip install --require-hashes -r requirements/dev.txt
       - name: start the 850 simulator
         run: scripts/ufactory-sim.sh up
       - name: simulator tests

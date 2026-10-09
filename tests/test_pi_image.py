@@ -80,7 +80,7 @@ def _network(**kw) -> dict:
 @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
 def test_scripts_parse_and_are_strict(script):
     # Windows' `bash` may be WSL's launcher, which can't read a D:\ path: the Linux and macOS
-    # legs parse them (the repo's convention, as in test_usb_magic / test_deploy_pi)
+    # legs parse them (the repo's convention, as in test_deploy_pi)
     if shutil.which("bash") and sys.platform != "win32":
         subprocess.run(["bash", "-n", str(script)], check=True)
     assert "set -euo pipefail" in script.read_text()

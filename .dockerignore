@@ -10,5 +10,8 @@ __pycache__
 *.pyc
 hardware/*/out
 hardware/*/renders
-docs/*.png
-docs/*.html
+site
+integrations
+perceptronics/cell.html
+perceptronics/*.md
+tests

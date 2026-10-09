@@ -19,7 +19,7 @@ runtime is stdlib-only Python plus librealsense, which the installer builds from
 | OS | **Debian arm64** (the target — Nick, 2026-09-28), bookworm (12) or trixie (13), minimal, no desktop; Raspberry Pi OS Lite (64-bit) is Debian and works the same. A RevPi Connect 5 gets a Debian image, not RevPi OS. Needs Python ≥ 3.10 (bookworm has 3.11, trixie 3.13) and systemd. |
 | Camera | One Intel RealSense **D435** (USB ID `8086:0b07`), connected **straight to a USB 3 port** (blue) with a short cable, no hub. |
 | Network | The Ethernet port goes to the robot (directly or through the cell switch). `install.sh` gives it **192.168.3.20/24** and serves the robot **192.168.3.3** over DHCP, so a robot left on DHCP needs no setup and the URCap needs nothing typed (§3). Office access, if any, over Wi-Fi. |
-| Robot | UR e-Series on PolyScope 5 with the Perceptronic URCap (`urcap/dist/perceptronic-ps5-*.urcap`, see `urcap/perceptronic-ps5/README.md`). |
+| Robot | UR e-Series on PolyScope 5 with the Perceptronic URCap (`integrations/urcap/dist/perceptronic-ps5-*.urcap`, see `integrations/urcap/perceptronic-ps5/README.md`). |
 
 **Power:** the D435 is powered from the USB port. Raspberry Pi's documentation gives a
 Pi 4 **1.2 A total** for USB peripherals on the recommended 3 A supply (the kit's 5 V
@@ -68,7 +68,7 @@ What `install.sh` does, idempotently:
 | Step | Result |
 | --- | --- |
 | apt | `python3 python3-venv git ca-certificates cmake build-essential pkg-config libusb-1.0-0-dev libudev-dev nftables usbutils` (each one's reason is in the script) |
-| librealsense | **v2.58.4** (the ctypes binding checks enum ordinals written against 2.58; the same tag as `Dockerfile.perceptronics`), commit-checked after the clone, built with `-DFORCE_RSUSB_BACKEND=ON` (libusb, no kernel patches), no examples, tools, graphical examples or Python bindings, and `CHECK_FOR_UPDATES=OFF`. Installed to `/opt/librealsense-2.58.4` (`/opt/librealsense` → it), registered with `ldconfig`. |
+| librealsense | **v2.58.4** (the ctypes binding checks enum ordinals written against 2.58; the same tag as `deploy/Dockerfile.perceptronics`), commit-checked after the clone, built with `-DFORCE_RSUSB_BACKEND=ON` (libusb, no kernel patches), no examples, tools, graphical examples or Python bindings, and `CHECK_FOR_UPDATES=OFF`. Installed to `/opt/librealsense-2.58.4` (`/opt/librealsense` → it), registered with `ldconfig`. |
 | udev | the SDK's own `99-realsense-libusb.rules` (MODE 0666, group plugdev), so the service opens the camera **without root** |
 | user | system user `perceptronics` in `plugdev` + `video`, state in `/var/lib/perceptronics` |
 | app | a venv per wheel under `/opt/perceptronics/releases/<version>-<sha>`, `pip install --no-index --no-deps` (nothing fetched), `/opt/perceptronics/current` and `previous` symlinks, the three newest releases kept |

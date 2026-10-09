@@ -1,4 +1,4 @@
-"""The PolyScope 5 version matrix's pure parts (urcap/ps5_matrix.py): the port scheme, the
+"""The PolyScope 5 version matrix's pure parts (integrations/urcap/ps5_matrix.py): the port scheme, the
 generated compose file and the workflow held to MATRIX, the add-only Docker Hub tag
 checker, and the URCap evidence parsers
 (polyscope.log errors, the Felix shell's ps / inspect output — real captures under
@@ -15,11 +15,11 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO / "urcap"))
+sys.path.insert(0, str(REPO / "integrations" / "urcap"))
 
 import ps5_matrix as m  # noqa: E402
 
-COMPOSE = (REPO / "docker-compose.ps5-matrix.yml").read_text(encoding="utf-8")
+COMPOSE = (REPO / "integrations" / "urcap" / "docker-compose.ps5-matrix.yml").read_text(encoding="utf-8")
 DEFAULT_COMPOSE = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
 WORKFLOW = (REPO / ".github" / "workflows" / "urcap5-matrix.yml").read_text(encoding="utf-8")
 FIXTURES = REPO / "tests" / "fixtures" / "ps5_matrix"
@@ -66,14 +66,15 @@ def test_default_ports_cover_every_host_port_docker_compose_yml_publishes():
 
 def test_the_committed_compose_file_is_the_generated_one():
     assert COMPOSE == m.render_compose(), (
-        "docker-compose.ps5-matrix.yml is stale: "
-        "`python3 urcap/ps5_matrix.py compose > docker-compose.ps5-matrix.yml`"
+        "integrations/urcap/docker-compose.ps5-matrix.yml is stale: "
+        "`python3 integrations/urcap/ps5_matrix.py compose "
+        "> integrations/urcap/docker-compose.ps5-matrix.yml`"
     )
 
 
 def _service_block(name: str) -> str:
     match = re.search(rf"^  {re.escape(name)}:\n((?:    .*\n|\n)+)", COMPOSE, re.M)
-    assert match, f"{name} is not a service in docker-compose.ps5-matrix.yml"
+    assert match, f"{name} is not a service in integrations/urcap/docker-compose.ps5-matrix.yml"
     return match.group(1)
 
 
@@ -99,7 +100,7 @@ def test_compose_file_header_table_matches_the_matrix():
 
 
 def test_the_workflow_takes_its_versions_from_ps5_matrix_list():
-    assert "python3 urcap/ps5_matrix.py list" in WORKFLOW
+    assert "python3 integrations/urcap/ps5_matrix.py list" in WORKFLOW
     assert "polyscope: ${{ fromJSON(needs.setup.outputs.versions) }}" in WORKFLOW
     assert "fail-fast: false" in WORKFLOW and re.search(r"max-parallel: \d+", WORKFLOW)
     assert not re.search(r"polyscope: \[", WORKFLOW), "a hand-listed version list is back"

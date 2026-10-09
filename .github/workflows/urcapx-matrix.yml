@@ -1,7 +1,7 @@
 # The PolyScope X URCap on the newest PolyScope X releases from the floor the URCap is built
-# for (urcap/psx_matrix.py RELEASES / FLOOR — the job list comes from `psx_matrix.py list`,
+# for (integrations/urcap/psx_matrix.py RELEASES / FLOOR — the job list comes from `psx_matrix.py list`,
 # never from this file): per
-# release, `urcap/e2e.py` boots that simulator image, installs a fresh build over the
+# release, `integrations/urcap/e2e.py` boots that simulator image, installs a fresh build over the
 # urservice endpoint and, in headless Chromium, loads the application node (feed, hover,
 # click → segment, PolyScope's kinematics services) and the Pick program node (toolbox →
 # tree row → its dialog → a picture point from PolyScope's joints → the row's verdict).
@@ -16,10 +16,10 @@ name: URCapX matrix
 on:
   pull_request:
     paths:
-      - "urcap/perceptronic/**"
-      - "urcap/e2e.py"
-      - "urcap/urcapx.py"
-      - "urcap/psx_matrix.py"
+      - "integrations/urcap/perceptronic/**"
+      - "integrations/urcap/e2e.py"
+      - "integrations/urcap/urcapx.py"
+      - "integrations/urcap/psx_matrix.py"
       - ".github/workflows/urcapx-matrix.yml"
   schedule:
     - cron: "47 6 * * 1" # Mondays 06:47 UTC
@@ -42,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
       - name: the list has the newest PolyScope X releases on Docker Hub
-        run: python3 urcap/psx_matrix.py check-tags
+        run: python3 integrations/urcap/psx_matrix.py check-tags
 
   releases:
     runs-on: ubuntu-latest
@@ -53,7 +53,7 @@ jobs:
         with:
           persist-credentials: false
       - id: list
-        run: echo "list=$(python3 urcap/psx_matrix.py list)" >> "$GITHUB_OUTPUT"
+        run: echo "list=$(python3 integrations/urcap/psx_matrix.py list)" >> "$GITHUB_OUTPUT"
 
   matrix:
     name: PolyScope X ${{ matrix.release }}
@@ -72,15 +72,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-*.txt
+          cache-dependency-path: requirements/*.txt
       - name: Install (locked) + the headless browser
         run: |
-          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install --require-hashes -r requirements/dev.txt
           python -m pip install playwright==1.63.0 && python -m playwright install --with-deps chromium
       - name: The URCap in PolyScope X ${{ matrix.release }}
         env:
           RELEASE: ${{ matrix.release }}
-        run: python urcap/psx_matrix.py run --version "$RELEASE" --artifacts psx-artifacts
+        run: python integrations/urcap/psx_matrix.py run --version "$RELEASE" --artifacts psx-artifacts
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

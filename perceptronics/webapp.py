@@ -324,7 +324,7 @@ class ViewerApp:
         self._latest_t = 0.0  # host time the newest frame arrived
         self.mask_t = 0.0  # ... and the one the current mask was cut from
         # Origins allowed to call the API from another page (a PolyScope X URCap on
-        # the pendant, `urcap/perceptronic`). Empty = same-origin only (the default).
+        # the pendant, `integrations/urcap/perceptronic`). Empty = same-origin only (the default).
         self.cors_origins = []
         for o in (o.strip() for o in (cors or []) if o and o.strip()):
             if o == "*" or _ORIGIN_RE.match(o):
@@ -911,7 +911,9 @@ class ViewerApp:
     def objects(self) -> dict:
         """Every white block in the newest frame (pick-cycle's detector): per object
         the top-face centre and its white pixels back-projected at the top face's
-        depth, camera frame (m), with the frame's pose so the page can place them."""
+        depth, camera frame (m), with the frame's pose. The pick route's close-look
+        re-find (``_refind``) reads it; the page's ``POST /api/objects`` and its RANGE
+        SCAN were removed 2026-10-08 (Nick: "never made sense")."""
         from .pickcycle import WHITE_CHROMA, top_face, white_blobs, white_level
 
         seq, frame = self.latest()
@@ -1217,9 +1219,22 @@ class ViewerApp:
         )
         return res
 
-    def cal_apply(self, save: bool = True, force: bool = False) -> dict:
+    def pick_log_text(self, limit: int = 400) -> str:
+        """The pick server's trace as text — the ``kind: pick`` events, one per line, oldest
+        first — for a browser beside the pendant (``GET /api/pick/log``, the route the
+        sidecar serves from its own file)."""
+        lines = []
+        for e in self.events.since(0, EVENT_LOG_SIZE):
+            if e["kind"] != "pick":
+                continue
+            stamp = time.strftime("%H:%M:%S", time.localtime(e["ts"]))
+            flag = "  " if e["ok"] is None else ("ok" if e["ok"] else "!!")
+            lines.append(f"{stamp} {flag} {e['message']}")
+        return "\n".join(lines[-limit:]) + ("\n" if lines else "")
+
+    def cal_apply(self, save: bool = True, force: bool = False, method: str | None = None) -> dict:
         link = self._link()
-        out = link.cal_apply(save=save, force=force)
+        out = link.cal_apply(save=save, force=force, method=method)
         if out.get("ok"):
             self.events.add(
                 "calibration",
@@ -1687,6 +1702,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self._guarded(self.app.info)
         elif route == "/api/doctor":
             self._guarded(lambda: self.app.doctor(robot=qs.get("robot", ["1"])[0] not in ("0", "false")))
+        elif route == "/api/pick/log":
+            self._send(self.app.pick_log_text().encode(), "text/plain; charset=utf-8")
         elif route == "/api/events":
             try:
                 after = int(qs.get("after", ["0"])[0])
@@ -1844,8 +1861,6 @@ class ViewerHandler(BaseHTTPRequestHandler):
             )
         elif route == "/api/robot/home":
             self._guarded(self.app.home)
-        elif route == "/api/objects":
-            self._guarded(self.app.objects)
         elif route == "/api/nearest":
             self._guarded(lambda: self.app.nearest(float(payload.get("near_ratio", 1.2))))
         elif route == "/api/pick/preview":
@@ -1914,7 +1929,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self._guarded(self.app.cal_solve)
         elif route == "/api/cal/apply":
             self._guarded(
-                lambda: self.app.cal_apply(bool(payload.get("save", True)), bool(payload.get("force", False)))
+                lambda: self.app.cal_apply(
+                    bool(payload.get("save", True)),
+                    bool(payload.get("force", False)),
+                    str(payload["method"]) if payload.get("method") else None,
+                )
             )
         elif route == "/api/cal/reset":
             self._guarded(self.app.cal_reset)

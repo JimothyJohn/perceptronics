@@ -40,7 +40,7 @@ GET_CUR, SET_CUR = 0x81, 0x01
 CT_FOCUS_ABSOLUTE_CONTROL, CT_FOCUS_AUTO_CONTROL = 0x06, 0x08
 CC_VIDEO, SC_VIDEOCONTROL = 0x0E, 0x01
 CS_INTERFACE, VC_INPUT_TERMINAL, ITT_CAMERA = 0x24, 0x02, 0x0201
-INTEL_VID = 0x8086  # RealSense: the cockpit owns it (docs/realsense.md §Troubleshooting)
+INTEL_VID = 0x8086  # RealSense: the cockpit owns it (perceptronics/README.md §Troubleshooting)
 LIBUSB_CANDIDATES = (
     "/opt/homebrew/lib/libusb-1.0.dylib",
     "/usr/local/lib/libusb-1.0.dylib",

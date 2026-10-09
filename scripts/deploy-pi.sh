@@ -7,6 +7,7 @@
 #   scripts/deploy-pi.sh pi@192.168.3.10 --allow-from 192.168.3.0/24
 #   scripts/deploy-pi.sh pi@10.0.0.56 --cell-if eth0 --cell-address 192.168.3.20/24   # the defaults
 #   scripts/deploy-pi.sh pi@10.0.0.56 --cell-if none          # leave the PC's network alone
+#   scripts/deploy-pi.sh pi@10.0.0.56 --vision ~/piwheels    # + numpy/OpenCV wheels for the PC
 #   scripts/deploy-pi.sh pi@192.168.3.10 --doctor-only
 #   scripts/deploy-pi.sh pi@192.168.3.10 --rollback            # previous release, restart
 #
@@ -36,8 +37,13 @@ case "$target" in -*) die "first argument must be user@host, got ${target}" ;; e
 install_args=()
 mode=deploy
 reconfigure=0
+vision_dir=""
 while [ $# -gt 0 ]; do
     case "$1" in
+        --vision)
+            vision_dir="$2"
+            shift 2
+            ;;
         --cell | --robot-host | --allow-from | --cell-if | --cell-address)
             [ $# -ge 2 ] || die "$1 needs a value"
             install_args+=("$1" "$2")
@@ -94,7 +100,7 @@ case "$mode" in
 esac
 
 # The wheel is built with the first Python that has pip: $PYTHON, then python3 on PATH, then
-# the usual installs. A repo .venv made from requirements-dev.txt has no pip and is often
+# the usual installs. A repo .venv made from requirements/dev.txt has no pip and is often
 # first on PATH (it was on the Mac Studio, 2026-10-02), so PATH alone isn't enough.
 py=""
 for cand in ${PYTHON:+"$PYTHON"} python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
@@ -109,8 +115,16 @@ arch="$(ssh "${ssh_opts[@]}" "$target" uname -m)"
 
 stage_local="$(mktemp -d)"
 trap 'rm -rf "$stage_local"' EXIT
-log "building the wheel ($py -m pip wheel)"
-"$py" -m pip wheel "$repo" --no-deps --wheel-dir "$stage_local" -q
+# A Python that already has hatchling (the repo's .venv from requirements/dev.txt) builds
+# offline (--no-build-isolation); any other fetches hatchling from PyPI, so it needs internet
+# (the cell switch alone has none - 2026-10-08).
+if "$py" -c 'import hatchling' >/dev/null 2>&1; then
+    log "building the wheel ($py -m pip wheel, no build isolation: hatchling is installed)"
+    "$py" -m pip wheel "$repo" --no-deps --no-build-isolation --wheel-dir "$stage_local" -q
+else
+    log "building the wheel ($py -m pip wheel; hatchling from PyPI - needs internet)"
+    "$py" -m pip wheel "$repo" --no-deps --wheel-dir "$stage_local" -q
+fi
 wheel="$(find "$stage_local" -maxdepth 1 -name '*-py3-none-any.whl' | head -n 1)"
 [ -n "$wheel" ] || die "pip wheel produced no pure-Python wheel"
 log "built $(basename "$wheel")"
@@ -118,7 +132,17 @@ log "built $(basename "$wheel")"
 stage_remote="$(ssh "${ssh_opts[@]}" "$target" 'mktemp -d /tmp/perceptronics-deploy.XXXXXX')"
 [ -n "$stage_remote" ] || die "could not create a staging directory on ${target}"
 log "copying to ${target}:${stage_remote}"
-scp -q "${ssh_opts[@]}" "$wheel" "$repo"/deploy/pi/* "${target}:${stage_remote}/"
+# the files of deploy/pi/, not its directories (image/ is the card-image tooling, not for the PC;
+# a bare scp of deploy/pi/* fails on it — seen 2026-10-08 at the cell)
+pi_files=()
+for f in "$repo"/deploy/pi/*; do [ -f "$f" ] && pi_files+=("$f"); done
+# the vision extra's wheels (numpy, OpenCV for the PC's arch + Python) ride along; install.sh
+# installs them into the release's venv and keeps them for the next one
+if [ -n "${vision_dir:-}" ]; then
+    for f in "$vision_dir"/*.whl; do [ -f "$f" ] && pi_files+=("$f"); done
+    log "vision wheels: $(find "$vision_dir" -maxdepth 1 -name '*.whl' | wc -l | tr -d ' ')"
+fi
+scp -q "${ssh_opts[@]}" "$wheel" "${pi_files[@]}" "${target}:${stage_remote}/"
 
 log "running install.sh on ${target} (sudo; the first run builds librealsense — tens of minutes)"
 status=0
@@ -135,7 +159,7 @@ done
 if [ "$cell_address" = 192.168.3.20 ]; then
     log "done. On the pendant nothing to type: the URCap's Cockpit field defaults to this PC's cell address 192.168.3.20;" \
         "a robot already on 192.168.3.x/24 (the UR3e: 192.168.3.3) stays as it is; one on DHCP gets 192.168.3.3 from this PC." \
-        "The whole procedure: PLUG-AND-PLAY.md"
+        "The whole procedure: deploy/pi/PLUG-AND-PLAY.md"
 else
     log "done. On the pendant: Installation -> URCaps -> Perceptronic -> Cockpit = ${cell_address} -> Save"
 fi

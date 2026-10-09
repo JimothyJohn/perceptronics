@@ -17,12 +17,12 @@ standing next to it.
 
 ## 1. Where we stand (facts, 2026-10-04)
 
-**What a customer can get today** (`docs/pick-kit.md`, `site/public/index.html`):
+**What a customer can get today** (`site/public/quickstart-ur.html`, `site/public/index.html`):
 
 | Piece | State | Evidence |
 | --- | --- | --- |
-| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `urcap/dist/perceptronic-ps5-0.9.0.urcap` |
-| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `urcap/dist/perceptronic-0.7.0.urcapx`, `urcap/perceptronic-ps5/README.md` §PolyScope X |
+| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.9.1.urcap` |
+| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.7.1.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
 | Pick PC (Pi, cockpit, pick server, firewall, DHCP for the robot) | Deployed and verified on one Pi 5; flashable image boots in ~30 s | `deploy/pi/README.md` §Verified on a board, `deploy/pi/image/README.md` |
 | Setup portal + update bundles (network from a browser, upload an update, auto-rollback) | Code + 115 tests, **never on a board** | PR #59, `perceptronics/setupportal.py`, `deploy/pi/perceptronics-admin` |
 | Camera bracket | Rev B.2 printed and on the UR3e; **Rev C and the UFACTORY print are unprinted** | `hardware/d435-tool-bracket/README.md` §7 (13 unchecked boxes) |
@@ -38,7 +38,7 @@ standing next to it.
   the Mac's cockpit (2026-09-25/27).
 - The kit board is a Pi 4 (`BOM.md` K1); only a Pi 5 has ever been run.
 - No place move, no machine handshake, no gripper control in the node (by decision: the
-  customer's program opens before and closes after, `docs/pick-kit.md` §Program).
+  customer's program opens before and closes after, `site/public/quickstart-ur.html` §Program).
 
 **The honest summary:** we have a well-tested *picking* component and a well-tested
 *deployment* story, both one real-robot day away from being provable, and **zero** of
@@ -130,11 +130,11 @@ without Nick.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S1 | Change lands | Claude + CI | PR into `dev` | `gate` + `URCap5 gate` required; auto-merge on green | Merged | A | — |
 | S2 | URCap matrix | CI | URCap paths touched; weekly cron | 5.4–5.26 in URSim; 10.8–10.14 in the PSX sim | All green | A | — |
-| S3 | Release a URCap | Nick | Version bump in `bundle.properties` / `manifest.yaml` | `make urcap5-package` or `make urcap-package`, commit `dist/`, tag `urcap5-v<ver>` / `urcapx-v<ver>`; `release-urcap5.yml` checks the committed jar is the tag's build and publishes | GitHub Release with the file, sha256 and `urmagic_perceptronic.sh` | A after the tag | A routine that tags when `dist/` changes on `main` (Nick: tags today are `urcap5-v0.5.0` and `urcapx-v0.3.0`; dist is 0.9.0 / 0.7.0 — the public releases are four versions behind) |
+| S3 | Release a URCap | Nick | Version bump in `bundle.properties` / `manifest.yaml` | `make urcap5-package` or `make urcap-package`, commit `dist/`, tag `urcap5-v<ver>` / `urcapx-v<ver>`; `release-urcap5.yml` checks the committed jar is the tag's build and publishes | GitHub Release with the file and its sha256 | A after the tag | A routine that tags when `dist/` changes on `main` (Nick: tags today are `urcap5-v0.5.0` and `urcapx-v0.3.0`; dist is 0.9.0 / 0.7.0 — the public releases are four versions behind) |
 | S4 | Promote `dev` → `main` | Nick | When Nick says | PR, hand-merged (#61 tonight) | `main` = `dev` | M | Stays manual by rule |
 | S5 | Publish the site | Nick | `main` moved | `site/site.sh sync` from the laptop with `site/.env` | Live page shows the `dist/` versions and sha256 | M | A `deploy-site.yml` on push to `main` with an OIDC role scoped to the one bucket + distribution (deploy-chain PR, draft, Nick merges) |
 | S6 | Datasheet / Quickstart PDFs | Claude | Page or version change | Local headless Chrome via `site/build.py --pdf`; a sha256 stamp fails CI until reprinted | One page; stamps match | M | A Playwright step in CI prints and commits the PDFs on `dev` (the stamp test then only guards drift) |
-| S7 | USB install stick | Builder | Kit ships | `scripts/urcap5-usb.sh` makes the FAT32 stick with the `.urcap` + magic file | Stick in the box, labelled with the version | M | Part of H3 |
+| S7 | USB install stick | Builder | Kit ships | `scripts/urcap5-usb.sh` makes the FAT32 stick with the `.urcap` | Stick in the box, labelled with the version | M | Part of H3 |
 
 ### 4.4 Install at the customer
 
@@ -143,7 +143,7 @@ without Nick.
 | I1 | Pre-call | Nick | Order | Email: robot model, PolyScope version, gripper, machine, part sizes | `kits/<serial>.json` has the cell profile | N | A form on the site that writes the profile; the Quickstart PDF goes out with the kit |
 | I2 | Mount + cable | Customer | Kit arrives | UR Quickstart PDF (`site/public/quickstart-ur.html`, PR #55) | Camera on the wrist, Pi on the DIN rail, both cables in | M | — |
 | I3 | Network | Customer | I2 | Robot gets 192.168.3.3 from the Pi's DHCP; pendant's Cockpit field defaults to 192.168.3.20 | Pendant shows the picture | A (by design, untested on a real robot) | — |
-| I4 | URCap install | Customer | I3 | Stick + "Run magic files", or Settings → URCaps → + | Node appears in the Program tab | A (magic file never run on a robot) | — |
+| I4 | URCap install | Customer | I3 | Stick → Settings → System → URCaps → + → Restart (the auto-install file was removed 2026-10-08) | Node appears in the Program tab | M | — |
 | I5 | Calibrate | Customer | I4 | Installation node → hand-eye (touch-and-click, 4–6 views) | Doctor's hand-eye line green; a located point within 3 mm of the mark | M (touch-and-click verified 09-23; orbit never on the UR3e) | A one-tap "Calibrate" that runs the orbit and reports RMS, like the cockpit does |
 | I6 | Teach the part + tray | Customer | I5 | 3D Pick node: tap a part, check approach | Green parts, numbered | M (0.9.0 screens never on a pendant) | — |
 | I7 | Tend program | Us (Tend tier) | I6 | **Nothing today** — §5 | The template runs one full cycle with the machine | N | The template ships in the URCap; the install is filling six I/O fields |
@@ -163,14 +163,14 @@ without Nick.
 ## 5. What has to be built for Tend and Lights-out
 
 The pick stays what it is. Everything below is *around* it, in the customer's own program
-where Nick decided the gripper and the place belong (`docs/pick-kit.md` §Program; decision
+where Nick decided the gripper and the place belong (`site/public/quickstart-ur.html` §Program; decision
 2026-10-02 "3D Pick keeps its structure"). Build order is the order of risk.
 
 ### 5.1 Prove the pick on a pendant (before anything else)
 
 Not new code. One day on the UR3e with the Pi on the cell cable:
 
-- URCap 0.9.0 via the stick and the magic file (`TODO.md` 09-30, 10-01).
+- URCap 0.9.0 via the stick and the pendant's URCaps screen (`TODO.md` 09-30, 10-01).
 - Pi ↔ UR3e: Dashboard, RTDE, the DHCP lease, the pendant reaching :7621.
 - Calibrate, teach, pick 20 blanks in a row through the node. Record misses.
 - Measure what the datasheet estimates: part centre, heading, cycle to the grip.
@@ -178,7 +178,7 @@ Not new code. One day on the UR3e with the Pi on the cell cable:
 Everything in this document is a promise until this day happens. **It is the launch
 blocker; it is not tomorrow's blocker** because tomorrow we launch the beta and the plan.
 
-### 5.2 The tending program template (`programs/MachineTend/`, URCap 1.0)
+### 5.2 The tending program template (`tests/fixtures/programs/MachineTend/`, URCap 1.0)
 
 A PolyScope program the customer loads, with the I/O and poses as named variables at the
 top. It uses only what PolyScope 5.4 has, so the matrix covers it.
@@ -215,7 +215,7 @@ Deliverables:
 - **Fault vocabulary**: `tray_empty`, `door`, `chuck`, `machine`, `part_lost`, `protective_stop`,
   each a popup with the one sentence of what to do, and a `LOG` line to the Pi.
 - Machine side: a dry-contact / 24 V I/O recipe for the three common cases (Haas, Fanuc
-  0i/30i M-code DO + door-open input, a generic PLC) in `docs/machine-io.md`. The
+  0i/30i M-code DO + door-open input, a generic PLC) in `site/public/machine-io.html`. The
   "M-code to open the door" is what every tending integrator sells first; it is a day of
   reading manuals, not code.
 
@@ -280,10 +280,10 @@ Add to the portal: an SMTP relay or a webhook URL (Slack/Teams/Twilio), a test b
 4. Publish the Pi image `imager.json` from a real source on `main` (today it is on a wip branch).
 5. Beta terms on the site: free URCap, kit at the Find price, "Tend early access: install
    dates from <month>". One email address, one form.
-6. This document reviewed by Nick → decisions in §10 made → moved to `docs/` as the plan of record.
+6. This document reviewed by Nick → decisions in §10 made → kept at the root as the plan of record.
 
 **Week 1 — prove it (§5.1).** Plug the UR3e in. One day on the pendant with the Pi. Fix
-what breaks (expect the magic-file install, the DHCP lease and a pendant layout surprise).
+what breaks (expect the DHCP lease and a pendant layout surprise).
 Reprint the datasheet with measured numbers where the estimates were.
 
 **Weeks 2–3 — Tend on our own cell.** The template (§5.2), the I/O screen, the fault

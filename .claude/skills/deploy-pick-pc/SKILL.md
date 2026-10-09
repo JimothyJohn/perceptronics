@@ -93,7 +93,7 @@ Report the doctor's failures verbatim, each with its fix. Don't paraphrase them 
 Tell Nick (it's a pendant action, with no network path to it): **Installation** tab →
 **URCaps** → **Perceptronic** → **Cockpit** = `http://<pc-ip>:7621` → **Save**. The
 **3D Pick** program node uses the same host and learns :7622 from the cockpit.
-If the URCap isn't installed, point to `urcap/perceptronic-ps5/README.md` (USB stick,
+If the URCap isn't installed, point to `integrations/urcap/perceptronic-ps5/README.md` (USB stick,
 Settings → System → URCaps → +).
 
 Verify from the robot's side of the network as far as you can:

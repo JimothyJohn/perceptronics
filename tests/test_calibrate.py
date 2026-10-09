@@ -142,3 +142,9 @@ def test_save_and_load_roundtrip(tmp_path):
     body = json.loads(p.read_text())
     assert body["source"] == "touch-and-click" and len(body["session"]["views"]) == 4
     assert load_calibration_pose(p) == s.result["flange_to_depth_pose"]
+    assert s.handeye().source == "calibrated:touch-and-click"
+    # the orbit (perceptronics calibrate) clicks its views into the same session: the label follows
+    # what made them, not the panel (every saved file read "touch-and-click" before 2026-10-08)
+    s.method = "orbit"
+    assert s.handeye().source == "calibrated:orbit" and s.as_dict()["method"] == "orbit"
+    assert json.loads(s.save(tmp_path / "cal" / "orbit.json").read_text())["source"] == "orbit"

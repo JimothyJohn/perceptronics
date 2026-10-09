@@ -56,6 +56,9 @@ CELL_M = 0.003  # target sample spacing on the surface
 MIN_STRIDE, MAX_STRIDE = 2, 8
 TOP_BAND_M = 0.004  # a flat top's own depth noise at working range, heights off the fitted plane
 MAX_TILT_DEG = 8.0  # a fitted table further off level than this is not the table: level it is
+# ... unless the table as seen, that far off level, holds this many times more of the picture than
+# the level one: then the base frame is wrong (hand-eye, or a pose that isn't the camera's)
+OFF_LEVEL_SUPPORT = 1.3
 TILT_NOTE_DEG = 1.0  # the table reads this far off level: the hand-eye calibration is out
 PLANE_WINDOWS_M = (0.025, 0.012, 0.006, 0.003)
 FINE_EDGE_PX = 0.75  # the eroded fine face's outermost pixel centres sit this far inside the edge
@@ -269,6 +272,9 @@ class Part:
     margin_m: float = field(
         default=FOOTPRINT_MARGIN_M, repr=False
     )  # its edge's blur: cells this near are its
+    source: str = field(default="depth", repr=False)  # "colour" (fusion): the outline is the picture's
+    depth_valid: float = field(default=1.0, repr=False)  # the fraction of its top with depth (fusion)
+    rect_fill: float = field(default=0.0, repr=False)  # the colour blob's share of its rectangle (fusion)
 
     # the names pickcycle / picknode already use for a block
     @property
@@ -364,9 +370,14 @@ def find_parts(
     order: tuple[str, str] = ("LR", "FB"),
     fingers: dict | None = None,
     stride: int | None = None,
+    colour: bytes | None = None,
+    colour_channels: int = 3,
 ) -> Scene:
     """The parts in one aligned depth frame (uint16 LE, ``depth_scale_m`` per unit, colour
-    intrinsics ``K``). ``T_bc``: the colour camera's pose in the base frame at the frame's
+    intrinsics ``K``). ``colour``: the aligned colour picture (``colour_channels`` bytes a
+    pixel) — with it, and the ``vision`` extra installed, :mod:`.fusion` adds the parts whose
+    tops the depth can't see (foam, metal: holes) from their colour outline; without it
+    the depth alone is used, as before. ``T_bc``: the colour camera's pose in the base frame at the frame's
     instant (flange pose ∘ hand-eye); None for a camera-only preview (no reach, no base
     heading — the camera frame stands in for the base). ``fingers``: keyword arguments for
     :func:`perceptronics.pickplan.clearance` (``stroke_m``, ``grasp_below_m``, …) — the open
@@ -406,7 +417,7 @@ def find_parts(
             f"the table reads {check['tilt_deg']:.1f}° off the taught plane: re-touch it, "
             "or the hand-eye calibration is out"
         )
-    surf = _surface(valid, surface, level_ok, spec, notes)
+    surf = _surface(valid, surface, level_ok, spec, notes, T.apply((0.0, 0.0, 0.0)))
     if surf is None:
         return Scene([], [], None, stride, notes + ["no work surface found in the picture"], check)
 
@@ -463,6 +474,39 @@ def find_parts(
             part.near = _near(part, spec)
             (parts if part.why is None else rejected).append(part)
             blobs[id(part)] = own
+    if colour is not None:
+        from . import fusion
+
+        for cpart in fusion.colour_parts(
+            w, h, colour_channels, colour, depth, depth_scale_m, K, T, surf, spec, stride
+        ):
+            cuv = surf.local(cpart.centre)
+            # a depth part that passed and holds the colour's centre: the depth's measurement stays
+            # — unless the colour's outline is the part's size and either the depth under it is
+            # mostly holes (the half-height footprint of a holey top is its rim, not its edge) or
+            # the blob is a clean rectangle (a foam top with some depth still read 40 x 31 for
+            # 50 x 30 by depth, 49 x 30 by colour): then the colour's measurement replaces it
+            holders = [p for p in parts if _in_footprint(p, cuv)]
+            if holders:
+                slack = RANGE_SLACK * cpart.range_m
+                wrong_size = spec is not None and (
+                    spec.why_not(cpart.length_m, cpart.width_m, cpart.height_m, slack) is not None
+                )
+                clean = cpart.depth_valid < fusion.HOLE_FRAC or cpart.rect_fill >= fusion.RECT_FILL
+                if wrong_size or not clean:
+                    continue
+                for p in holders:
+                    parts.remove(p)
+                    blobs.pop(id(p), None)
+            # the depth's fragments inside the colour's outline were the rims round its holes
+            for p in list(rejected):
+                if _in_footprint(cpart, surf.local(p.centre), 0.0):
+                    rejected.remove(p)
+                    blobs.pop(id(p), None)
+            cpart.why = _why_not(cpart, spec, surf, reach, level_ok)
+            cpart.near = _near(cpart, spec)
+            (parts if cpart.why is None else rejected).append(cpart)
+            blobs[id(cpart)] = fusion.grid_cells(w, h, colour_channels, colour, cpart, stride)
     if order:
         order_parts(parts, T, surf, order)
     if fingers is not None and parts:
@@ -473,8 +517,21 @@ def find_parts(
 
 
 def _surface(
-    valid: list[Vec3], taught: Surface | None, level_ok: bool, spec: PartSpec | None, notes: list[str]
+    valid: list[Vec3],
+    taught: Surface | None,
+    level_ok: bool,
+    spec: PartSpec | None,
+    notes: list[str],
+    camera: Vec3 = (0.0, 0.0, 0.0),
 ) -> Surface | None:
+    """The work surface: the taught plane nudged to the live table; else, in the base frame, the
+    level table (``_level_surface``) — unless the table as seen (``_ransac_surface``) is far off
+    level *and* holds clearly more of the picture, which means the base frame is lying (a hand-eye
+    out by more than MAX_TILT_DEG, a robot pose that isn't the camera's): then the table as seen
+    is used, with a note, so the parts are still found and measured (their base-frame positions
+    are off by as much). 2026-10-06: a D435 on the bench 19° oblique with a simulator's pose
+    saying straight down read every box 86-134 mm tall. ``camera``: the camera's position in the
+    frame of ``valid``, so the fitted normal points up toward it."""
     if taught is not None:
         near = sorted(taught.height(p) for p in valid if abs(taught.height(p)) < 2 * LIVE_NUDGE_M)
         if len(near) < 30:
@@ -487,13 +544,28 @@ def _surface(
         return taught.shifted(dh)
     if level_ok:
         surf = _level_surface(valid, spec)
+        free = _ransac_surface(valid, camera)
+        if free is not None and free.tilt_deg() > MAX_TILT_DEG:
+            on_level = 0 if surf is None else _support(valid, surf)
+            if _support(valid, free) > OFF_LEVEL_SUPPORT * max(on_level, 1):
+                notes.append(
+                    f"the table reads {free.tilt_deg():.0f}° off level in the robot's frame: the hand-eye "
+                    "calibration or the robot's pose is out — parts are measured off the table as seen, "
+                    "but where the robot thinks they are is off by as much (re-run perceptronics calibrate)"
+                )
+                return free
         if surf is not None and surf.tilt_deg() > TILT_NOTE_DEG:
             notes.append(
                 f"the table reads {surf.tilt_deg():.1f}° off level: the hand-eye calibration is out "
                 "(parts are still measured off the table as seen; re-run perceptronics calibrate)"
             )
         return surf
-    return _ransac_surface(valid)
+    return _ransac_surface(valid, camera)
+
+
+def _support(valid: list[Vec3], surf: Surface) -> int:
+    """How many of the frame's points lie within the surface band of ``surf``."""
+    return sum(1 for p in valid if abs(surf.height(p)) < SURFACE_BAND_M)
 
 
 def check_surface(valid: Sequence[Vec3], taught: Surface) -> dict | None:
@@ -636,7 +708,9 @@ def _fit_plane_near(valid: list[Vec3], z0: float) -> tuple[float, float, float, 
     return (*fit, mx, my)
 
 
-def _ransac_surface(valid: list[Vec3]) -> Surface | None:
+def _ransac_surface(valid: list[Vec3], camera: Vec3 = (0.0, 0.0, 0.0)) -> Surface | None:
+    """The plane most of the picture lies on, whatever its angle; its normal points up toward
+    ``camera`` (the camera's position in the points' frame: the origin in a camera-only fit)."""
     rng = random.Random(0)  # deterministic: the same frame, the same plane
     sample = valid if len(valid) <= 3000 else rng.sample(valid, 3000)
     best: tuple[int, Vec3, float] | None = None
@@ -654,7 +728,7 @@ def _ransac_surface(valid: list[Vec3]) -> Surface | None:
     if best is None or best[0] < 0.2 * len(sample):
         return None
     _, n, d = best
-    if n[2] > 0:  # camera frame: +Z is away from the camera; up off the table is toward it
+    if _dot(n, camera) - d < 0:  # up off the table is toward the camera
         n, d = (-n[0], -n[1], -n[2]), -d
     offs = sorted(_dot(n, p) - d for p in valid if abs(_dot(n, p) - d) < SURFACE_BAND_M)
     d += offs[len(offs) // 2] if offs else 0.0

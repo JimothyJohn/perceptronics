@@ -367,11 +367,17 @@ class RobotLink:
     def cal_solve(self) -> dict:
         return self.calibration.solve()
 
-    def cal_apply(self, *, save: bool = True, path: str | None = None, force: bool = False) -> dict:
+    def cal_apply(
+        self, *, save: bool = True, path: str | None = None, force: bool = False, method: str | None = None
+    ) -> dict:
         """Use the solved transform from now on (and write it so the next start
         picks it up: env > file > bracket seed). A solve that carries warnings
-        (poor rotation diversity, high residual) is refused unless ``force``."""
+        (poor rotation diversity, high residual) is refused unless ``force``.
+        ``method`` names what made the views (``orbit`` for ``perceptronics calibrate``;
+        the default is the panel's ``touch-and-click``) — it labels the hand-eye and the file."""
         result = self.calibration.result
+        if method:
+            self.calibration.method = str(method)
         if result and result.get("warnings") and not force:
             return {
                 "ok": False,

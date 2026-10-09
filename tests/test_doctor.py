@@ -80,6 +80,16 @@ def test_platform_mismatch_is_diagnosed(listener):
     assert c["cell"]["ok"] is False  # no cell selected → warn
 
 
+def test_a_cell_loaded_as_plain_environment_passes_the_cell_check():
+    # a pick PC's service has no UR_CELL: EnvironmentFile= hands it cell.env's values, which
+    # read "no cell selected" on every pick PC before 2026-10-08
+    cfg = RobotConfig(host="127.0.0.1", robot_api_port=_closed_port(), dashboard_port=_closed_port())
+    env = {"UR_HOST": "192.168.3.3", "UR_PLATFORM": "e-series", "UR_ROBOT_MODEL": "UR3e"}
+    c = _by_name(run_doctor(robot_config=cfg, camera=False, env=env).as_dict())
+    assert c["cell"]["ok"] is None and "192.168.3.3" in c["cell"]["detail"]
+    assert c["cell"]["data"]["UR_ROBOT_MODEL"] == "UR3e"
+
+
 def test_empty_host_is_named():
     cfg = RobotConfig(host="")
     c = _by_name(run_doctor(robot_config=cfg, camera=False, env={}).as_dict())

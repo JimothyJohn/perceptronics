@@ -1,7 +1,7 @@
 name: release-urcap5
 
 # CD for the PolyScope 5 (e-Series) URCap: pushing a `urcap5-v<version>` tag (for
-# example urcap5-v0.4.0) publishes the committed urcap/dist/perceptronic-ps5-<version>.urcap
+# example urcap5-v0.4.0) publishes the committed integrations/urcap/dist/perceptronic-ps5-<version>.urcap
 # as a GitHub Release asset with its sha256, for an operator to put on a USB stick.
 #
 # The jar is not rebuilt here: the URCap API jars it compiles against are UR's and live
@@ -24,25 +24,24 @@ jobs:
       path: ${{ steps.check.outputs.path }}
       sha256: ${{ steps.check.outputs.sha256 }}
       version: ${{ steps.check.outputs.version }}
-      stick: ${{ steps.check.outputs.stick }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-*.txt
+          cache-dependency-path: requirements/*.txt
       - name: the tag, the version and the committed jar agree
         id: check
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          out=$(python3 urcap/urcap5.py release-check "$TAG")
+          out=$(python3 integrations/urcap/urcap5.py release-check "$TAG")
           echo "$out"
-          python3 -c 'import json, sys; d = json.loads(sys.argv[1]); [print(f"{k}={d[k]}") for k in ("path", "sha256", "version", "stick")]' "$out" >> "$GITHUB_OUTPUT"
+          python3 -c 'import json, sys; d = json.loads(sys.argv[1]); [print(f"{k}={d[k]}") for k in ("path", "sha256", "version")]' "$out" >> "$GITHUB_OUTPUT"
       - name: the URCap's tests (manifest, install checks, the node's URScript under a JDK)
         run: |
-          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install --require-hashes -r requirements/dev.txt
           python -m pytest -q tests/test_urcap5.py
 
   github-release:
@@ -59,7 +58,6 @@ jobs:
           TAG: ${{ github.ref_name }}
           JAR: ${{ needs.check.outputs.path }}
           SHA256: ${{ needs.check.outputs.sha256 }}
-          STICK: ${{ needs.check.outputs.stick }}
         run: |
           name=$(basename "$JAR")
           echo "$SHA256  $name" > "$JAR.sha256"
@@ -69,14 +67,12 @@ jobs:
             echo
             echo "**Install:** copy \`$name\` to a FAT32 USB stick (on a Mac: \`scripts/urcap5-usb.sh\`, which keeps macOS \`._\` files off it), then on the pendant ☰ → Settings → System → URCaps → **+** → the file → Open → **Restart**."
             echo
-            echo "**Or let the stick install it:** also copy \`$(basename "$STICK")\` (attached; written for exactly this file) to the top level of the stick. A robot with Settings → Security → General → **Run magic files** enabled then installs the URCap by itself when the stick goes in."
-            echo
             echo "**Needs** the RealSense cockpit (\`perceptronics gui\`) or \`perceptronics pick-server\` from this release's commit (\`${GITHUB_SHA::12}\`) or later on the computer the camera is plugged into — the node's requests follow the pick server's protocol at that commit."
             echo
             echo "sha256 \`$SHA256\`"
             echo
             echo "### Changes to the URCap${prev:+ since $prev}"
-            git log --format='- %s (%h)' ${prev:+"$prev.."}"$TAG" -- urcap/perceptronic-ps5 perceptronics/picknode.py perceptronics/partspec.py
+            git log --format='- %s (%h)' ${prev:+"$prev.."}"$TAG" -- integrations/urcap/perceptronic-ps5 perceptronics/picknode.py perceptronics/partspec.py
           } > notes.md
           cat notes.md
       - name: create the GitHub release
@@ -85,7 +81,6 @@ jobs:
           TAG: ${{ github.ref_name }}
           JAR: ${{ needs.check.outputs.path }}
           VERSION: ${{ needs.check.outputs.version }}
-          STICK: ${{ needs.check.outputs.stick }}
         run: |
-          gh release create "$TAG" "$JAR" "$JAR.sha256" "$STICK" --repo "$GITHUB_REPOSITORY" --verify-tag \
+          gh release create "$TAG" "$JAR" "$JAR.sha256" --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "Perceptronic for PolyScope 5 — $VERSION" --notes-file notes.md

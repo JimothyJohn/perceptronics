@@ -1,4 +1,4 @@
-"""The PolyScope 5 URCap on every PolyScope 5 from the floor up (``urcap/urcap5.py``'s
+"""The PolyScope 5 URCap on every PolyScope 5 from the floor up (``integrations/urcap/urcap5.py``'s
 compatibility plan, the API jars read out of a URSim image, the committed jar's imports) and
 the one place the Java feature-detects newer API: ``TeachPosition`` — run under a JDK against
 stub URCap API classes shaped like PolyScope 5.4's (no ``RobotPositionCallback2``) and 5.8's.
@@ -25,14 +25,14 @@ import pytest
 from perceptronics import armfk
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "urcap"))
+sys.path.insert(0, str(ROOT / "integrations" / "urcap"))
 import urcap5  # noqa: E402
 
-SRC = ROOT / "urcap" / "perceptronic-ps5"
+SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
 PROPS = urcap5.read_properties((SRC / "bundle.properties").read_text(encoding="utf-8"))
 PLAN = urcap5.compat_plan(PROPS)
-DIST = ROOT / "urcap" / "dist" / urcap5.dist_name(PROPS)
+DIST = ROOT / "integrations" / "urcap" / "dist" / urcap5.dist_name(PROPS)
 JAVAC = shutil.which("javac")
 
 
@@ -346,51 +346,51 @@ def test_an_empty_sdk_dir_says_how_to_fill_it(tmp_path):
 # -- TeachPosition under a JDK, against stub URCap APIs ---------------------------------------
 
 STUBS_5_4 = {
-    "com/ur/urcap/api/domain/value/simple/Angle.java": (
+    "com/ur/integrations/urcap/api/domain/value/simple/Angle.java": (
         "package com.ur.urcap.api.domain.value.simple; public interface Angle { enum Unit { RAD, DEG } }"
     ),
-    "com/ur/urcap/api/domain/value/simple/Length.java": (
+    "com/ur/integrations/urcap/api/domain/value/simple/Length.java": (
         "package com.ur.urcap.api.domain.value.simple; public interface Length { enum Unit { M, MM } }"
     ),
-    "com/ur/urcap/api/domain/value/Pose.java": (
+    "com/ur/integrations/urcap/api/domain/value/Pose.java": (
         "package com.ur.urcap.api.domain.value; import com.ur.urcap.api.domain.value.simple.*;"
         " public interface Pose { double[] toArray(Length.Unit l, Angle.Unit a); }"
     ),
-    "com/ur/urcap/api/domain/value/jointposition/JointPosition.java": (
+    "com/ur/integrations/urcap/api/domain/value/jointposition/JointPosition.java": (
         "package com.ur.urcap.api.domain.value.jointposition;"
         " import com.ur.urcap.api.domain.value.simple.Angle;"
         " public interface JointPosition { double getPosition(Angle.Unit u); }"
     ),
-    "com/ur/urcap/api/domain/value/jointposition/JointPositions.java": (
+    "com/ur/integrations/urcap/api/domain/value/jointposition/JointPositions.java": (
         "package com.ur.urcap.api.domain.value.jointposition;"
         " public interface JointPositions { JointPosition[] getAllJointPositions(); }"
     ),
-    "com/ur/urcap/api/domain/userinteraction/RobotPositionCallback.java": (
+    "com/ur/integrations/urcap/api/domain/userinteraction/RobotPositionCallback.java": (
         "package com.ur.urcap.api.domain.userinteraction; import com.ur.urcap.api.domain.value.Pose;"
         " import com.ur.urcap.api.domain.value.jointposition.JointPositions;"
         " public abstract class RobotPositionCallback { public abstract void onOk(Pose p, JointPositions q);"
         " public void onCancel() {} }"
     ),
-    "com/ur/urcap/api/domain/userinteraction/UserInteraction.java": (
+    "com/ur/integrations/urcap/api/domain/userinteraction/UserInteraction.java": (
         "package com.ur.urcap.api.domain.userinteraction;"
         " public interface UserInteraction { void getUserDefinedRobotPosition(RobotPositionCallback c); }"
     ),
 }
 STUBS_5_8 = {
     **STUBS_5_4,
-    "com/ur/urcap/api/domain/value/robotposition/PositionParameters.java": (
+    "com/ur/integrations/urcap/api/domain/value/robotposition/PositionParameters.java": (
         "package com.ur.urcap.api.domain.value.robotposition; import com.ur.urcap.api.domain.value.Pose;"
         " import com.ur.urcap.api.domain.value.jointposition.JointPositions;"
         " public interface PositionParameters { Pose getPose(); JointPositions getJointPositions();"
         " Pose getTCPOffset(); }"
     ),
-    "com/ur/urcap/api/domain/userinteraction/RobotPositionCallback2.java": (
+    "com/ur/integrations/urcap/api/domain/userinteraction/RobotPositionCallback2.java": (
         "package com.ur.urcap.api.domain.userinteraction;"
         " import com.ur.urcap.api.domain.value.robotposition.PositionParameters;"
         " public abstract class RobotPositionCallback2 { public abstract void onOk(PositionParameters p);"
         " public void onCancel() {} }"
     ),
-    "com/ur/urcap/api/domain/userinteraction/UserInteraction.java": (
+    "com/ur/integrations/urcap/api/domain/userinteraction/UserInteraction.java": (
         "package com.ur.urcap.api.domain.userinteraction;"
         " public interface UserInteraction { void getUserDefinedRobotPosition(RobotPositionCallback c);"
         " void getUserDefinedRobotPosition(RobotPositionCallback2 c); }"
@@ -739,7 +739,7 @@ def test_a_changed_non_class_entry_is_caught_byte_for_byte(tmp_path):
 
 @pytest.mark.skipif(not JAVAC_OK, reason="needs a JDK")
 def test_the_committed_jar_compares_equal_to_itself(tmp_path):
-    dist = next((ROOT / "urcap" / "dist").glob("perceptronic-ps5-*.urcap"))
+    dist = next((ROOT / "integrations" / "urcap" / "dist").glob("perceptronic-ps5-*.urcap"))
     copy = tmp_path / dist.name
     shutil.copy(dist, copy)
     assert urcap5.compare_jars(copy, dist) == []

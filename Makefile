@@ -84,56 +84,55 @@ simx-state:  ## Read PolyScope X robot state via the Robot-API (JSON).
 simx-bring-up:  ## Power on + brake release the PolyScope X robot (needs Remote mode).
 	$(PX_ENV) $(PYTHON) -m urctl bring-up
 
-# ---- PolyScope X URCap (urcap/: README.md to install, DEVELOPING.md to work on it) --
-urcap-package:  ## Rebuild the downloadable urcap/dist/perceptronic-<ver>.urcapx (no npm; commit it).
-	$(PYTHON) urcap/urcapx.py package urcap/perceptronic --out urcap/dist
+# ---- PolyScope X URCap (integrations/urcap/: README.md to install, DEVELOPING.md to work on it) --
+urcap-package:  ## Rebuild the downloadable integrations/urcap/dist/perceptronic-<ver>.urcapx (no npm; commit it).
+	$(PYTHON) integrations/urcap/urcapx.py package integrations/urcap/perceptronic --out integrations/urcap/dist
 
 urcap-install: urcap-package  ## Install (or replace) it in the PolyScope X sim on :8000; then refresh the page.
-	$(PYTHON) urcap/urcapx.py install urcap/dist/perceptronic-*.urcapx --port 8000 --replace
+	$(PYTHON) integrations/urcap/urcapx.py install integrations/urcap/dist/perceptronic-*.urcapx --port 8000 --replace
 
 urcap-cockpit:  ## A synthetic cockpit on :7621 (the normal port) the URCap page may call from the sim's origin.
 	$(PYTHON) -m perceptronics gui --fake --no-browser --port 7621 --cors http://localhost:8000,http://127.0.0.1:8000
 
-urcap-track:  ## Is urcap/target.json still UR's newest PolyScope X release? (exit 1 + why when not)
-	$(PYTHON) urcap/track.py check
+urcap-track:  ## Is integrations/urcap/target.json still UR's newest PolyScope X release? (exit 1 + why when not)
+	$(PYTHON) integrations/urcap/track.py check
 
 urcap-compat:  ## The URCap against the pinned SDK: contribution-api members, manifest spec, worker protocol.
-	$(PYTHON) urcap/track.py compat
+	$(PYTHON) integrations/urcap/track.py compat
 
 urcap-e2e:  ## Boot target.json's simulator, install a fresh build, load + click the node headlessly.
 	$(PYTHON) -m pip install -q playwright==$(PLAYWRIGHT)
-	$(PYTHON) urcap/e2e.py
+	$(PYTHON) integrations/urcap/e2e.py
 
 urcapx-matrix:  ## The e2e on the ten newest PolyScope X releases (PSX_VERSION=10.14.0 / all; images removed after each run).
 	$(PYTHON) -m pip install -q playwright==$(PLAYWRIGHT)
-	$(PYTHON) urcap/psx_matrix.py run --version $(PSX_VERSION) --rmi --artifacts target/psx-matrix
+	$(PYTHON) integrations/urcap/psx_matrix.py run --version $(PSX_VERSION) --rmi --artifacts target/psx-matrix
 
-# ---- PolyScope 5 (e-Series) URCap (urcap/perceptronic-ps5, urcap/urcap5.py) --------
+# ---- PolyScope 5 (e-Series) URCap (integrations/urcap/perceptronic-ps5, integrations/urcap/urcap5.py) --------
 URCAP5_CONTAINER ?= ur-utils-ursim-e-ur3e
 urcap5-sdk:  ## The URCap API jars of the oldest supported PolyScope (+ compat.since) into target/ (registry; never committed).
-	$(PYTHON) urcap/urcap5.py sdk
+	$(PYTHON) integrations/urcap/urcap5.py sdk
 
-urcap5-package:  ## Rebuild the downloadable urcap/dist/perceptronic-ps5-<ver>.urcap (JDK; commit it).
-	$(PYTHON) urcap/urcap5.py package urcap/perceptronic-ps5 --out urcap/dist
-	$(PYTHON) urcap/urcap5.py magic urcap/perceptronic-ps5 --out urcap/dist
+urcap5-package:  ## Rebuild the downloadable integrations/urcap/dist/perceptronic-ps5-<ver>.urcap (JDK; commit it).
+	$(PYTHON) integrations/urcap/urcap5.py package integrations/urcap/perceptronic-ps5 --out integrations/urcap/dist
 
 urcap5-install: urcap5-package  ## Install it in the e-Series sim container $(URCAP5_CONTAINER) (restarts it).
-	$(PYTHON) urcap/urcap5.py install urcap/dist/perceptronic-ps5-*.urcap --container $(URCAP5_CONTAINER)
+	$(PYTHON) integrations/urcap/urcap5.py install integrations/urcap/dist/perceptronic-ps5-*.urcap --container $(URCAP5_CONTAINER)
 
-# The URCap on every PolyScope 5 minor from 5.4 (urcap/ps5_matrix.py MATRIX; amd64 host).
+# The URCap on every PolyScope 5 minor from 5.4 (integrations/urcap/ps5_matrix.py MATRIX; amd64 host).
 PSX_VERSION ?= all
 PS5_VERSION ?= all
 .PHONY: urcap5-matrix urcap5-matrix-down urcap5-matrix-compose
 urcap5-matrix:  ## Per PS5 URSim: API check, boot, URCap starts, pick e2e, down -v (PS5_VERSION=5.4 / 5.26 / all).
-	DOCKER="$(DOCKER)" $(PYTHON) urcap/ps5_matrix.py run --version $(PS5_VERSION) --artifacts target/ps5-matrix/artifacts
+	DOCKER="$(DOCKER)" $(PYTHON) integrations/urcap/ps5_matrix.py run --version $(PS5_VERSION) --artifacts target/ps5-matrix/artifacts
 
 urcap5-matrix-down:  ## Tear the PS5 matrix sims down with their volumes.
-	DOCKER="$(DOCKER)" $(PYTHON) urcap/ps5_matrix.py down --version $(PS5_VERSION)
+	DOCKER="$(DOCKER)" $(PYTHON) integrations/urcap/ps5_matrix.py down --version $(PS5_VERSION)
 
-urcap5-matrix-compose:  ## Regenerate docker-compose.ps5-matrix.yml from ps5_matrix.py's MATRIX (commit it).
-	$(PYTHON) urcap/ps5_matrix.py compose > docker-compose.ps5-matrix.yml
+urcap5-matrix-compose:  ## Regenerate integrations/urcap/docker-compose.ps5-matrix.yml from ps5_matrix.py's MATRIX (commit it).
+	$(PYTHON) integrations/urcap/ps5_matrix.py compose > integrations/urcap/docker-compose.ps5-matrix.yml
 
-# ---- RealSense perception (docs/realsense.md) ----------------------------------
+# ---- RealSense perception (perceptronics/README.md) ----------------------------------
 # On macOS librealsense needs root to claim the camera's USB interface, hence
 # the `sudo` on the hardware targets; `rs-gui-fake` needs no camera at all.
 
@@ -159,7 +158,7 @@ perceptronics-up:  ## Run the perceptronics service (privileged, USB, cockpit on
 perceptronics-down:  ## Stop the perceptronics service.
 	$(COMPOSE) --profile perceptronics down
 
-# ---- The pilot's seat (docs/realsense-cell.html) ------------------------------------
+# ---- The pilot's seat (perceptronics/cell.html) ------------------------------------
 # One cell profile (sim | ur3 | ur20, perceptronics/cells/*.env) selects robot host/ports + bracket.
 CELL ?= sim
 
@@ -193,10 +192,10 @@ test-all:  ## Run every test.
 lint: lint-py lint-sh  ## Run all linters.
 
 lint-py:  ## Lint Python with ruff.
-	$(RUFF) check urctl perceptronics scripts urcap tests
+	$(RUFF) check urctl perceptronics scripts integrations tests
 
 fmt:  ## Format Python with ruff.
-	$(RUFF) format urctl perceptronics scripts urcap tests
+	$(RUFF) format urctl perceptronics scripts integrations tests
 
 lint-sh:  ## Lint shell scripts (skipped silently if shellcheck not installed).
 	@if command -v shellcheck >/dev/null; then \
@@ -208,7 +207,7 @@ lint-sh:  ## Lint shell scripts (skipped silently if shellcheck not installed).
 # ---- Sample programs --------------------------------------------------------
 
 regen-urps:  ## Rebuild every <name>.urp from its build.py (node tree) or sibling <name>.script.
-	@for d in programs/*/; do \
+	@for d in tests/fixtures/programs/*/; do \
 		name=$$(basename $$d); \
 		if [ -f "$$d/build.py" ]; then \
 			echo "regenerating $$d$$name.urp (node tree via build.py)"; \
@@ -226,4 +225,4 @@ regen-urps:  ## Rebuild every <name>.urp from its build.py (node tree) or siblin
 
 install-dev:  ## Create/refresh .venv with the pinned dev tools + the vision extra (pip, hash-checked).
 	python3 -m venv .venv
-	.venv/bin/python -m pip install --require-hashes -r requirements-dev.txt -r requirements-vision.txt
+	.venv/bin/python -m pip install --require-hashes -r requirements/dev.txt -r requirements/vision.txt
