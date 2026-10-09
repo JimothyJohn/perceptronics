@@ -90,6 +90,23 @@ def test_a_thing_the_parts_size_in_every_direction_is_too_big_not_parts_touching
     assert foam.why_not(0.089, 0.057, 0.027) == "3 parts touching?"
 
 
+def test_touching_counts_the_parts_along_each_side_and_only_when_that_is_the_verdict():
+    spec = PartSpec.from_mm(50, 30, 30)
+    assert spec.touching(0.059, 0.051, 0.027) == (2, 1)  # two side by side: the long side is 2 widths
+    assert spec.touching(0.098, 0.029, 0.032) == (2, 1)  # two end to end: 2 lengths
+    assert spec.touching(0.089, 0.057, 0.027) == (3, 1)  # three across
+    # a square of four, 100 x 60, is also three across (90 x 50) at +-25 %: the fewer parts
+    # win (the cell's frame read 88 x 58 and is three); at +-15 % only the square fits
+    assert spec.touching(0.100, 0.060, 0.030) == (3, 1)
+    assert PartSpec.from_mm(50, 30, 30, tol_pct=15).touching(0.100, 0.060, 0.030) == (2, 2)
+    assert spec.touching(0.050, 0.030, 0.030) is None  # the part
+    assert spec.touching(0.074, 0.049, 0.060) is None  # too tall
+    # a block on a block, 50 x 35 x 56: "too tall" by the nearest face, though a further face
+    # (30 x 30 standing 50) would call it two upright blocks side by side
+    assert spec.why_not(0.050, 0.035, 0.056) == "too tall"
+    assert spec.touching(0.050, 0.035, 0.056) is None
+
+
 def test_a_box_is_the_part_lying_on_any_of_its_faces():
     spec = PartSpec.from_mm(60, 40, 30, tol_pct=10)
     assert spec.poses() == [(0.06, 0.04, 0.03), (0.06, 0.03, 0.04), (0.04, 0.03, 0.06)]
