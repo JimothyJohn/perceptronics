@@ -52,11 +52,8 @@ Power-up order doesn't matter. Give the Pi a minute after power-on.
 
 1. **URCap.** If ☰ → Settings → System → URCaps lists **RealSense Pilot**, select it, tap
    **–** and restart. It's a different bundle; its node data doesn't carry over. Then plug
-   in the stick:
-   - **automatic:** Settings → Security → General → **Run magic files** on, arm powered
-     **off**, plug the stick in, and the robot installs and restarts by itself;
-   - **by hand:** ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.1.urcap`
-     → Open → Restart.
+   in the stick: ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.1.urcap`
+   → Open → Restart.
 
    (Step by step with pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)
 2. **Network: leave it.** The UR3e is already `192.168.3.3`. Check under ☰ → Settings →

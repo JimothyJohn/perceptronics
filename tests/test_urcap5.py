@@ -829,9 +829,7 @@ def test_release_check_publishes_exactly_the_committed_jar_for_its_version():
     out = urcap5.release_check(f"urcap5-v{version}", SRC, DIST.parent)
     assert out["version"] == version and Path(out["path"]) == DIST
     assert out["sha256"] == hashlib.sha256(DIST.read_bytes()).hexdigest()
-    # ... and the stick's auto-install file for that jar, which the release attaches beside it
-    assert Path(out["stick"]) == DIST.parent / urcap5.MAGIC_NAME
-    assert out["sha256"] in Path(out["stick"]).read_text(encoding="utf-8")
+    assert set(out) == {"version", "path", "sha256"}  # nothing else is released beside the jar
 
 
 @pytest.mark.parametrize(
@@ -860,14 +858,6 @@ def test_release_check_refuses_a_stale_or_missing_jar(tmp_path):
     dist = tmp_path / "dist"
     dist.mkdir()
     shutil.copy(DIST, dist / DIST.name)
-    with pytest.raises(urcap5.Urcap5Error, match="urmagic_perceptronic.sh is not committed"):
-        urcap5.release_check(f"urcap5-v{version}", src, dist)  # a release without its stick file
-    stick = dist / urcap5.MAGIC_NAME
-    good = (DIST.parent / urcap5.MAGIC_NAME).read_text(encoding="utf-8")
-    stick.write_text(good.replace(hashlib.sha256(DIST.read_bytes()).hexdigest(), "0" * 64), encoding="utf-8")
-    with pytest.raises(urcap5.Urcap5Error, match="is not the one for"):
-        urcap5.release_check(f"urcap5-v{version}", src, dist)  # ... or one written for another jar
-    stick.write_text(good, encoding="utf-8")
     urcap5.release_check(f"urcap5-v{version}", src, dist)  # a faithful copy passes
     java = next((src / "src").rglob("PickScript.java"))
     java.write_text(java.read_text(encoding="utf-8") + "\n// edited after the build\n", encoding="utf-8")

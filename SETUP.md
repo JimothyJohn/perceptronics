@@ -46,9 +46,9 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
   0.3.0 is on the "URE MODELS" USB stick; **0.5.0 has never been on a pendant**, and the
   URCap is now **Perceptronic 0.8.0** (`integrations/urcap/dist/perceptronic-ps5-0.8.0.urcap`, the **3D Pick** node; bundle
   `io.advin.perceptronic` — a different URCap to PolyScope: remove RealSense Pilot
-  on the pendant, its node data and Pick nodes don't carry over). Auto-install from the stick needs
-  **Settings → Security → General → Run magic files** on (`scripts/urcap5-usb.sh`,
-  `scripts/urmagic_perceptronic.sh`) — also never run on this robot yet.
+  on the pendant, its node data and Pick nodes don't carry over). It installs through Settings →
+  System → URCaps → + only; the stick's auto-install file (`urmagic_perceptronic.sh`, never run
+  on this robot) was removed on 2026-10-08 — keep **Run magic files** off.
 
 ## 2. Computers
 
@@ -78,5 +78,5 @@ this repo's history was `192.168.1.50` (another network). Controller ports are i
 ## 5. Removable media
 
 - **"URE MODELS"** — FAT32 USB stick for the pendant. `scripts/urcap5-usb.sh` puts the
-  current `.urcap`, the `.urcapx` (PolyScope X, for System Manager) and the magic file on
-  it without macOS `._` files, verifies the checksum and ejects.
+  current `.urcap` and the `.urcapx` (PolyScope X, for System Manager) on it without macOS
+  `._` files, removes any old auto-install file, verifies the checksum and ejects.

@@ -12,7 +12,7 @@ down. Reference: `integrations/urcap/README.md` (the node, screen by screen), `D
 
 | | PolyScope 5 (ROBOT.md) | PolyScope X |
 | --- | --- | --- |
-| Install the URCap | USB stick, Settings → URCaps → +, or the magic file | **System Manager** (☰ → System Manager → URCaps → +, the `.urcapx`) or `integrations/urcap/urcapx.py install FILE --host <robot> --replace` (the same urservice endpoint, no Remote needed). Nothing runs from a stick. |
+| Install the URCap | USB stick, Settings → System → URCaps → + | **System Manager** (☰ → System Manager → URCaps → +, the `.urcapx`) or `integrations/urcap/urcapx.py install FILE --host <robot> --replace` (the same urservice endpoint, no Remote needed). Nothing runs from a stick. |
 | Orchestration | Dashboard :29999 | the REST **Robot-API** on :80 (`UR_PLATFORM=polyscopex`, `UR_ROBOT_API_PORT=80`); every mutating call is 403 unless the robot is in **Remote** |
 | Primary / RTDE | always on | **off by default**: Settings → Security → Services → Primary Client interface + RTDE on (admin password), then Lock and Close |
 | Local / Remote | the top-right pendant indicator | Safety Overview (the icon top right) → Operational mode **Automatic** (password) → Control mode **Remote**. **Automatic hides the Application and Program tabs**: node editing and teaching happen in Manual, cockpit-driven moves over Primary in Automatic + Remote |
