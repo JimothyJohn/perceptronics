@@ -503,8 +503,8 @@ def find_parts(
                 if _in_footprint(cpart, surf.local(p.centre), 0.0):
                     rejected.remove(p)
                     blobs.pop(id(p), None)
-            cpart.why = _why_not(cpart, spec, surf, reach, level_ok)
-            cpart.near = _near(cpart, spec)
+            cpart.why = cpart.why or _why_not(cpart, spec, surf, reach, level_ok)  # fusion's own reason first
+            cpart.near = True if cpart.why and cpart.why.startswith("too close") else _near(cpart, spec)
             (parts if cpart.why is None else rejected).append(cpart)
             blobs[id(cpart)] = fusion.grid_cells(w, h, colour_channels, colour, cpart, stride)
     if order:

@@ -65,6 +65,22 @@ def test_a_measurement_is_the_part_within_tolerance_and_says_why_not_otherwise()
     assert tiny.why_not(0.014, 0.012, None) is None
 
 
+def test_a_thing_the_parts_size_in_every_direction_is_too_big_not_parts_touching():
+    # "2 parts touching?" was said of anything a multiple of the length, whatever its other
+    # sides (2026-10-09, a 100 x 60 x 60 thing against a 50 x 30 x 30 part): parts in a row share
+    # the part's height and the other side; otherwise the thing is just too long or too tall
+    spec = PartSpec.from_mm(60, 40, 30, tol_pct=20)
+    assert spec.why_not(0.120, 0.040, 0.030) == "2 parts touching?"
+    assert spec.why_not(0.120, 0.040, None) == "2 parts touching?"  # the height unseen: still may be
+    assert spec.why_not(0.180, 0.040, 0.030) == "3 parts touching?"
+    assert spec.why_not(0.120, 0.080, 0.030) == "4 parts touching?"  # a 2 x 2 of them
+    assert spec.why_not(0.120, 0.080, 0.060) == "too long"  # twice the part every way: one thing
+    assert spec.why_not(0.120, 0.040, 0.060) == "too long"
+    assert spec.why_not(0.120, 0.080, 0.010) == "too long"
+    assert spec.why_not(0.060, 0.040, 0.060) == "too tall"
+    assert spec.why_not(0.120, 0.020, 0.030) == "too long"  # twice as long and half as wide
+
+
 def test_a_box_is_the_part_lying_on_any_of_its_faces():
     spec = PartSpec.from_mm(60, 40, 30, tol_pct=10)
     assert spec.poses() == [(0.06, 0.04, 0.03), (0.06, 0.03, 0.04), (0.04, 0.03, 0.06)]
@@ -223,8 +239,9 @@ def test_without_a_spec_the_foam_block_gate_is_unchanged():
 def test_a_spec_keeps_only_the_part_that_size():
     found, rejects = detect([BLOCK, SMALL, LONG], PartSpec.from_mm(54, 40, 40, tol_pct=15))
     assert [(round(b.major_m * 1000), round(b.minor_m * 1000)) for b in found] == [(54, 40)]
-    # SMALL's footprint fits the 40 x 40 face, which stands 54 tall (a box lies on any face)
-    assert sorted(r["why"] for r in rejects) == ["2 parts touching?", "too flat"]
+    # SMALL's footprint fits the 40 x 40 face, which stands 54 tall (a box lies on any face);
+    # LONG reads 108 x 54: twice the length but a third wider than two parts end to end would be
+    assert sorted(r["why"] for r in rejects) == ["too flat", "too long"]
 
 
 def test_a_spec_can_ask_for_a_part_bigger_than_a_foam_block():

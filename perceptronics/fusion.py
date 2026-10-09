@@ -20,7 +20,20 @@ table, in CIE Lab — Otsu picks the split, so it is not a white gate):
   blob matches best.
 
 The rectangle is the blob's minimum-area rectangle, back-projected onto the surface
-lifted by that height, so it is the colour's outline, not the depth's. numpy + OpenCV
+lifted by that height, so it is the colour's outline, not the depth's — **clipped by the
+depth where the depth is valid** (2026-10-09 on the UR3e): pixels of the blob with depth that
+puts them well below the top are not the top — a side face showing at the picture's edge
+(a block read 50 → 40 mm wide and was refused), a white cable lying off the block (block
+plus cable read 59 × 37 and passed), a cylinder's lead. Holes stay (foam); only valid depth
+below the top band is dropped, only past a blur width from the top (the depth's blurred ring
+just inside the colour's sharp edge reads low too, and belongs to the top), and only when
+enough of the blob remains.
+
+**Too close, not foam** (the same day): a white outline with no depth under it is taken
+for foam and given the part's height — but when the blob's expected top sits nearer the
+camera than the D435 can measure (:data:`MIN_DEPTH_RANGE_M`), no depth means too close,
+and the part is refused with that reason (a 57 mm stack at 0.28 m passed as a 30 mm block).
+numpy + OpenCV
 (the ``vision`` extra); :func:`available` says whether they import, and :func:`colour_parts`
 answers ``[]`` without them so the stdlib path is unchanged on a PC without them.
 """
@@ -47,6 +60,11 @@ OPEN_PX = 5  # the mask's morphological opening: joins pixels, drops specks
 ERODE_PX = 5  # the blob's inner region (off its blurred edge) for the heights
 RECT_FILL = 0.85  # a blob at least this much of its own rectangle: a clean outline, better than the depth's
 DISTANCE_GAIN = 2.0  # Lab distance → 8-bit for Otsu (a 128-unit difference saturates)
+TOP_BAND_M = 0.008  # valid depth this far below the blob's top is not the top: a side face, a cable
+CLIP_KEEP_FRAC = 0.4  # a clip that keeps less of the blob than this is not trusted (the depth is lying)
+# The D435 at 848 x 480 returned depth on a top 0.25 m away and none at 0.22 m (UR3e, 2026-10-09):
+# nearer than this, no depth is the range, not the material.
+MIN_DEPTH_RANGE_M = 0.24
 
 
 def available() -> bool:
@@ -149,7 +167,33 @@ def colour_parts(
         valid = hin[~np.isnan(hin)]
         vfrac = valid.size / max(1, int(inner.sum()))
         standing = valid[valid > half_h]
-        # the rectangle first: the colour's outline, in pixels
+        # the outline clipped by the depth: a pixel with depth that says it is well below the
+        # top (a side face, a cable off the block, the table under a ragged edge) is not the top;
+        # holes stay. Under a top the depth measures, the band hangs from that top; with no
+        # measured top (foam), from the half-height line
+        if standing.size >= MIN_STANDING:
+            floor = float(np.median(standing)) - TOP_BAND_M
+        else:
+            floor = half_h
+        hb = hm[blob]
+        low = ~np.isnan(hb) & (hb < floor)
+        if low.any():
+            kept = blob.copy()
+            kept[blob] = ~low
+            kernel = np.ones((OPEN_PX, OPEN_PX), np.uint8)
+            kept = cv2.morphologyEx(kept.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+            # the depth's blurred ring just inside the colour's edge reads low too: give the
+            # top a blur width back (within the outline) so only what is clearly past it goes
+            r = max(1, math.ceil(BLUR_PER_M * K["fx"]))  # the blur in pixels: 0.8 % of the range
+            kept = cv2.dilate(kept, np.ones((2 * r + 1, 2 * r + 1), np.uint8)).astype(bool) & blob
+            if kept.sum() >= max(MIN_BLOB_PX, CLIP_KEEP_FRAC * area):
+                kn, klab, kstats, _ = cv2.connectedComponentsWithStats(kept.astype(np.uint8), connectivity=8)
+                big = 1 + int(np.argmax(kstats[1:, cv2.CC_STAT_AREA])) if kn > 1 else 0
+                if big:
+                    blob = klab == big
+                    x, y, bw, bh, area = (int(v) for v in kstats[big])
+                    near_edge = x <= EDGE_PX or y <= EDGE_PX or x + bw >= w - EDGE_PX or y + bh >= h - EDGE_PX
+        # the rectangle: the colour's outline, in pixels
         pts = np.column_stack(np.nonzero(blob))[:, ::-1].astype(np.float32)
         (cx, cy), (rw, rh), ang = cv2.minAreaRect(pts)
         box = cv2.boxPoints(((cx, cy), (rw, rh), ang))
@@ -157,6 +201,7 @@ def colour_parts(
         if vfrac >= HOLE_FRAC and standing.size < FLAT_FRAC * max(1, valid.size):
             continue  # flat: paper, tape, a label, a mark on the table
         height = None
+        why = None
         if vfrac < HOLE_FRAC:
             # a material the projector can't see: the spec's height for the face it matches. The
             # few depth pixels such a top does return are wrong, not noisy (foam: a consistent
@@ -168,6 +213,15 @@ def colour_parts(
             b0 = math.dist(p0[1], p0[2])
             height = _spec_height(spec, max(a0, b0), min(a0, b0))
             source = "colour+spec"
+            if height is not None:
+                # unless that top would be nearer than the camera can see: then the holes are
+                # the range, and the thing is as likely a stack as a part
+                top = _on_plane(cx, cy, K, T_bc, surf, height)
+                if top is not None and math.dist(T_bc.translation, top) < MIN_DEPTH_RANGE_M:
+                    why = (
+                        f"too close to the camera to measure ({math.dist(T_bc.translation, top):.2f} m):"
+                        " look from higher up"
+                    )
         if height is None and standing.size >= MIN_STANDING:
             height = float(np.median(standing))
             source = "colour"
@@ -197,6 +251,7 @@ def colour_parts(
         cells = int(area // (stride * stride)) or 1
         out.append(
             Part(
+                why=why,
                 source=source,
                 depth_valid=vfrac,
                 rect_fill=rect_fill,
