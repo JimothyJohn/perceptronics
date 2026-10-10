@@ -39,7 +39,7 @@ Closed on 2026-10-04 without code: no gripper-opening field (the node drives no 
 
 ## Repo (GitHub settings; Nick, by hand)
 
-- 2026-10-01 — **Detach from the fork network.** GitHub still lists `JimothyJohn/perceptronics` as a fork of `Olympus-Controls/UR-utils`, and "Leave fork network" refuses while this repo has a child fork. (1) As `nickarmenta`, delete `nickarmenta/UR-Docker` (Settings → Danger Zone → Delete this repository) — checked 2026-10-01: its two branches (`main`, `feature/realsense-desktop-client`) hold no commit `dev` lacks, no open PRs, no releases, issues disabled. (2) As `JimothyJohn`, `perceptronics` → Settings → General → Danger Zone → **Leave fork network**. (3) Confirm with `gh repo view JimothyJohn/perceptronics --json isFork` (want `false`), then check Dependabot, the `dev` protection rule and auto-merge still work. Local side is done: one remote, `origin`; the three stray PRs on Olympus (#21, #25, #26) are closed. Still a fork on 2026-10-04.
+- Nothing open. The fork detach (2026-10-01) is done: `gh repo view JimothyJohn/perceptronics --json isFork` says `false`, no parent, and Dependabot, the `dev` protection rule (`gate`, `URCap5 gate`) and auto-merge all still work (checked 2026-10-10).
 
 ## Open questions for Nick
 
