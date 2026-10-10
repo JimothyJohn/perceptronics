@@ -1,42 +1,58 @@
 # perceptronics
 
 A depth camera on the robot's wrist finds the part; the **Pounce** node on the
-pendant puts the gripper on it. This page gets it onto a Universal Robots e-Series
-(PolyScope 5).
+pendant puts the gripper on it. This page gets it onto a Universal Robots arm —
+an e-Series on **PolyScope 5**, or a robot on **PolyScope X** (PolyScope 10). The
+steps are the same on both; only the file and the pendant's menu differ.
 
 ## Install it: one USB stick, one file
 
-**1. Download the URCap** (don't rename it):
+**1. Download the URCap** for your pendant (don't rename it):
 
-- [`perceptronic-ps5-0.11.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.11.0.urcap)
+| Pendant | File |
+| --- | --- |
+| **PolyScope 5** (e-Series: UR3e, UR5e, UR10e, UR16e, UR20, UR30 …) | [`perceptronic-ps5-0.11.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.11.0.urcap) |
+| **PolyScope X** (PolyScope 10) | [`perceptronic-0.9.0.urcapx`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-0.9.0.urcapx) |
+
+Not sure which you have? PolyScope 5 shows **Installation** and **Program** tabs
+along the top; PolyScope X has a **☰ menu** top-left with **System Manager** in it.
 
 **2. Copy it onto a USB stick**, at the top, not in a folder. The stick must be
 FAT32 (most sticks are). Eject it properly before you pull it out.
 
-**3. On the pendant:** plug the stick in, then ☰ → **Settings** → **System** →
-**URCaps** → **+** → pick `perceptronic-ps5-0.11.0.urcap` → **Open** → **Restart**
-when PolyScope asks. That's the install: PolyScope's own URCaps screen, the same way
-every URCap goes on. Nothing on the stick runs by itself, and the robot restarts only
-when you tap Restart.
+**3. On the pendant:** plug the stick in, then
 
-**4. Use it.** **Installation** → **URCaps** → **Perceptronic**: type the camera
-computer's address. In your program: *your gripper's Open* → **Pounce** → *your
-gripper's Close*.
+| | PolyScope 5 | PolyScope X |
+| --- | --- | --- |
+| Open the URCaps screen | ☰ → **Settings** → **System** → **URCaps** | ☰ → **System Manager** → **URCaps** (unlock with the admin password) |
+| Add the file | **+** → pick `perceptronic-ps5-0.11.0.urcap` → **Open** | **+** → pick `perceptronic-0.9.0.urcapx` |
+| Finish | **Restart** when PolyScope asks | ☰ → **Reload** |
 
-If the file picker lists a second `._perceptronic-ps5-0.11.0.urcap`, a Mac wrote the
-stick: pick the one **without** `._` (or write the stick with `scripts/urcap5-usb.sh`,
-which leaves those off).
+That's the install: the pendant's own URCaps screen, the same way every URCap goes
+on. Nothing on the stick runs by itself, and the robot restarts only when you tap
+Restart (PolyScope X doesn't restart at all).
+
+**4. Use it.** Open the **Perceive** node and type the camera computer's address —
+on PolyScope 5 under **Installation** → **URCaps** → **Perceive**, on PolyScope X under
+**Application** → **Perceive**. In your program: *your gripper's Open* → **Pounce** →
+*your gripper's Close*.
+
+If the file picker lists a second `._perceptronic-ps5-0.11.0.urcap` (or
+`._perceptronic-0.9.0.urcapx`), a Mac wrote the stick: pick the one **without** `._`
+(or write the stick with `scripts/urcap5-usb.sh`, which leaves those off).
 
 The camera computer (a Raspberry Pi with the D435 on its USB port) is set up once:
-[site/public/quickstart-ur.html](site/public/quickstart-ur.html). PolyScope X installs its URCap
-through System Manager: [integrations/urcap/README.md](integrations/urcap/README.md).
+[site/public/quickstart-ur.html](site/public/quickstart-ur.html). PolyScope X can also
+take the URCap over the network, with no stick, and needs its Primary interface and Remote
+mode switched on once: [integrations/urcap/README.md](integrations/urcap/README.md).
 
-## Developers: rebuilding the URCap
+## Developers: rebuilding the URCaps
 
-**After changing the URCap:** `make urcap5-package` rebuilds
-`integrations/urcap/dist/perceptronic-ps5-<ver>.urcap` (commit it), then
-`scripts/urcap5-usb.sh` writes it to a stick from a Mac without the `._` files Finder
-leaves, and the pendant's URCaps screen installs it as above.
+**After changing a URCap:** `make urcap5-package` rebuilds
+`integrations/urcap/dist/perceptronic-ps5-<ver>.urcap` and `make urcap-package` rebuilds
+`integrations/urcap/dist/perceptronic-<ver>.urcapx` (commit them; a test holds each equal to a
+fresh build). `scripts/urcap5-usb.sh` writes either to a stick from a Mac without the `._`
+files Finder leaves, and the pendant's URCaps screen installs it as above.
 
 ## By hand: a cell in three commands
 
