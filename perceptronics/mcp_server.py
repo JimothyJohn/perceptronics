@@ -32,7 +32,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from urctl.config import RobotConfig
-from urctl.mcp_server import McpServer
+from urctl.mcp_server import MOTION_TOOLS, McpServer
 from urctl.robot import Robot
 from urctl.tools import ToolError  # the one McpServer reports in-band
 
@@ -213,8 +213,15 @@ COCKPIT_TOOLS: list[CockpitTool] = [
         "Use the solved transform from now on and (save=true) write captures/calibration/handeye_<cell>.json "
         "so later starts load it (precedence: PERCEPTRONICS_T_FLANGE_CAMERA env > file > bracket seed). "
         "Refused while the solve has warnings unless force=true.",
-        _schema({"save": {"type": "boolean"}, "force": {"type": "boolean"}}),
-        lambda c, p: c.post("/api/cal/apply", {"save": p.get("save", True), "force": p.get("force", False)}),
+        _schema({"save": {"type": "boolean"}, "force": {"type": "boolean"}, "method": {"type": "string"}}),
+        lambda c, p: c.post(
+            "/api/cal/apply",
+            {
+                "save": p.get("save", True),
+                "force": p.get("force", False),
+                **({"method": p["method"]} if p.get("method") else {}),
+            },
+        ),
     ),
     CockpitTool(
         "cal_reset",
@@ -274,8 +281,29 @@ class CockpitTools:
             return {"ok": False, "error": str(exc)}
 
 
-def build_server(robot: Robot, *, cockpit_url: str | None = None, name: str = "cell") -> McpServer:
-    return McpServer(robot, extra=[CockpitTools(CockpitClient(cockpit_url))], name=name)
+# The vision tools that move the arm through the cockpit: hidden by --no-motion with the robot's.
+VISION_MOTION_TOOLS: frozenset[str] = frozenset({"cam_move_to_approach", "cam_approach_cycle", "cell_jog"})
+
+
+def build_server(
+    robot: Robot,
+    *,
+    cockpit_url: str | None = None,
+    name: str = "cell",
+    vision_only: bool = False,
+    no_motion: bool = False,
+) -> McpServer:
+    """``vision_only``: the camera + cell tools alone (``perceptronics-vision-mcp``), for a
+    customer's agent that must not reach the controller; ``no_motion``: nothing that moves the
+    arm, on either family."""
+    hidden = (MOTION_TOOLS | VISION_MOTION_TOOLS) if no_motion else frozenset()
+    return McpServer(
+        robot,
+        extra=[CockpitTools(CockpitClient(cockpit_url))],
+        name="vision" if vision_only else name,
+        robot_tools=not vision_only,
+        hidden=hidden,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -294,6 +322,18 @@ def main(argv: list[str] | None = None) -> int:
         help=f"running cockpit (default: $PERCEPTRONICS_COCKPIT_URL or {DEFAULT_COCKPIT_URL})",
     )
     ap.add_argument("--dry-run", action="store_true", help="validate + audit robot tool calls, send nothing")
+    ap.add_argument(
+        "--vision-only",
+        action="store_true",
+        help="serve the camera + cell tools only (what perceptronics-vision-mcp does): the agent never "
+        "reaches the controller directly, only the running camera computer",
+    )
+    ap.add_argument(
+        "--no-motion",
+        action="store_true",
+        help="nothing that moves the arm, on either tool family: the readings, finding parts, locating "
+        "a point, the doctor",
+    )
     args = ap.parse_args(argv)
     try:
         cell = apply_cell(args.cell)
@@ -302,11 +342,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     config = RobotConfig.from_env(host=args.host)
     robot = Robot(config, dry_run=args.dry_run)
-    server = build_server(robot, cockpit_url=args.cockpit_url)
+    server = build_server(
+        robot, cockpit_url=args.cockpit_url, vision_only=args.vision_only, no_motion=args.no_motion
+    )
     print(
-        f"perceptronics-mcp: cell {cell.get('cell') or '-'}, robot {config.platform} {config.host}"
-        f"{' (dry-run)' if args.dry_run else ''}, cockpit {server.extra[0].client.url}; "
-        "serving MCP over stdio",
+        f"perceptronics-mcp: cell {cell.get('cell') or '-'}, "
+        + ("vision tools only" if args.vision_only else f"robot {config.platform} {config.host}")
+        + f"{' (dry-run)' if args.dry_run else ''}{' (no motion tools)' if args.no_motion else ''}, "
+        f"cockpit {server.extra[0].client.url}; serving MCP over stdio",
         file=sys.stderr,
     )
     try:
@@ -316,6 +359,29 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         robot.close()
     return 0
+
+
+def tool_rows() -> dict[str, list[str]]:
+    """The Markdown rows MCP.md lists for each server (a test holds the file to them): the
+    tool, the first line of its description, and whether ``--no-motion`` hides it."""
+    from urctl.tools import TOOLS
+
+    def first(text: str) -> str:
+        line = (text or "").strip().split("\n")[0]
+        return line if len(line) <= 95 else line[:92].rsplit(" ", 1)[0] + "…"
+
+    def row(name: str, description: str, moves: bool) -> str:
+        return f"| `{name}` | {first(description)} | {'moves' if moves else ''} |"
+
+    return {
+        "robot": [row(t.name, t.description, t.name in MOTION_TOOLS) for t in TOOLS],
+        "vision": [row(t.name, t.description, t.name in VISION_MOTION_TOOLS) for t in COCKPIT_TOOLS],
+    }
+
+
+def main_vision(argv: list[str] | None = None) -> int:
+    """``perceptronics-vision-mcp``: the camera + cell tools only, over a running camera computer."""
+    return main(["--vision-only", *(sys.argv[1:] if argv is None else argv)])
 
 
 if __name__ == "__main__":

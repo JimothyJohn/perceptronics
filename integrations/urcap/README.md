@@ -8,7 +8,7 @@ realsense-pilot …` (RealSense Pilot).*
 Copyright © 2026 Nick Armenta.
 
 > **e-Series robot on PolyScope 5?** Use the Installation-node build instead:
-> [`perceptronic-ps5/`](perceptronic-ps5/README.md) (`dist/perceptronic-ps5-0.10.0.urcap`).
+> [`perceptronic-ps5/`](perceptronic-ps5/README.md) (`dist/perceptronic-ps5-0.11.0.urcap`).
 
 A URCap for **PolyScope X** (PolyScope 10) robots. It adds a **Perceptronic**
 node under **Application** that shows the live colour feed from an Intel
@@ -40,7 +40,7 @@ this repository). The pendant shows the cockpit's picture over the cell network.
 
 ## Quick start
 
-1. **Download** [`dist/perceptronic-0.8.0.urcapx`](dist/perceptronic-0.8.0.urcapx)
+1. **Download** [`dist/perceptronic-0.9.0.urcapx`](dist/perceptronic-0.9.0.urcapx)
    (on GitHub: open the file, then the download button). The single file is the
    whole URCap.
 2. **Install it** on the robot (see [Install the URCap](#1-install-the-urcap)).
@@ -76,11 +76,11 @@ Pick one of the two ways. You only do this once per robot (and again to update).
 
 ### A. On the pendant, from a USB stick
 
-1. Copy `perceptronic-0.8.0.urcapx` onto a USB stick and plug it into the
+1. Copy `perceptronic-0.9.0.urcapx` onto a USB stick and plug it into the
    teach pendant.
 2. Open the **☰ menu** (top-left) → **System Manager** → **URCaps**, and
    unlock it with the **admin password**.
-3. Add a URCap and pick `perceptronic-0.8.0.urcapx` from the USB stick.
+3. Add a URCap and pick `perceptronic-0.9.0.urcapx` from the USB stick.
 4. When it's listed, open **☰ → Reload**.
    **Perceptronic** now appears under **Application**.
 
@@ -90,7 +90,7 @@ Pick one of the two ways. You only do this once per robot (and again to update).
 to install. Download it next to the `.urcapx` and run:
 
 ```bash
-python3 urcapx.py install perceptronic-0.8.0.urcapx --host <robot-ip> --port 80
+python3 urcapx.py install perceptronic-0.9.0.urcapx --host <robot-ip> --port 80
 ```
 
 It posts the package to the same endpoint PolyScope's System Manager uses, which
@@ -102,7 +102,7 @@ Other commands from the same file:
 
 ```bash
 python3 urcapx.py list --host <robot-ip> --port 80                                          # what's installed
-python3 urcapx.py install perceptronic-0.8.0.urcapx --host <robot-ip> --port 80 --replace   # update
+python3 urcapx.py install perceptronic-0.9.0.urcapx --host <robot-ip> --port 80 --replace   # update
 python3 urcapx.py delete advin perceptronic --host <robot-ip> --port 80        # uninstall
 ```
 
@@ -218,7 +218,9 @@ it. There are no reach margins: which parts can be picked is the arm's kinematic
 2. In it: the live picture, with the parts that will be picked in **green, numbered** in
    the pick order, and the candidates that are nearly the part and will not be in
    **yellow, each with why** (`too long`, `out of reach (no joint solution)`, `no room for
-   a finger beside it`, …); the **Picture / Depth** toggle in its top right corner (the depth
+   a finger beside it`, …) — and, when nothing will be picked, **a banner across the top
+   saying what to check** (0.7.1): the part size entered, the first near miss's measured
+   size with why, and the camera computer's notes; the **Picture / Depth** toggle in its top right corner (the depth
    as a heatmap); the picture points as a grid of numbered buttons — **+** adds one from
    PolyScope's joint positions, **Go** opens PolyScope's move screen to the selected one,
    its second line chooses the pick area it looks at; the **pick order** tiles; **Check
@@ -293,6 +295,9 @@ link behind the cockpit.
 | | Status |
 | --- | --- |
 | Package builds reproducibly; `dist/` equals a fresh build | CI (`tests/test_urcap.py`) |
+| 0.9.0 (2026-10-10): the names Nick chose on 2026-10-04 — the URCap and its Application node are **Perceive**, the program node **Pounce** (service id and tag unchanged, saved programs load); a Log tab on the Application node; the grip hangs from the taught height | PolyScope X sims in CI (`urcapx-matrix.yml`) |
+| 0.8.1 (2026-10-08): quiet while the program runs — the picture shows the program's own last measurement and no banner between its FIND / REFINE (the camera is inside its range as the arm comes down) | unit suite + package only |
+| 0.8.0 (2026-10-08): the tool is the robot's active TCP (pick-server protocol 3, no tool length on the application node — a touch is the TCP pose, `convertJointPositionsToTcpPose`), plain `movej` at the controller's defaults, closer look off by default, **Move** / **Retake** / **Look down** on a picture point | unit suite + package only; not in the simulator or on a robot yet |
 | Installs through the System Manager endpoint in Local mode (201; 409 on duplicate; delete) | PolyScope X **10.13.0 simulator**, 2026-09-26 |
 | Node loads under Application; feed, hover depth, click → segment → locate call; cockpit URL persists across reloads | 10.13.0 simulator, headless Chromium, against a synthetic cockpit |
 | Node tells a CORS refusal from a dead port and prints the fix | 10.13.0 simulator |

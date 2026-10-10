@@ -86,7 +86,7 @@ can drive the same things. The main routes:
 | Route | Does |
 | ----- | ---- |
 | `GET /api/rgbd`, `/api/color.png`, `/api/depth.png` | Frames, each with the flange pose it was taken at |
-| `POST /api/segment`, `/api/objects`; `GET /api/pick/scene` | Segment a click; list every part with its top face; find parts by size |
+| `POST /api/segment`; `GET /api/pick/scene` | Segment a click; find parts by size |
 | `POST /api/robot/locate` | Camera point → base-frame point, approach pose, reachable or not (no motion) |
 | `POST /api/robot/move`, `/api/robot/pick` | Move to a pose; run a full approach or pick |
 | `GET /api/robot/pose`, `/api/info`, `/api/doctor` | Live pose, stream health, pre-flight |

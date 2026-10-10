@@ -34,6 +34,7 @@ REPO = SITE.parent
 PUBLIC = SITE / "public"
 DIST = REPO / "integrations" / "urcap" / "dist"
 SCREENS = REPO / "integrations" / "urcap" / "perceptronic-ps5" / "screens"
+LIVE = PUBLIC / "live"
 # the pendant screens the page shows (all 1000 x 560)
 SCREEN_NAMES = ("pick-part.png", "pick-options.png", "installation-areas.png")
 PRINT_DIR = SITE / "print"
@@ -45,7 +46,7 @@ PRINTS = {
 SHEET_PDF = PRINTS["datasheet.html"]
 QUICKSTART_PDF = PRINTS["quickstart-ur.html"]
 # the datasheet's revision date: move it when its figures or wording change
-SHEET_DATE = "2026-10-03"
+SHEET_DATE = "2026-10-08"
 # the UR Quickstart's revision date
 QUICKSTART_DATE = "2026-10-03"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -190,6 +191,12 @@ def build(out: Path) -> Path:
         shutil.copyfile(DIST / name, out / "downloads" / name)
     for name in SCREEN_NAMES:
         shutil.copyfile(SCREENS / name, out / "screens" / name)
+    # pictures from a cell (public/live/): the bench with a simulated robot on 2026-10-06, the real
+    # UR3e once there is one — the pages caption which
+    if LIVE.is_dir():
+        (out / "live").mkdir()
+        for pic in sorted(LIVE.glob("*.jpg")):
+            shutil.copyfile(pic, out / "live" / pic.name)
     if image:
         (out / "imager.json").write_text(json.dumps(imager_list(image), indent=2) + "\n", encoding="utf-8")
     for pdf in PRINTS.values():

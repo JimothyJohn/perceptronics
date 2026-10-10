@@ -11,6 +11,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -34,9 +35,12 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 /**
- * The PolyScope X node's page, in Swing: title + live dot + fps, the Cockpit field with
- * Save, the colour feed (hover for depth, tap a point, the yellow mark), a status line,
- * the located target, and Move (PolyScope) / Move (cockpit) / Bring up / STOP / Clear.
+ * The PolyScope X node's page, in Swing: title + live dot + fps, then a column of controls
+ * on the left — the Cockpit field with Save, a status line, the located target, and
+ * Move (PolyScope) / Move (cockpit) / Bring up / STOP / Clear — beside the colour feed, which
+ * takes the rest of the page (hover for depth, tap a point, the yellow mark). The picture is
+ * the thing; the controls sit with the other settings on the left, where PolyScope's own
+ * screens keep theirs (Nick, 2026-10-08).
  * "Open cockpit" is gone — the pendant has no browser to open it in. The feed has the
  * Picture / Depth toggle in its top right corner; with no camera its place says what to check
  * (cables, the IP address, the firewall). A second tab holds the pick areas the Pounce node
@@ -65,7 +69,7 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
     private final ViewAPIProvider api;
     private final JLabel dot = new JLabel("●");
     private final JLabel fps = new JLabel("");
-    private final JTextField url = new JTextField(34);
+    private final JTextField url = new JTextField(18);
     private final Feed feed = new Feed();
     private final JTextArea status = area(false);
     private final JTextArea target = area(true);
@@ -76,6 +80,8 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
     private final JButton clear = button("Clear", null, null);
     private PilotContribution node;
     private LocationsScreen areas;
+    /** The controls' column on the left of the camera tab; the picture takes the rest. */
+    static final int CONTROLS = 300;
 
     PilotView(ViewAPIProvider api) {
         this.api = api;
@@ -91,13 +97,22 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         outer.setBackground(Ui.BG);
         outer.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         host.add(outer, BorderLayout.CENTER);
+        // the camera tab: a column of controls on the left, the picture filling the rest
+        JPanel camera = new JPanel(new BorderLayout(12, 0));
+        camera.setOpaque(false);
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        JPanel controls = new JPanel(new BorderLayout());
+        controls.setOpaque(false);
+        controls.setPreferredSize(new Dimension(CONTROLS, 10));
+        controls.add(panel, BorderLayout.NORTH);
+        camera.add(controls, BorderLayout.WEST);
+        camera.add(feed, BorderLayout.CENTER);
         final CardLayout cards = new CardLayout();
         final JPanel deck = new JPanel(cards);
         deck.setOpaque(false);
-        deck.add(panel, "camera");
+        deck.add(camera, "camera");
         areas = new LocationsScreen(contribution);
         deck.add(areas, "areas");
         deck.add(logCard(), "log");
@@ -132,6 +147,7 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         JPanel cockpitRow = row();
         JLabel label = new JLabel("Cockpit");
         label.setForeground(INK);
+        label.setFont(label.getFont().deriveFont(Font.BOLD, 14f));
         url.setFont(url.getFont().deriveFont(16f));
         url.setToolTipText("The pick PC's address: " + Cockpit.DEFAULT_HOST + " out of the box — type another if you changed it");
         url.addMouseListener(new MouseAdapter() {
@@ -151,15 +167,17 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         cockpitRow.add(url);
         cockpitRow.add(save);
         panel.add(cockpitRow);
-
-        feed.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.add(feed);
         panel.add(Box.createVerticalStrut(6));
         panel.add(status);
         panel.add(Box.createVerticalStrut(4));
         panel.add(target);
+        panel.add(Box.createVerticalStrut(6));
 
-        JPanel buttons = row();
+        // the buttons stacked, full width of the column: each is a whole tap target
+        JPanel buttons = new JPanel(new GridLayout(0, 1, 0, 6));
+        buttons.setOpaque(false);
+        buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
+        buttons.setMaximumSize(new Dimension(Integer.MAX_VALUE, 5 * 48 + 4 * 6));
         movePs.setToolTipText("The controller's joint solution + PolyScope's move screen (hold to move)");
         moveCk.setToolTipText("The cockpit moves the arm over Primary through urctl's safety envelope");
         bringUp.setToolTipText("power on + brake release + unlock protective stop, via the cockpit");
@@ -195,12 +213,15 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
             }
         });
         panel.add(buttons);
+        panel.add(Box.createVerticalStrut(8));
 
-        JLabel hint = new JLabel("Tap = segment at the pixel → point in the base frame through the hand-eye → "
-                + "approach pose above it. Reach is checked before a move is offered.");
+        JTextArea hint = area(false);
+        hint.setOpaque(false);
+        hint.setText("Tap a point in the picture: it becomes a point in the base frame through the "
+                + "hand-eye and an approach pose above it. Reach is checked before a move is offered.");
         hint.setForeground(MUTED);
         hint.setFont(hint.getFont().deriveFont(11f));
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         panel.add(hint);
 
         movePs.setEnabled(false);
@@ -420,11 +441,14 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         return a;
     }
 
-    /** The colour feed, scaled to fit, with the tap mark and the hover readout. */
+    /**
+     * The colour feed, scaled to fit whatever room the page gives it (it fills everything
+     * right of the controls), with the tap mark and the hover readout.
+     */
     private final class Feed extends JComponent {
         private static final long serialVersionUID = 1L;
         private static final int W = 640;
-        private static final int H = 362; // 848×480 scaled to 640 wide
+        private static final int H = 362; // 848×480 scaled to 640 wide: the preferred size, not a cap
         transient volatile BufferedImage image;
         volatile String hover = "hover for depth · tap a point";
         volatile boolean live;
@@ -436,7 +460,6 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
 
         Feed() {
             setPreferredSize(new Dimension(W, H));
-            setMaximumSize(new Dimension(W, H));
             setMinimumSize(new Dimension(W / 2, H / 2));
             MouseAdapter m = new MouseAdapter() {
                 @Override
@@ -448,8 +471,9 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     Rectangle shown = drawn();
-                    if (live && shown != null && Ui.ViewToggle.bounds(shown.width, 0).contains(e.getPoint())) {
-                        depth = e.getX() >= Ui.ViewToggle.bounds(shown.width, 0).getCenterX();
+                    if (live && shown != null
+                            && Ui.ViewToggle.bounds(shown.x + shown.width, shown.y).contains(e.getPoint())) {
+                        depth = e.getX() >= Ui.ViewToggle.bounds(shown.x + shown.width, shown.y).getCenterX();
                         repaint();
                         if (node != null) node.setDepthView(depth);
                         return;
@@ -466,13 +490,14 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
             addMouseMotionListener(m);
         }
 
+        /** Where the picture is drawn: scaled to fit, centred in whatever room the page gives. */
         private Rectangle drawn() {
             BufferedImage img = image;
             if (img == null) return null;
             double s = Math.min(getWidth() / (double) img.getWidth(), getHeight() / (double) img.getHeight());
             int w = (int) Math.round(img.getWidth() * s);
             int h = (int) Math.round(img.getHeight() * s);
-            return new Rectangle(0, 0, w, h);
+            return new Rectangle((getWidth() - w) / 2, (getHeight() - h) / 2, w, h);
         }
 
         private int[] pixelOf(MouseEvent e) {
@@ -482,8 +507,8 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
             // in the colour picture's pixels, whichever view is shown
             int cw = colourWidth > 0 ? colourWidth : img.getWidth();
             int ch = (int) Math.round(cw * (img.getHeight() / (double) img.getWidth()));
-            int x = (int) Math.round(e.getX() * (cw / (double) r.width));
-            int y = (int) Math.round(e.getY() * (ch / (double) r.height));
+            int x = (int) Math.round((e.getX() - r.x) * (cw / (double) r.width));
+            int y = (int) Math.round((e.getY() - r.y) * (ch / (double) r.height));
             return new int[] {Math.max(0, Math.min(cw - 1, x)), Math.max(0, Math.min(ch - 1, y))};
         }
 
@@ -519,11 +544,12 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
             if (h != null && !h.isEmpty()) {
                 g.setFont(getFont().deriveFont(12f));
                 int tw = g.getFontMetrics().stringWidth(h);
-                int y = (r != null ? r.height : getHeight()) - 8;
+                int x = r != null ? r.x : 0;
+                int y = (r != null ? r.y + r.height : getHeight()) - 8;
                 g.setColor(new Color(15, 22, 32, 204));
-                g.fillRoundRect(8, y - 18, tw + 16, 22, 8, 8);
+                g.fillRoundRect(x + 8, y - 18, tw + 16, 22, 8, 8);
                 g.setColor(new Color(0xe8eef6));
-                g.drawString(h, 16, y - 3);
+                g.drawString(h, x + 16, y - 3);
             }
             g.dispose();
         }

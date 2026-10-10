@@ -153,16 +153,25 @@ class PartSpec:
         self, pose, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
     ) -> str | None:
         length, width, height = pose
-        lo, hi = lambda d: d - self.slack(d, floor_m), lambda d: d + self.slack(d, floor_m)  # noqa: E731
+        sl = lambda d: self.slack(d, floor_m)  # noqa: E731
+        lo, hi = lambda d: d - sl(d), lambda d: d + sl(d)  # noqa: E731
+
+        def multiple(got: float, want: float) -> int:
+            """How many parts long this side is: 1 the part's own, n parts in a row, 0 neither."""
+            if got <= hi(want):
+                return 1 if got >= lo(want) else 0
+            n = round(got / want)
+            return n if n >= 2 and abs(got - n * want) <= sl(n * want) else 0
+
+        # parts touching share the part's height, and the sides that are not n parts long are the
+        # part's own: a thing twice the part every way is one big thing, not two parts (2026-10-09)
+        n, m = multiple(major_m, length), multiple(minor_m, width)
+        fits_h = height is None or height_m is None or lo(height) <= height_m <= hi(height)
+        if n * m > 1 and fits_h:
+            return f"{n * m} parts touching?"
         if major_m > hi(length):
-            n = round(major_m / length)
-            if n >= 2 and abs(major_m - n * length) <= self.slack(n * length, floor_m):
-                return f"{n} parts touching?"
             return "too long"
         if minor_m > hi(width):
-            n = round(minor_m / width)
-            if n >= 2 and abs(minor_m - n * width) <= self.slack(n * width, floor_m):
-                return f"{n} parts touching?"
             return "too wide"
         if major_m < lo(length):
             return "too short"

@@ -22,9 +22,12 @@ is a client, the same way the MCP tools are. The routine:
 Every phase is an event with a wall-clock stamp (``events.json``), and
 ``--record DIR`` saves the wrist feed alongside, stamped, for a timelapse.
 
-The fingertip length is the one number the routine cannot see: ``tip_m``
-(Hand-E 157 mm + the 6 mm bracket adapter by default). The tool axis may be
-tilted, so every target is placed for the **tip**, ``flange = tip − R·(0,0,L)``.
+The fingertip length, ``tip_m``, is the robot's own: the Z of its active TCP offset,
+read with the first flange pose (Nick, 2026-10-08: tool offsets live in the robot). The
+routine moves flange poses (``tcp=[0]*6``), and the tool axis may be tilted, so every
+target is placed for the **tip**, ``flange = tip − R·(0,0,L)``. An offset with X, Y or a
+rotation is honoured only along Z — this routine predates the Pounce node, which works
+in the TCP frame itself.
 """
 
 from __future__ import annotations
@@ -46,7 +49,6 @@ from urctl.config import RobotConfig
 from urctl.pose import Transform
 from urctl.robot import Robot
 
-from .handeye import DEFAULT_TIP_M, tip_m_from_env
 from .partspec import PartSpec
 from .pngio import load_png
 
@@ -483,7 +485,7 @@ class Block:
 class PickCycle:
     cockpit: Cockpit = field(default_factory=Cockpit)
     robot: Robot | None = None  # direct drive: motion + gripper over Primary as compiled programs
-    tip_m: float = DEFAULT_TIP_M
+    tip_m: float | None = None  # resolved from the robot's active TCP offset (its Z) at the first use
     hover_mm: float = 40.0
     look_mm: float = 90.0  # the second look: camera ≥ 0.25 m from the top (D435 range)
     grasp_below_mm: float = 15.0
@@ -530,13 +532,30 @@ class PickCycle:
             r = self.robot.get_flange_pose(stand_in=False)
             if not r.get("ok"):
                 raise CockpitError(r.get("error") or "no flange pose")
+            self._take_tip(r.get("tcp_offset"))
             return list(r["flange"])
         r = self.cockpit.post(
             "/api/robot/locate", {"standoff_m": 0.2, "reference": "flange", "point_m": [0, 0, 0.3]}
         )
         if not r.get("flange_pose"):
             raise CockpitError(r.get("error") or "no flange pose")
+        self._take_tip(r.get("tcp_offset"))
         return r["flange_pose"]
+
+    def _take_tip(self, tcp_offset) -> None:
+        """The fingertip length from the robot's active TCP offset, once (its Z; 0 when the
+        controller reports none — then the flange is the tool)."""
+        if self.tip_m is not None:
+            return
+        off = list(tcp_offset) if tcp_offset else None
+        self.tip_m = float(off[2]) if off and len(off) == 6 and math.isfinite(off[2]) else 0.0
+        side = math.hypot(off[0], off[1]) if off and len(off) == 6 else 0.0
+        aside = f" (and {side * 1000:.0f} mm off its axis, ignored here)" if side > 0.002 else ""
+        self.say(
+            f"tool: the robot's active TCP puts the fingertips {self.tip_m * 1000:.0f} mm along the flange Z"
+            + aside
+            + ("" if off else " — no offset reported: the flange is the tool")
+        )
 
     def _move(self, pose: Sequence[float], v: float | None = None) -> dict:
         if self.dry_run:
@@ -914,7 +933,8 @@ class PickCycle:
                     probe()  # the reach cap is sized from the model on first use
                 reach = self.robot.max_reach
                 lean = math.radians(max(self.leans_deg or (0.0,)))
-                limit = float(reach() if callable(reach) else reach) - 0.05 + self.tip_m * math.sin(lean)
+                tip = self.tip_m or 0.0  # resolved with the first flange read; the robot's TCP offset
+                limit = float(reach() if callable(reach) else reach) - 0.05 + tip * math.sin(lean)
             except Exception:
                 limit = 0.0
         if limit and r > limit:
@@ -1065,12 +1085,6 @@ def add_pick_cycle_args(ap) -> None:
         action="store_true",
         help="after the in-place pass, drop each block from --drop-mm to shuffle",
     )
-    ap.add_argument(
-        "--tip-m",
-        type=float,
-        default=None,
-        help="flange-to-fingertip length (default: $PERCEPTRONICS_TIP_M, else 0.163 Hand-E + adapter)",
-    )
     ap.add_argument("--lift-mm", type=float, default=25.4, help="in-place lift (default 25.4 = one inch)")
     ap.add_argument("--drop-mm", type=float, default=120.0, help="release height for the drop pass")
     ap.add_argument(
@@ -1149,7 +1163,6 @@ def run_pick_cycle(args) -> int:
         velocity=args.velocity,
         min_radius_m=args.min_radius_m,
         max_radius_m=args.max_radius_m,
-        tip_m=tip_m_from_env() if args.tip_m is None else args.tip_m,
         lift_mm=args.lift_mm,
         drop_mm=args.drop_mm,
         grasp_below_mm=args.grasp_below_mm,

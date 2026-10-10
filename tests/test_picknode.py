@@ -28,9 +28,11 @@ from perceptronics.picknode import (
     parse_request,
 )
 from tests.test_pickcycle import H, K, SceneCamera, W, scene
-from urctl.pose import Transform, pose_trans
+from urctl.pose import Transform, pose_inv, pose_trans
 
-TIP = 0.163
+TOOL = [0.0, 0.0, 0.163, 0.0, 0.0, 0.0]  # a Hand-E as the robot's TCP: flange → fingertips
+Z = " tcp=p[0, 0, 0, 0, 0, 0]"  # the robot's TCP at the flange: every request names its offset (0.10.0)
+SHORT = [0.0, 0.0, 0.05, 0.0, 0.0, 0.0]
 FLANGE = [0.40, 0.0, 0.50, 0.0, math.pi, 0.0]  # tool straight down, 0.5 m up
 CAMERA_AT_FLANGE = [0.0] * 6  # hand-eye: the colour camera is the flange frame
 
@@ -45,29 +47,34 @@ def planner(frames=None, *, handeye=CAMERA_AT_FLANGE, log=None, **kw):
         rgb, depth = frames[min(len(frames) - 1, seq["n"] % max(1, len(frames)))]
         return seq["n"], W, H, 3, rgb, depth, 0.001, K
 
-    return PickPlanner(source, lambda: seq["n"], lambda: handeye, tip_m=TIP, log=log, **kw)
+    return PickPlanner(source, lambda: seq["n"], lambda: handeye, log=log, **kw)
 
 
 def reply(p: PickPlanner, line: str) -> list[float]:
+    """The first ten numbers of the answer: status, centre, pose (protocol 3 sends 16, the
+    loc / order / remaining / size after them; LOOK and protocol 1 send ten)."""
     text = p.answer(line)
     assert text.startswith("(") and text.endswith(")\n")
     vals = [float(v) for v in text[1:-2].split(",")]
-    assert len(vals) == 10
-    return vals
+    assert len(vals) in (10, 16)
+    return vals[:10]
 
 
 def find(p, flange=FLANGE, extra=""):
-    return reply(p, f"FIND p[{', '.join(str(v) for v in flange)}]{extra}")
+    """A FIND carrying a zero TCP offset: the TCP is the flange, so the answers are flange
+    poses with the flange itself on the part (the legacy detector, protocol 1)."""
+    return reply(p, f"FIND p[{', '.join(str(v) for v in flange)}]{extra} tcp=p[0, 0, 0, 0, 0, 0]")
 
 
 # -- the answer -------------------------------------------------------------------------------
 
 
-def test_the_reply_puts_the_fingertips_on_the_top_centre_straight_down():
+def test_the_reply_puts_the_tcp_on_the_top_centre_straight_down():
+    """Protocol 3 (2026-10-08): the answer is a pose of the robot's TCP frame — the tool as
+    the pendant has it — with its origin on the part. No tool length of the server's."""
     st, cx, cy, cz, *pose = find(planner())
     assert st == 1
-    tips = pose_trans(pose, [0.0, 0.0, TIP, 0.0, 0.0, 0.0])
-    assert tips[:3] == pytest.approx([cx, cy, cz], abs=1e-6)
+    assert pose[:3] == pytest.approx([cx, cy, cz], abs=1e-6)
     # the block's top is 0.36 m from the camera, which looks straight down from 0.5 m
     assert cz == pytest.approx(0.14, abs=0.005)
     tool_z = Transform.from_pose(pose).rotate((0.0, 0.0, 1.0))
@@ -99,10 +106,11 @@ def test_refine_finds_the_block_near_the_first_answer_and_only_that():
     p = planner()
     first = find(p)
     again = reply(
-        p, f"REFINE p[{', '.join(map(str, FLANGE))}] p[{first[1]}, {first[2]}, {first[3]}, 0, 0, 0]"
+        p, f"REFINE p[{', '.join(map(str, FLANGE))}] p[{first[1]}, {first[2]}, {first[3]}, 0, 0, 0]{Z}"
     )
     assert again[0] == 1 and again[1:4] == pytest.approx(first[1:4], abs=1e-6)
-    lost = reply(p, f"REFINE p[{', '.join(map(str, FLANGE))}] p[{first[1] + 0.2}, {first[2]}, 0.1, 0, 0, 0]")
+    far = f"p[{first[1] + 0.2}, {first[2]}, 0.1, 0, 0, 0]"
+    lost = reply(p, f"REFINE p[{', '.join(map(str, FLANGE))}] {far}{Z}")
     assert lost[0] == -5 and lost[1:] == [0.0] * 9
 
 
@@ -126,16 +134,14 @@ def test_blocks_the_gripper_cannot_take_are_refused_with_a_reason(kw, flange, st
 
 def test_no_hand_eye_no_frame_no_blocks():
     assert find(planner(handeye=None))[0] == -3
-    empty = PickPlanner(lambda after: None, lambda: 0, lambda: CAMERA_AT_FLANGE, tip_m=TIP)
+    empty = PickPlanner(lambda after: None, lambda: 0, lambda: CAMERA_AT_FLANGE)
     assert find(empty)[0] == -4
     assert find(planner([scene([])]))[0] == 0
 
 
 def test_the_frame_used_is_newer_than_the_request():
     asked = []
-    p = PickPlanner(
-        lambda after: asked.append(after) or None, lambda: 41, lambda: CAMERA_AT_FLANGE, tip_m=TIP
-    )
+    p = PickPlanner(lambda after: asked.append(after) or None, lambda: 41, lambda: CAMERA_AT_FLANGE)
     find(p)
     assert asked == [42]  # arrival seq 41 + 2 fresh frames - 1: a frame exposed after the arm stopped
 
@@ -148,6 +154,8 @@ def test_urscripts_to_str_pose_parses():
     req = parse_request("FIND p[0.4, -0.2, 0.3, 3.14159, 0, -1.2e-05] u=412 v=233\n")
     assert req == {
         "verb": "FIND",
+        "tcp_pose": [0.4, -0.2, 0.3, 3.14159, 0.0, -1.2e-05],
+        "tcp_offset": [0.0] * 6,  # none sent: the TCP is the flange
         "flange": [0.4, -0.2, 0.3, 3.14159, 0.0, -1.2e-05],
         "lean": 0.0,
         "pixel": (412, 233),
@@ -226,11 +234,14 @@ def _rpc(port: int, lines: list[bytes], timeout=5.0) -> list[str]:
 
 def test_find_then_refine_on_one_connection_as_the_node_sends_them(server):
     pose = ", ".join(map(str, FLANGE))
-    first = _rpc(server, [f"FIND p[{pose}]\n".encode()])[0]
+    first = _rpc(server, [f"FIND p[{pose}]{Z}\n".encode()])[0]
     c = [float(v) for v in first[1:-1].split(",")][1:4]
     a, b = _rpc(
         server,
-        [f"FIND p[{pose}]\n".encode(), f"REFINE p[{pose}] p[{c[0]}, {c[1]}, {c[2]}, 0, 0, 0]\n".encode()],
+        [
+            f"FIND p[{pose}]{Z}\n".encode(),
+            f"REFINE p[{pose}] p[{c[0]}, {c[1]}, {c[2]}, 0, 0, 0]{Z}\n".encode(),
+        ],
     )
     assert a.startswith("(1.0") and b.startswith("(1.0")
 
@@ -252,7 +263,7 @@ def test_many_controllers_at_once_each_get_their_own_answer(server):
 
     def one():
         try:
-            results.append(_rpc(server, [f"FIND p[{pose}]\n".encode()] * 3))
+            results.append(_rpc(server, [f"FIND p[{pose}]{Z}\n".encode()] * 3))
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
@@ -309,8 +320,8 @@ def test_the_teach_time_preview_gives_hover_and_grip_in_the_active_tcp():
     finally:
         app.stop()
     assert out["ok"], out
-    tips = lambda pose: pose_trans(pose, [0.0, 0.0, link.tip_m, 0.0, 0.0, 0.0])[:3]  # noqa: E731
-    # fingertips 40 mm above the top centre, and 15 mm below it, along the tool axis
+    tips = lambda pose: list(pose[:3])  # noqa: E731 — the TCP frame's origin (the dry-run robot's TCP is the flange)
+    # the TCP 40 mm above the top centre, and 15 mm below it, along the tool axis
     assert math.dist(tips(out["hover_pose"]), out["centre"]) == pytest.approx(0.040, abs=1e-6)
     assert math.dist(tips(out["grip_pose"]), out["centre"]) == pytest.approx(0.015, abs=1e-6)
     # the dry-run link's active TCP is the flange: the PolyScope poses equal the flange poses
@@ -332,36 +343,47 @@ def _camera(flange, handeye):
         [-0.2, 0.30, 0.80, 0.3, 2.9, 0.1],
     ],
 )
-def test_the_look_pose_puts_the_camera_halfway_and_the_block_clear_of_the_gripper(flange):
-    from perceptronics.picknode import LOOK_AIM_DEG, LOOK_MIN_M, gripper_bearing, look_pose
+def test_the_look_pose_puts_the_camera_straight_above_the_block_looking_down(flange):
+    """Nick, at the UR3e 2026-10-08: "the closer look is supposed to move above the part
+    similar to the approach position" — the camera over the top centre, optical axis
+    vertical, the block dead centre, halfway down from where the camera was (never
+    nearer than LOOK_MIN_M)."""
+    from perceptronics.picknode import LOOK_AIM_DEG, LOOK_MIN_M, look_pose
 
+    assert LOOK_AIM_DEG == 0.0
     handeye = [0.0133, 0.0553, 0.0129, 0.10, -0.164, 3.119]  # the UR3e bracket's solve
     top = [0.25, 0.30, -0.26]
-    pose = look_pose(flange, top, handeye, TIP)
+    pose = look_pose(flange, top, handeye, TOOL)  # a TCP-frame pose: back to the flange for the camera
     assert pose is not None
-    before, after = _camera(flange, handeye), _camera(pose, handeye)
-    d0 = math.dist(before.translation, top)
-    d1 = math.dist(after.translation, top)
-    assert d1 == pytest.approx(max(LOOK_MIN_M, d0 / 2), abs=0.02) or d1 > d0 / 2  # halfway, or backed out
-    assert LOOK_MIN_M - 1e-9 <= d1 <= d0 + 1e-9
-    # the block is LOOK_AIM_DEG off the optical axis, on the side away from the gripper: the
-    # open fingers hang in the picture, and a block in its middle is half hidden behind them
+    before, after = _camera(flange, handeye), _camera(pose_trans(pose, pose_inv(TOOL)), handeye)
+    h0 = before.translation[2] - top[2]
+    # straight above the top, looking straight down
+    assert after.translation[:2] == pytest.approx(top[:2], abs=1e-9)
+    assert after.rotate((0.0, 0.0, 1.0)) == pytest.approx([0.0, 0.0, -1.0], abs=1e-9)
+    # halfway down, never nearer than the D435's floor, or backed up for the fingertips
+    h1 = after.translation[2] - top[2]
+    assert h1 == pytest.approx(max(LOOK_MIN_M, h0 / 2), abs=0.02) or h1 > h0 / 2
+    assert LOOK_MIN_M - 1e-9 <= h1 <= max(h0, LOOK_MIN_M + 0.10) + 1e-9
+    # the block in the middle of the picture
     x, y, z = after.inverse().apply(top)
-    assert math.degrees(math.atan2(math.hypot(x, y), z)) == pytest.approx(LOOK_AIM_DEG, abs=1e-6)
-    gx, gy = gripper_bearing(handeye, TIP)
+    assert math.hypot(x, y) < 1e-9 and z > 0
+    # the TCP (the fingertips) stays clear of the top
+    assert pose[2] >= top[2] + 0.06 - 1e-9
+
+
+def test_a_non_zero_aim_still_keeps_the_block_off_the_gripper_side():
+    """The 12° aim of 0.3.0–0.9.1 is kept as an option: the block leaves the axis on the
+    side away from the open fingers."""
+    from perceptronics.picknode import gripper_bearing, look_pose
+
+    handeye = [0.0133, 0.0553, 0.0129, 0.10, -0.164, 3.119]
+    top = [0.25, 0.30, -0.26]
+    pose = look_pose([0.30, 0.10, 0.60, 0.0, math.pi, 0.0], top, handeye, TOOL, aim_deg=12.0)
+    assert pose is not None
+    x, y, z = _camera(pose_trans(pose, pose_inv(TOOL)), handeye).inverse().apply(top)
+    assert math.degrees(math.atan2(math.hypot(x, y), z)) == pytest.approx(12.0, abs=1e-6)
+    gx, gy = gripper_bearing(handeye, TOOL)
     assert (x * gx + y * gy) / math.hypot(x, y) == pytest.approx(-1.0, abs=1e-9)
-    # ... which puts every fingertip at least 20 deg from it (it was 9 deg from the nearest)
-    for side in (0.0, 0.025, -0.025):
-        fx, fy, fz = Transform.from_pose(handeye).inverse().apply((0.0, side, TIP))
-        cos = (x * fx + y * fy + z * fz) / (math.hypot(x, y, z) * math.hypot(fx, fy, fz))
-        assert math.degrees(math.acos(cos)) > 20.0
-    # on the line from where the camera was: it moved toward the block, not sideways
-    away0 = [(before.translation[i] - top[i]) / d0 for i in range(3)]
-    away1 = [(after.translation[i] - top[i]) / d1 for i in range(3)]
-    assert away0 == pytest.approx(away1, abs=1e-9)
-    # the fingertips stay clear of the top
-    tip = Transform.from_pose(pose).apply((0.0, 0.0, TIP))
-    assert tip[2] >= top[2] + 0.06 - 1e-9
 
 
 def test_a_camera_already_close_is_not_moved_nearer_than_the_d435_can_see():
@@ -369,9 +391,10 @@ def test_a_camera_already_close_is_not_moved_nearer_than_the_d435_can_see():
 
     top = [0.40, 0.0, 0.0]
     flange = [0.40, 0.0, LOOK_MIN_M + 0.02, 0.0, math.pi, 0.0]  # camera 0.27 m straight above
-    pose = look_pose(flange, top, CAMERA_AT_FLANGE, 0.05)
+    pose = look_pose(flange, top, CAMERA_AT_FLANGE, SHORT)
     assert pose is not None
-    assert math.dist(Transform.from_pose(pose).translation, top) >= LOOK_MIN_M - 1e-9
+    camera = pose_trans(pose, pose_inv(SHORT))
+    assert math.dist(Transform.from_pose(camera).translation, top) >= LOOK_MIN_M - 1e-9
 
 
 def test_a_camera_nearer_than_the_d435_can_see_backs_out_to_look():
@@ -380,18 +403,19 @@ def test_a_camera_nearer_than_the_d435_can_see_backs_out_to_look():
 
     top = [0.40, 0.0, 0.0]
     flange = [0.40, 0.0, 0.12, 0.0, math.pi, 0.0]  # camera 0.12 m above the part: blind
-    pose = look_pose(flange, top, CAMERA_AT_FLANGE, 0.05)
+    pose = look_pose(flange, top, CAMERA_AT_FLANGE, SHORT)
     assert pose is not None
-    assert math.dist(Transform.from_pose(pose).translation, top) >= LOOK_MIN_M - 1e-9
+    camera = pose_trans(pose, pose_inv(SHORT))
+    assert math.dist(Transform.from_pose(camera).translation, top) >= LOOK_MIN_M - 1e-9
 
 
 def test_a_gripper_on_the_optical_axis_gives_no_side_to_aim_away_from():
     from perceptronics.picknode import gripper_bearing, look_pose
 
-    assert gripper_bearing(CAMERA_AT_FLANGE, TIP, stroke_m=0.0) == (0.0, 0.0)
+    assert gripper_bearing(CAMERA_AT_FLANGE, TOOL, stroke_m=0.0) == (0.0, 0.0)
     top = [0.40, 0.0, 0.0]
-    pose = look_pose([0.40, 0.0, 0.7, 0.0, math.pi, 0.0], top, CAMERA_AT_FLANGE, 0.05, stroke_m=0.0)
-    x, y, _ = Transform.from_pose(pose).inverse().apply(top)
+    pose = look_pose([0.40, 0.0, 0.7, 0.0, math.pi, 0.0], top, CAMERA_AT_FLANGE, SHORT, stroke_m=0.0)
+    x, y, _ = Transform.from_pose(pose_trans(pose, pose_inv(SHORT))).inverse().apply(top)
     assert math.hypot(x, y) < 1e-9  # dead centre, as before
 
 
@@ -400,14 +424,57 @@ def test_no_look_pose_when_the_tool_would_tip_past_the_limit():
 
     # camera level with the block, 0.5 m away sideways: aiming at it means a horizontal tool
     flange = [0.9, 0.0, 0.0, 0.0, math.pi / 2, 0.0]
-    assert look_pose(flange, [0.4, 0.0, 0.0], CAMERA_AT_FLANGE, TIP) is None
+    assert look_pose(flange, [0.4, 0.0, 0.0], CAMERA_AT_FLANGE, TOOL) is None
 
 
 def test_look_over_the_socket_answers_with_the_pose_and_needs_a_hand_eye():
-    line = f"LOOK p[{', '.join(str(v) for v in FLANGE)}] p[0.45, 0.02, 0.0, 0, 0, 0]"
+    line = f"LOOK p[{', '.join(str(v) for v in FLANGE)}] p[0.45, 0.02, 0.0, 0, 0, 0]{Z}"
     vals = reply(planner(), line)
     assert vals[0] == 1.0 and vals[1:4] == pytest.approx([0.45, 0.02, 0.0])
     assert reply(planner(handeye=None), line)[0] == -3.0
+
+
+# -- protocol 3 (2026-10-08): the tool offset comes from the robot with every request --------
+
+
+def test_a_request_carrying_the_robots_tcp_is_answered_in_that_frame():
+    """The 0.10.0 node sends its pose under the active TCP and the offset itself; the answer
+    is where that TCP goes (its origin on the part) — the flange is the offset behind it,
+    whatever the tool. The server never needs a tool length."""
+    offset = [0.0, -0.035, 0.163, 0.0, 0.0, 0.3]  # a Hand-E set as the TCP, with a twist and a sideways step
+    tcp_now = pose_trans(FLANGE, offset)
+    line = f"FIND p[{', '.join(str(v) for v in tcp_now)}] tcp=p[{', '.join(str(v) for v in offset)}]"
+    st, cx, cy, cz, *pose = reply(planner(), line)[:10]
+    assert st == 1
+    assert pose[:3] == pytest.approx([cx, cy, cz], abs=1e-6)  # the TCP on the top centre …
+    tool_z = Transform.from_pose(pose).rotate((0.0, 0.0, 1.0))
+    assert tool_z[2] == pytest.approx(-1.0, abs=1e-6)  # … pointing straight down
+    flange = pose_trans(pose, pose_inv(offset))  # the flange the node's movej puts there
+    assert flange[2] == pytest.approx(cz + 0.163, abs=1e-6)
+    # the camera was placed through the flange, not the TCP: the part is where the picture says
+    bare = find(planner())[:4]
+    assert bare[1:4] == pytest.approx([cx, cy, cz], abs=1e-6)
+
+
+def test_a_node_older_than_the_server_is_told_to_update_not_answered():
+    """A 0.9.x node zeroed the TCP and expected flange poses for its own 163 mm: answering it
+    in the TCP frame would drive the flange into the part — it gets -14 instead."""
+    from perceptronics.picknode import STATUS
+
+    assert "update" in STATUS[-14]
+    flange = f"p[{', '.join(str(v) for v in FLANGE)}]"
+    numbers = lambda line: [float(v) for v in planner().answer(line)[1:-2].split(",")]  # noqa: E731
+    assert numbers(f"FIND {flange} proto=2 node=a1 locs=1")[:2] == [-14.0, 0.0]
+    assert len(numbers(f"FIND {flange} proto=2 node=a1 locs=1")) == 16  # in protocol 2's shape
+    assert numbers(f"FIND {flange}") == [-14.0] + [0.0] * 9  # protocol 1 (0.3.0): 10 numbers
+    assert numbers(f"LOOK {flange} p[0.45, 0.02, 0.0, 0, 0, 0]") == [-14.0] + [0.0] * 9
+    assert numbers(f"FIND {flange}{Z}")[0] == 1.0  # the offset given (zero): the TCP is the flange, answered
+
+
+def test_a_malformed_tcp_offset_is_refused():
+    flange = f"p[{', '.join(str(v) for v in FLANGE)}]"
+    for bad in ("tcp=p[0,0]", "tcp=[0,0,0,0,0,0]", "tcp=p[0,0,5,0,0,0]", "tcp=p[nan,0,0,0,0,0]"):
+        assert reply(planner(), f"FIND {flange} {bad}")[0] == -9.0, bad
 
 
 # -- LOG: the program's own trace ------------------------------------------------------------------
@@ -431,7 +498,7 @@ def test_log_then_find_on_one_connection_reads_the_find_answer(server):
         f = s.makefile("rwb")
         f.write(b"LOG start\n")
         f.write(b"LOG \xff\xfe not ascii\n")
-        f.write(f"FIND p[{', '.join(str(v) for v in FLANGE)}]\n".encode())
+        f.write(f"FIND p[{', '.join(str(v) for v in FLANGE)}]{Z}\n".encode())
         f.flush()
         first = f.readline().decode()
     assert first.startswith("(1.0")  # LOG sent nothing back, so the first reply is FIND's
@@ -473,8 +540,8 @@ def test_refine_holds_the_part_to_the_same_size():
     assert first[0] == 1
     near = f"p[{first[1]}, {first[2]}, {first[3]}, 0, 0, 0]"
     flange = f"p[{', '.join(map(str, FLANGE))}]"
-    assert reply(p, f"REFINE {flange} {near}{PART} lean=0")[0] == 1
-    assert reply(p, f"REFINE {flange} {near} part=100x80 lean=12")[0] == -5
+    assert reply(p, f"REFINE {flange} {near}{PART}{Z} lean=0")[0] == 1
+    assert reply(p, f"REFINE {flange} {near} part=100x80{Z} lean=12")[0] == -5
 
 
 def test_the_node_teach_screen_sees_the_rejects_and_why():
@@ -483,7 +550,7 @@ def test_the_node_teach_screen_sees_the_rejects_and_why():
 
     rgb, depth = TWO_SIZES[0]
     frame = (7, W, H, 3, rgb, depth, 0.001, K)
-    out = detect_report(frame, pick_port=7622, handeye=True, tip_m=TIP, part=PartSpec.from_mm(54, 40, 40, 15))
+    out = detect_report(frame, pick_port=7622, handeye=True, part=PartSpec.from_mm(54, 40, 40, 15))
     assert out["part"] == {
         "length_mm": 54.0,
         "width_mm": 40.0,
@@ -494,5 +561,5 @@ def test_the_node_teach_screen_sees_the_rejects_and_why():
     assert [b["size_mm"] for b in out["blocks"]] == [[54, 43]] and out["blocks"][0]["height_mm"] == 40
     # 43 x 43 is the part's 40 x 40 end face, which stands 54 tall (a box lies on any face)
     assert [(r["size_mm"], r["why"]) for r in out["rejected"]] == [([43, 43], "too flat")]
-    plain = detect_report(frame, pick_port=7622, handeye=True, tip_m=TIP)
+    plain = detect_report(frame, pick_port=7622, handeye=True)
     assert plain["part"] is None and len(plain["blocks"]) == 2 and plain["rejected"] == []

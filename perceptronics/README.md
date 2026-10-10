@@ -123,15 +123,14 @@ The Object panel has a **Robot** section. With a segment that has depth:
    `p_base = T_base_flange · T_flange_depth · T_depth_color · p_color`. It
    shows every intermediate frame plus an **approach pose**: the TCP placed
    *standoff* metres short of the point along the camera's viewing ray, with
-   the tool's current orientation. Nothing moves. The panel's **from** picks
-   what the standoff is measured to: the active TCP, or the tool **flange**
-   (`reference: "flange"` — the flange target is converted to the TCP pose
-   `movel` takes through the live active-TCP offset). Use flange when the
-   controller's active TCP is not the physical tool (the UR3e's 223 mm
-   training TCP; the cell file says `PERCEPTRONICS_APPROACH_REFERENCE=flange`,
-   `PERCEPTRONICS_STANDOFF_M=0.075` — "flange 75 mm above the part"). Locate also
-   reports `reachable` against the arm's reach; the Move button stays disabled
-   when it is false.
+   the tool's current orientation. Nothing moves. The standoff is measured to the
+   robot's **active TCP** — the tool as the pendant has it; the cockpit carries no
+   tool length of its own (Nick, 2026-10-08) — or, for the calibration and explicit
+   callers, to the tool **flange** (`reference: "flange"`: the flange target is
+   converted to the TCP pose `movel` takes through the live active-TCP offset). Set
+   the gripper's TCP on the pendant and make it the active one; `perceptronics
+   doctor`'s `approach` line says what it is. Locate also reports `reachable`
+   against the arm's reach; the Move button stays disabled when it is false.
 2. **Approach** (the test loop) — `POST /api/robot/approach_cycle`: over the
    segment at `clearance_m` (0.10), down to the standoff, hold `hold_s` (1 s),
    back up, back to where the picture was taken — **one** URScript program
@@ -167,9 +166,9 @@ cross-checked against the controller's own `pose_trans` on every locate
 Flags / env: `--robot-host` (`$UR_HOST`, default localhost = URSim),
 `--robot-dry-run` (validate + audit, send nothing; a stand-in flange pose
 lets the whole flow run on `--fake`), `--no-robot` (no panel). The
-standoff and its reference are per-click in the panel, defaulting to the
-cell's `PERCEPTRONICS_STANDOFF_M` / `PERCEPTRONICS_APPROACH_REFERENCE` (0.10 m from
-the TCP unless the cell file says otherwise).
+standoff is per-click in the panel, defaulting to the cell's
+`PERCEPTRONICS_STANDOFF_M` (0.10 m from the robot's active TCP unless the cell file
+says otherwise).
 
 **Verified 2026-09-04 against the PolyScope X simulator (10.13.0, native
 arm64, Remote mode):** `ur_flange_pose` matched the controller's own

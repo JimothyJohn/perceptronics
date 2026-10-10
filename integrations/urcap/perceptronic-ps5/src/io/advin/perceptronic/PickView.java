@@ -57,6 +57,11 @@ public class PickView implements SwingProgramNodeView<PickContribution> {
         }
 
         @Override
+        public void lookDown(int i) {
+            node().lookDown(i);
+        }
+
+        @Override
         public void remove(int i) {
             node().remove(i);
         }

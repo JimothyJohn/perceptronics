@@ -21,6 +21,7 @@ urctl = "urctl.cli:main"
 perceptronics = "perceptronics.cli:main"
 perceptronics-gui = "perceptronics.webapp:main"
 perceptronics-mcp = "perceptronics.mcp_server:main"
+perceptronics-vision-mcp = "perceptronics.mcp_server:main_vision"
 
 [build-system]
 requires = ["hatchling"]

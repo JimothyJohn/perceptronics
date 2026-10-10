@@ -31,7 +31,7 @@
   const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
   const CSS = `
-    .rsp { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2a37; padding: 12px 16px; max-width: 1100px; }
+    .rsp { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2a37; padding: 12px 16px; }
     .rsp h2 { margin: 0 0 8px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
     .rsp .dot { width: 10px; height: 10px; border-radius: 50%; background: #c0c8d2; display: inline-block; }
     .rsp .dot.live { background: #1d9a5a; } .rsp .dot.dead { background: #d64545; }
@@ -41,8 +41,16 @@
     .rsp button:disabled { opacity: .45; cursor: default; }
     .rsp button.primary { background: #1f5fbf; color: #fff; border-color: #1f5fbf; }
     .rsp button.danger { background: #d64545; color: #fff; border-color: #d64545; }
-    .rsp .stage { position: relative; display: inline-block; max-width: 100%; margin-top: 8px; background: #0f1620; border-radius: 8px; overflow: hidden; }
-    .rsp .stage img { display: block; max-width: 100%; max-height: max(180px, calc(100vh - 470px)); width: auto; height: auto; min-width: 320px; min-height: 180px; cursor: crosshair; }
+    /* the camera tab: the controls in a column on the left, the picture filling the rest of the
+       page — where PolyScope's own nodes keep their settings and their 3D view (Nick, 2026-10-08) */
+    .rsp .cam { display: flex; gap: 16px; align-items: flex-start; }
+    .rsp .cam .ctl { flex: 0 0 300px; width: 300px; }
+    .rsp .cam .ctl .row { flex-direction: column; align-items: stretch; }
+    .rsp .cam .ctl input[type=text] { flex: 1 1 auto; min-width: 0; width: 100%; box-sizing: border-box; }
+    .rsp .cam .ctl .row button { width: 100%; }
+    .rsp .cam .ctl small { display: block; margin-top: 8px; }
+    .rsp .stage { position: relative; flex: 1 1 0; min-width: 0; background: #0f1620; border-radius: 8px; overflow: hidden; }
+    .rsp .stage img { display: block; width: 100%; max-height: max(180px, calc(100vh - 200px)); height: auto; object-fit: contain; min-height: 180px; cursor: crosshair; }
     .rsp .stage .view { position: absolute; right: 10px; top: 10px; display: inline-flex; padding: 3px; border-radius: 20px; background: rgba(13,19,26,.85); }
     .rsp .stage .view button { padding: 6px 14px; border: 0; border-radius: 16px; background: none; color: #fff; font: inherit; font-weight: 600; }
     .rsp .stage .view button.on { background: #1f5fbf; }
@@ -321,19 +329,13 @@
             <h2><span class="dot" data-rsp="dot"></span> Perceive <small data-rsp="fps"></small>
               <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button><button data-tab="log">Log</button></span>
             </h2>
-            <div data-rsp="tab-camera">
+            <div data-rsp="tab-camera" class="cam">
+            <div class="ctl">
             <div class="row">
               <label for="rsp-url">Cockpit</label>
               <input id="rsp-url" type="text" data-rsp="url" placeholder="the pick PC's address (192.168.3.20 out of the box)" />
               <button data-rsp="save">Save</button>
               <a data-rsp="open" href="#" target="_blank" rel="noopener">Open cockpit</a>
-            </div>
-            <div class="stage" data-rsp="stage">
-              <img data-rsp="img" alt="wrist camera" draggable="false" />
-              <div class="mark" data-rsp="mark"></div>
-              <div class="hover" data-rsp="hover">hover for depth · click a point</div>
-              <div class="nocam" data-rsp="nocam"><div><b>NO CAMERA CONNECTED</b><span data-rsp="nocam-text">connecting…</span></div></div>
-              <div class="view hidden" data-rsp="view"><button data-view="picture" class="on">Picture</button><button data-view="depth">Depth</button></div>
             </div>
             <div class="status" data-rsp="status">connecting…</div>
             <div class="target" data-rsp="target"></div>
@@ -344,20 +346,25 @@
               <button class="danger" data-rsp="stop">STOP</button>
               <button data-rsp="clear">Clear</button>
             </div>
-            <small>Click = segment at the pixel → point in the base frame through the hand-eye → approach pose above it. Reach is checked before a move is offered.</small>
+            <small>Click a point in the picture: it becomes a point in the base frame through the hand-eye and an approach pose above it. Reach is checked before a move is offered.</small>
+            </div>
+            <div class="stage" data-rsp="stage">
+              <img data-rsp="img" alt="wrist camera" draggable="false" />
+              <div class="mark" data-rsp="mark"></div>
+              <div class="hover" data-rsp="hover">hover for depth · click a point</div>
+              <div class="nocam" data-rsp="nocam"><div><b>NO CAMERA CONNECTED</b><span data-rsp="nocam-text">connecting…</span></div></div>
+              <div class="view hidden" data-rsp="view"><button data-view="picture" class="on">Picture</button><button data-view="depth">Depth</button></div>
+            </div>
             </div>
             <div class="two hidden" data-rsp="tab-areas">
               <div class="card" data-rsp="areas-card">
-                <h3>Pick areas <small>for the Pounce node — touch the table with the fingertips at a corner, along one edge, and on the far side</small></h3>
+                <h3>Pick areas <small>for the Pounce node — touch the table with the tool (its TCP, as set on the pendant) at a corner, along one edge, and on the far side</small></h3>
                 <div data-rsp="areas"></div>
                 <div class="row"><button data-rsp="area-add">New area</button> <small data-rsp="areas-note"></small></div>
               </div>
               <div class="card reach-card" data-rsp="reach-card">
                 <h3>The arm's reach <small data-rsp="reach-model"></small></h3>
                 <div class="reach-map" data-rsp="reach-map"></div>
-                <div class="row">
-                  <label>Tool length <input type="text" inputmode="numeric" data-rsp="tipMm" /> mm</label>
-                </div>
                 <small data-rsp="reach-text"></small>
               </div>
             </div>
@@ -433,12 +440,6 @@
         return;
       }
       this.$("area-add").addEventListener("click", () => this.areaAdd());
-      this.$("tipMm").addEventListener("change", (ev) => {
-        const v = Math.round(parseFloat(String(ev.target.value).replace(",", ".")));
-        this._node.tipMm = Number.isFinite(v) ? Math.max(0, Math.min(500, v)) : this._node.tipMm;
-        this.persist();
-        this.syncAreas();
-      });
       this.syncAreas();
       await this.askRobotModel();
     }
@@ -463,7 +464,6 @@
       if (!P || !this._built) return;
       const node = this._node;
       const areas = Array.isArray(node.areas) ? node.areas : (node.areas = []);
-      const tip = Number.isFinite(node.tipMm) ? node.tipMm : P.DEFAULT_TIP_MM;
       const box = this.$("areas");
       box.innerHTML = "";
       areas.forEach((a, i) => {
@@ -488,7 +488,7 @@
           plane.textContent = "the three touches are in a line or too close — touch a corner, along one edge, and the far side";
           plane.className = "plane warn";
         } else {
-          plane.textContent = `touch ${missing} more point${missing === 1 ? "" : "s"} with the fingertips (${tip} mm past the flange)`;
+          plane.textContent = `touch ${missing} more point${missing === 1 ? "" : "s"} with the tool (the robot's TCP)`;
         }
         row.querySelector("input").addEventListener("change", (ev) => {
           const name = String(ev.target.value).replace(/[^A-Za-z0-9 ._-]/g, "").trim().slice(0, 24);
@@ -500,7 +500,6 @@
       });
       this.$("area-add").disabled = areas.length >= P.MAX_AREAS;
       this.$("areas-note").textContent = areas.length ? "" : "no pick area yet: the Pick node finds the table live";
-      this.$("tipMm").value = String(Number.isFinite(node.tipMm) ? node.tipMm : P.DEFAULT_TIP_MM);
       const model = node.robotModel || "";
       const mr = P.modelReach(model);
       const baseR = mr ? mr[0] : 0.064;
@@ -531,7 +530,9 @@
       this.setStatus("area removed — check the picture points of any Pick node that used it", "warn");
     }
 
-    // A touch: PolyScope's joint positions → its DH table → the flange → the fingertips (tipMm along +Z).
+    // A touch: the pose of PolyScope's active TCP — the tool as the pendant has it (0.8.0, Nick
+    // 2026-10-08: the node carries no tool length). convertJointPositionsToTcpPose is 10.10+;
+    // before that the TCP is taken at the flange (joints → PolyScope's DH table).
     async touch(i, key) {
       const P = this._lib;
       const rps = this._api && this._api.robotPositionService;
@@ -543,12 +544,18 @@
         const q = await withTimeout(firstValue(rps.getJointPositions()), 5000, "no joint positions from PolyScope in 5 s");
         const dh = await withTimeout(rps.getKinematicInfo(), 5000, "no kinematic info from PolyScope in 5 s");
         const qa = Array.isArray(q) ? q.map(Number) : ["base", "shoulder", "elbow", "wrist1", "wrist2", "wrist3"].map((k) => Number(q[k]));
-        const flange = matToPose(flangeMat(dh, qa));
-        const tip = P.fingertip(flange, Number.isFinite(this._node.tipMm) ? this._node.tipMm : P.DEFAULT_TIP_MM);
+        let tip, how = "the robot's TCP";
+        if (typeof rps.convertJointPositionsToTcpPose === "function") {
+          const t = await withTimeout(rps.convertJointPositionsToTcpPose(q), 5000, "no TCP pose from PolyScope in 5 s");
+          tip = [...t.position].slice(0, 3);
+        } else {
+          tip = matToPose(flangeMat(dh, qa)).slice(0, 3);
+          how = "the flange: this PolyScope can't report its TCP";
+        }
         this._node.areas[i][key] = tip.map((v) => Math.round(v * 1e5) / 1e5);
         await this.persist();
         this.syncAreas();
-        this.setStatus(`${this._node.areas[i].name}: ${key === "p0" ? "corner" : key === "p1" ? "edge" : "far side"} at [${fmtVec(tip)}] m (fingertips)`, "ok");
+        this.setStatus(`${this._node.areas[i].name}: ${key === "p0" ? "corner" : key === "p1" ? "edge" : "far side"} at [${fmtVec(tip)}] m (${how})`, "ok");
       } catch (err) {
         this.setStatus(`touch: ${err && err.message ? err.message : err}`, "err");
       }
@@ -760,8 +767,8 @@
         const reach = loc.reachable === false ? "OUT OF REACH" : loc.reachable === true ? "reachable" : "reach unknown";
         this.$("target").textContent =
           `object  base ${fmtVec(loc.point_base_m)} m  (${fmt(loc.point_distance_m, 2)} m from the base)\n` +
-          (loc.reference === "fingertip"
-            ? `fingertips ${fmtVec(loc.approach_pose)}  ${fmt(loc.standoff_m, 3)} m above the object (tool ${fmt(loc.tip_m, 3)} m)\n`
+          (loc.reference === "tcp"
+            ? `tool     ${fmtVec(loc.approach_pose)}  ${fmt(loc.standoff_m, 3)} m above the object (the robot's TCP)\n`
             : loc.reference === "flange" && loc.flange_target_pose
               ? `flange   ${fmtVec(loc.flange_target_pose)}  standoff ${fmt(loc.standoff_m, 2)} m above the object\n`
               : `approach ${fmtVec(loc.approach_pose)}  standoff ${fmt(loc.standoff_m, 2)} m\n`) +

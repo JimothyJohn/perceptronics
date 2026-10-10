@@ -9,6 +9,7 @@ import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JComponent;
 
@@ -41,6 +42,7 @@ final class LiveView extends JComponent {
     private ViewListener listener;
     private TapListener tapListener;
     private volatile String hint; // a pill at the picture's foot: what a tap does now (null: none)
+    private volatile String banner; // across the picture's top: the no-part banner (null: none)
     // where the last frame was drawn: picture pixel = (screen - origin) / scale
     private volatile double drawnScale;
     private volatile int drawnX;
@@ -97,6 +99,11 @@ final class LiveView extends JComponent {
         repaint();
     }
 
+    void setBanner(String text) {
+        banner = text;
+        repaint();
+    }
+
     void setScene(Scene s) {
         scene = s == null ? Scene.empty() : s;
         repaint();
@@ -138,6 +145,8 @@ final class LiveView extends JComponent {
         drawnY = oy;
         for (Scene.Part p : s.nearMisses()) drawNearMiss(g, p, ox, oy, sk);
         for (Scene.Part p : s.parts) drawPart(g, p, ox, oy, sk);
+        String top = banner;
+        if (top != null && !top.isEmpty()) drawBanner(g, top, w);
         Ui.ViewToggle.paint(g, w, 0, depth);
         String tip = hint;
         if (tip != null && !tip.isEmpty()) {
@@ -219,6 +228,30 @@ final class LiveView extends JComponent {
         g.drawOval(x - r, y - r, 2 * r, 2 * r);
         g.setFont(Ui.font(14f, true));
         Ui.centre(g, String.valueOf(p.order), x, y);
+    }
+
+    /** The no-part banner across the top of the picture, wrapped, clear of the Picture/Depth toggle. */
+    private static void drawBanner(Graphics2D g, String text, int w) {
+        g.setFont(Ui.font(13f, true));
+        FontMetrics fm = g.getFontMetrics();
+        int maxW = Math.max(120, w - 170);
+        List<String> lines = new ArrayList<String>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            String trial = line.length() == 0 ? word : line + " " + word;
+            if (fm.stringWidth(trial) > maxW && line.length() > 0) {
+                lines.add(line.toString());
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(trial);
+            }
+        }
+        if (line.length() > 0) lines.add(line.toString());
+        int lh = fm.getHeight() + 3, bh = lines.size() * lh + 12;
+        g.setColor(new Color(20, 26, 34, 225));
+        g.fillRoundRect(8, 8, maxW + 16, bh, 8, 8);
+        g.setColor(Ui.JAW);
+        for (int i = 0; i < lines.size(); i++) g.drawString(lines.get(i), 16, 14 + i * lh + fm.getAscent());
     }
 
     /** A candidate that will not be picked: yellow, with why. */

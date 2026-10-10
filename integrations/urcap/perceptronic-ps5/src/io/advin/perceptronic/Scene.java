@@ -49,6 +49,12 @@ final class Scene {
     final boolean baseFrame;
     final String reason;
     final List<String> notes;
+    /**
+     * The program is running (0.10.1, Nick 2026-10-08: "disable errors while it's not actually in a
+     * measurement feedback state"): the camera computer judged nothing — what is here is the
+     * program's own last measurement, and the picture carries no banner.
+     */
+    final boolean quiet;
 
     /** What the picture draws: the candidates that are nearly the part and are not being picked. */
     List<Part> nearMisses() {
@@ -82,16 +88,60 @@ final class Scene {
         return nearest;
     }
 
+    /**
+     * Across the top of the picture when nothing will be picked (Nick, 2026-10-06: a node left at
+     * its default 110 × 50 × 30 saw 110 × 70 × 30 boxes and said "2 parts touching?"): the size to
+     * check, what was seen instead (the first near miss, with why), and the camera computer's
+     * notes. Null when a part is found, or when nothing at all is in view and there is no note.
+     * {@code part}: {@link PickScreen#sizeWords}. The same words as the PolyScope X node's
+     * sceneBanner.
+     */
+    String banner(String part) {
+        if (quiet || !parts.isEmpty()) return null;
+        List<Part> near = nearMisses();
+        String text;
+        if (!near.isEmpty()) {
+            Part r = near.get(0);
+            String size = r.lengthMm > 0 || r.widthMm > 0 || r.heightMm > 0
+                    ? " " + r.lengthMm + " × " + r.widthMm + " × " + r.heightMm + " mm" : "";
+            String why = r.why != null ? " (" + r.why + ")" : "";
+            String more = near.size() > 1 ? " and " + (near.size() - 1) + " more" : "";
+            text = "No part of " + part + " in view — check the part size under Part. Seen instead:" + size + why
+                    + more;
+        } else if (!rejected.isEmpty()) {
+            text = "Nothing like a part of " + part + " in view — check the part size under Part";
+        } else {
+            return notes.isEmpty() ? null : join(notes);
+        }
+        return notes.isEmpty() ? text : text + " · " + join(notes);
+    }
+
+    private static String join(List<String> xs) {
+        StringBuilder b = new StringBuilder();
+        for (String x : xs) {
+            if (x == null || x.isEmpty()) continue;
+            if (b.length() > 0) b.append(" · ");
+            b.append(x);
+        }
+        return b.toString();
+    }
+
     /** One line for the screen's status: how many parts will be picked, how many nearly. */
     String summary() {
         int near = nearMisses().size();
+        if (quiet) {
+            return parts.isEmpty() && near == 0 ? "program running · the picture is measured only where the program asks"
+                    : "program running · last measured: " + parts.size() + (parts.size() == 1 ? " part" : " parts")
+                            + " to pick";
+        }
         if (parts.isEmpty() && near == 0) return "no part in view";
         String s = parts.size() + (parts.size() == 1 ? " part" : " parts") + " to pick";
         return near == 0 ? s : s + " · " + near + " not (yellow, with why)";
     }
 
     Scene(int width, int height, List<Part> parts, List<Part> rejected, String surface, double offsetMm,
-            boolean baseFrame, String reason, List<String> notes) {
+            boolean baseFrame, String reason, List<String> notes, boolean quiet) {
+        this.quiet = quiet;
         this.width = width;
         this.height = height;
         this.parts = parts;
@@ -105,11 +155,17 @@ final class Scene {
 
     static Scene empty() {
         List<Part> none = Collections.emptyList();
-        return new Scene(0, 0, none, none, null, 0, false, null, Collections.<String>emptyList());
+        return new Scene(0, 0, none, none, null, 0, false, null, Collections.<String>emptyList(), false);
     }
 
     /** The reply's JSON object → a Scene; missing or malformed pieces are left out, never thrown. */
     static Scene parse(Map<String, Object> o) {
+        if (o != null && Boolean.TRUE.equals(o.get("quiet"))) {
+            Object last = o.get("last");
+            Scene seen = last instanceof Map ? parse(cast(last)) : empty();
+            return new Scene(seen.width, seen.height, seen.parts, seen.rejected, seen.surface, seen.offsetMm,
+                    seen.baseFrame, seen.reason, seen.notes, true);
+        }
         if (o == null || !Boolean.TRUE.equals(o.get("ok"))) return empty();
         List<String> notes = new ArrayList<String>();
         Object ns = o.get("notes");
@@ -130,7 +186,12 @@ final class Scene {
         Object reason = o.get("reason");
         return new Scene(integer(o.get("width")), integer(o.get("height")), parts(o.get("parts")),
                 parts(o.get("rejected")), surface, offset, Boolean.TRUE.equals(o.get("base_frame")),
-                reason instanceof String ? (String) reason : null, notes);
+                reason instanceof String ? (String) reason : null, notes, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> cast(Object o) {
+        return (Map<String, Object>) o;
     }
 
     private static List<Part> parts(Object xs) {

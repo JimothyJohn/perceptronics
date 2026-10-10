@@ -161,7 +161,9 @@ def test_installed_library_is_what_the_template_points_at():
 
 
 def test_installer_copies_only_files_that_exist():
-    m = re.search(r"for f in ([^;]+); do", _text(INSTALL))
+    # the loop inside copy_deploy_files (install_vision_wheels has a `for f in` of its own, before it)
+    body = _text(INSTALL).split("copy_deploy_files() {", 1)[1]
+    m = re.search(r"for f in ([^;]+); do", body)
     names = [n for n in m.group(1).split() if n != "\\"]
     assert names, "copy_deploy_files names no files"
     for name in names:

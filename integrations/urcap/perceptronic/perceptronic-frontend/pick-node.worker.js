@@ -15,7 +15,7 @@ importScripts("pickscript.js");
 
 const P = self.PerceptronicPick;
 const NODE_TYPE = P.PICK_TYPE;
-const NODE_VERSION = "1.0.0";
+const NODE_VERSION = "1.1.0";
 
 function appNodeOf(applicationContext) {
   const list = applicationContext && applicationContext.contributions && applicationContext.contributions.contributionList;
@@ -41,7 +41,7 @@ function fresh() {
       shape: "box",
       gripCheck: true,
       gripLongSide: false,
-      closeLook: true,
+      closeLook: false, // off by default since 0.8.0 (Nick, 2026-10-08: "not helping anything")
       popupOnFail: true,
       pickPort: P.DEFAULT_PICK_PORT,
       values: P.defaults(),

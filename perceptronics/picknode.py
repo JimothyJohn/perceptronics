@@ -21,14 +21,16 @@ Requests (one line each, ASCII, ≤ 1 kB; the pose is URScript's ``to_str(pose)`
     ``(cx, cy, cz)`` (the FIND answer), seen from the flange pose sent.
 
 ``LOOK p[x, y, z, rx, ry, rz] p[cx, cy, cz, 0, 0, 0]``
-    Where to take the closer look from: the flange pose that puts the camera halfway
-    from where it is now to the block's top centre (never nearer than
-    :data:`LOOK_MIN_M` — the D435 has no depth closer than ~0.2 m), aimed so the block
-    sits :data:`LOOK_AIM_DEG` off the middle of the picture on the side away from the
-    gripper (the open fingers hang in the camera's view: a block in the middle of the
-    picture is behind them), and backed out along that line until the fingertips clear
-    the top by :data:`LOOK_TIP_CLEAR_M`. Status -6 when no such pose exists (the node
-    then measures again from where it is).
+    Where to take the closer look from: the flange pose that puts the camera **straight
+    above the block's top centre, looking straight down** — like the approach, with the
+    camera where the tool will be — halfway down from its height now (never nearer than
+    :data:`LOOK_MIN_M`; the D435 has no depth closer than ~0.28 m), the block in the
+    middle of the picture (:data:`LOOK_AIM_DEG` = 0 since 2026-10-08: Nick, at the cell,
+    "the closer look is supposed to move above the part similar to the approach
+    position" — the slanted, 12°-aimed look of 0.3.0–0.9.1 "moved up then at an angle";
+    a non-zero aim keeps the block off the fingers), backed up until the fingertips
+    clear the top by :data:`LOOK_TIP_CLEAR_M`. Status -6 when no such pose exists (the
+    node then measures again from where it is).
 
 ``part=<L>x<W>[x<H>] [tol=<pct>]`` (FIND and REFINE, optional): the part's rough size in
 mm — a box with a height on any of its faces, a cylinder on its end — and how far off it may measure
@@ -44,13 +46,25 @@ flat and parallel to the base XY plane (Nick, 2026-09-27) — unless the program
 IK check found that unsolvable and asks again leaned outward (the pick-cycle's
 0 → 12 → 24° ladder, :func:`perceptronics.pickcycle.grasp_rotation`).
 
-Reply: ``(status, cx, cy, cz, x, y, z, rx, ry, rz)``. ``status`` is one of
-:data:`STATUS`; on 1, ``c*`` is the block's top-face centre (base, m) and the pose
-is the **flange** pose that puts the fingertips (``PERCEPTRONICS_TIP_M`` along flange
-+Z) on that centre, tool Z straight down (or leaned), the flange heading kept from the
-pose sent and turned so the fingers close across the block's short side. The node
-derives hover, grip and lift from it with ``pose_trans`` along the tool axis. On any
-other status the numbers are 0.
+**Protocol 3 (the 0.10.0 node, 2026-10-08 — Nick: "You must only use tool offsets inside
+of the robot not your own"):** the pose a request carries is the robot's **TCP pose under
+its active TCP** (``get_actual_tcp_pose()``) and every request also carries that offset,
+``tcp=p[x, y, z, rx, ry, rz]`` (``get_tcp_offset()``); the server recovers the flange
+(``tcp ∘ tcp⁻¹``) for the camera and answers **poses of the TCP frame** — the tool's own
+frame, as the pendant has it: its origin (the fingertips, or whatever the operator set as
+the TCP) on the part's top centre, its Z straight down (or leaned), its heading kept from
+the pose sent and turned so the fingers — along the TCP frame's Y — close across the
+block's short side. The node moves to those poses with the operator's TCP as it is
+(``movej(get_inverse_kin(pose))``), so the server never needs, and no longer has, a tool
+length of its own. A request of protocol 1 or 2 (a node before 0.10.0, which zeroed the
+TCP and expected flange poses for a 163 mm tool) is answered -14: the server cannot know
+that tool.
+
+Reply: ``(status, cx, cy, cz, x, y, z, rx, ry, rz)`` (protocol 2 and 3: 16 numbers,
+:func:`format_reply2`). ``status`` is one of :data:`STATUS`; on 1, ``c*`` is the block's
+top-face centre (base, m) and the pose is the TCP-frame pose above. The node derives
+hover and grip from it with ``pose_trans`` along the tool axis. On any other status the
+numbers are 0.
 
 The server never moves anything and never talks to the robot: it answers questions
 about the image. It shares the cockpit's (unauthenticated, trusted-cell) network
@@ -67,7 +81,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from urctl.pose import Transform
+from urctl.pose import Transform, pose_inv, pose_trans
 
 from . import partspec
 from .partspec import PartSpec
@@ -78,9 +92,9 @@ DEFAULT_PICK_PORT = 7622
 MAX_LINE = 1024
 REFINE_RADIUS_M = 0.06
 LOOK_MIN_M = 0.30  # camera to the block's top: past the D435's blind zone with room for the gripper
-LOOK_AIM_DEG = 12.0  # the block's bearing off the optical axis, away from the gripper
+LOOK_AIM_DEG = 0.0  # the block's bearing off the optical axis (0 = dead centre; Nick, 2026-10-08)
 LEANS_DEG = (0.0, 12.0, 24.0)  # the program's ladder when straight down has no joint solution
-LOOK_TIP_CLEAR_M = 0.06  # fingertips above the top at the look pose
+LOOK_TIP_CLEAR_M = 0.06  # the TCP (the fingertips) above the top at the look pose
 LOOK_MAX_TILT_DEG = 60.0  # tool Z from straight down
 MAX_LOG_TEXT = 240
 DEFAULT_STROKE_M = 0.050  # Hand-E
@@ -102,7 +116,11 @@ STATUS = {
     -11: "no room for the open fingers beside any part",
     -12: "the parts in view are outside the pick area",
     -13: "the only part in view is cut off by the edge of the picture",
+    # protocol 3 (the 0.10.0 node): the tool offset comes from the robot with every request
+    -14: "the Pounce node is older than this camera computer — update the Perceptronic URCap",
 }
+PROTOCOL = 3  # what this server speaks; older nodes are answered -14
+ZERO_POSE = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 _NUM = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
 _POSE_RX = re.compile(
@@ -118,7 +136,8 @@ class RequestError(ValueError):
 
 
 def parse_request(line: str) -> dict:
-    """``{"verb", "flange", "near" (REFINE, LOOK), "pixel" (FIND, optional), "part"
+    """``{"verb", "tcp_pose" (as sent), "tcp_offset" (``tcp=``, else zero), "flange"
+    (``tcp_pose ∘ tcp_offset⁻¹``), "near" (REFINE, LOOK), "pixel" (FIND, optional), "part"
     (FIND, REFINE: a PartSpec or None)}``, ``{"verb": "LOG", "text"}``, or RequestError."""
     text = line.strip()
     if text[:4].upper() in ("LOG", "LOG "):  # the program never reads a reply to LOG: never refuse one
@@ -131,10 +150,19 @@ def parse_request(line: str) -> dict:
     if verb not in ("FIND", "REFINE", "LOOK", "NEXT"):
         raise RequestError(f"unknown verb {verb[:16]!r}")
     opts = parse_options(text)
-    poses = [[float(g) for g in m.groups()] for m in _POSE_RX.finditer(_PLANE_RX.sub("", text))]
+    bare = _TCP_RX.sub("", _PLANE_RX.sub("", text))
+    poses = [[float(g) for g in m.groups()] for m in _POSE_RX.finditer(bare)]
     if not poses or not all(math.isfinite(v) and abs(v) < 100.0 for p in poses for v in p):
         raise RequestError("no plausible pose p[x, y, z, rx, ry, rz] in the request")
-    out: dict = {"verb": verb, "flange": poses[0], "lean": 0.0, "options": opts}
+    offset = list(opts.tcp_offset or ZERO_POSE)
+    out: dict = {
+        "verb": verb,
+        "tcp_pose": poses[0],
+        "tcp_offset": offset,
+        "flange": pose_trans(poses[0], pose_inv(offset)) if opts.tcp_offset else poses[0],
+        "lean": 0.0,
+        "options": opts,
+    }
     lean = _LEAN_RX.search(text)
     if lean:
         out["lean"] = float(lean.group(1))
@@ -160,6 +188,7 @@ def parse_request(line: str) -> dict:
 
 _POSE_BODY = rf"\[\s*({_NUM})\s*,\s*({_NUM})\s*,\s*({_NUM})\s*,\s*({_NUM})\s*,\s*({_NUM})\s*,\s*({_NUM})\s*\]"
 _PLANE_RX = re.compile(r"\bplane=p" + _POSE_BODY)
+_TCP_RX = re.compile(r"\btcp=p" + _POSE_BODY)
 _AREA_RX = re.compile(rf"\barea=({_NUM})[xX]({_NUM})(?![\w.])")
 _ORDER_RX = re.compile(r"\border=([A-Za-z]{2},[A-Za-z]{2})\b")
 _REACH_RX = re.compile(rf"\breach=({_NUM}),({_NUM})(?![\w.])")
@@ -173,6 +202,11 @@ _ACROSS_RX = re.compile(r"\bacross=(short|long)(?=\s|$)")
 _ARM_RX = re.compile(r"\barm=([A-Za-z0-9]{1,8})(?=\s|$)")
 MAX_LOCS = 32
 QUEUE_TTL_S = 120.0  # a part seen at a picture point stays queued this long
+RUN_TTL_S = 90.0  # a program that stops talking (a protective stop, the pendant's Stop) is over after this
+QUIET_REASON = (
+    "the program is running: the picture is measured only where the program asks (FIND, REFINE) —"
+    " what it saw last is shown, nothing else is judged in between"
+)
 PROTO2_FIELDS = 16
 
 
@@ -196,9 +230,15 @@ class PickOptions:
     The 0.8.0 node (2026-10-01) does not drive a gripper at all — the program opens it before
     the node and closes it after — so it knows no stroke. Its grip check is ``room=<mm>``:
     that much clear space on each side of the part along the grip axis (default 20), and no
-    stroke test. ``across=long`` grips a box across its long side instead of its short one."""
+    stroke test. ``across=long`` grips a box across its long side instead of its short one.
+
+    The 0.10.0 node (protocol 3, 2026-10-08) sends ``tcp=p[...]``: the controller's active
+    TCP offset, under which its pose is reported and in whose frame every answer is given
+    (:data:`tcp_offset`; the module docstring). Without it the TCP is taken to be the
+    flange."""
 
     part: PartSpec | None = None
+    tcp_offset: tuple[float, ...] | None = None  # protocol 3: the robot's active TCP offset
     surface: Surface | None = None
     order: tuple[str, str] = ("LR", "FB")
     reach: Reach | None = None
@@ -286,6 +326,14 @@ def parse_options(text: str) -> PickOptions:
         kw["arm"] = arm.group(1)
     elif re.search(r"\barm=", text):
         raise RequestError("arm must be a robot model, like arm=UR3")
+    t = _TCP_RX.search(text)
+    if t:
+        off = [float(g) for g in t.groups()]
+        if not all(math.isfinite(v) for v in off) or any(abs(v) > 2.0 for v in off[:3]):
+            raise RequestError("tcp must be the active TCP offset, a pose p[x, y, z, rx, ry, rz] within 2 m")
+        kw["tcp_offset"] = tuple(off)
+    elif re.search(r"\btcp=", text):
+        raise RequestError("tcp must be a pose p[x, y, z, rx, ry, rz]")
     n = _NODE_RX.search(text)
     if n:
         kw["node"] = n.group(1)
@@ -295,8 +343,8 @@ def parse_options(text: str) -> PickOptions:
             kw[key] = int(i.group(1))
     if not 0 <= kw.get("loc", 0) <= MAX_LOCS or not 1 <= kw.get("locs", 1) <= MAX_LOCS:
         raise RequestError(f"loc and locs must be within 1..{MAX_LOCS}")
-    if kw.get("proto", 1) not in (1, 2):
-        raise RequestError("proto must be 1 or 2")
+    if kw.get("proto", 1) not in (1, 2, 3):
+        raise RequestError("proto must be 1, 2 or 3")
     return PickOptions(**kw)
 
 
@@ -373,7 +421,7 @@ def look_pose(
     flange: Sequence[float],
     top: Sequence[float],
     handeye: Sequence[float],
-    tip_m: float,
+    tcp_offset: Sequence[float],
     *,
     min_m: float = LOOK_MIN_M,
     tip_clear_m: float = LOOK_TIP_CLEAR_M,
@@ -382,26 +430,28 @@ def look_pose(
     stroke_m: float = DEFAULT_STROKE_M,
     finger_axis: str = "y",
 ) -> list[float] | None:
-    """The flange pose for the closer look (see ``LOOK``), or None when none will do.
+    """The **TCP-frame** pose for the closer look (see ``LOOK``; ``tcp_offset`` is the
+    robot's active TCP, where the fingertips are), or None when none will do.
 
-    The camera goes halfway along the line from where it is to ``top`` (never nearer
-    than ``min_m``) and turns so ``top`` sits ``aim_deg`` off its optical axis, on the
-    side away from the gripper — the open fingertips are in the picture (9° off the
-    axis and 0.15 m out on the UR3e cell, inside the D435's blind zone), and a block
-    aimed at the middle is half hidden behind them (Nick, 2026-09-30: "the gripper is
-    blocking the view"). The image X is kept as close as it was (the least wrist
-    roll). If the fingertips would come within ``tip_clear_m`` of the top's height,
-    the camera backs out along the same line; a tool tilted past ``max_tilt_deg``
-    from straight down is refused."""
+    The camera goes straight above ``top`` and looks straight down — the approach's
+    geometry with the camera in the tool's place — halfway down from its height now
+    (never nearer than ``min_m``), turned so ``top`` sits ``aim_deg`` off its optical
+    axis on the side away from the gripper (0 = dead centre, the default since
+    2026-10-08; the 12° aim of 0.3.0–0.9.1 kept the block out from behind the open
+    fingers but, on a slanted line from the picture point, read as "moved up then at
+    an angle" on the UR3e). The image X is kept as close as it was (the least wrist
+    roll). If the TCP would come within ``tip_clear_m`` of the top's height, the
+    camera backs straight up; a tool tilted past ``max_tilt_deg`` from straight down
+    is refused."""
     T_fc = Transform.from_pose(handeye)
+    T_ft = Transform.from_pose(tcp_offset)
     T_bc = Transform.from_pose(flange).compose(T_fc)
     cam = T_bc.translation
-    away = [cam[i] - top[i] for i in range(3)]
-    d0 = math.hypot(*away)
+    d0 = cam[2] - top[2]  # height above the top
     if d0 < 1e-6:
         return None
-    unit = [a / d0 for a in away]
-    z = [-u for u in unit]  # the optical axis, toward the block
+    unit = [0.0, 0.0, 1.0]
+    z = [0.0, 0.0, -1.0]  # the optical axis: straight down
     x_cam = T_bc.rotate((1.0, 0.0, 0.0))
     dot = sum(x_cam[i] * z[i] for i in range(3))
     x = [x_cam[i] - dot * z[i] for i in range(3)]
@@ -412,7 +462,7 @@ def look_pose(
     y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]]
     # turn the camera so the ray to the block leaves the axis away from the gripper:
     # R_new · ray = z, with ray = the axis tipped aim_deg about k = (gy, -gx, 0)
-    gx, gy = gripper_bearing(handeye, tip_m, stroke_m, finger_axis)
+    gx, gy = gripper_bearing(handeye, tcp_offset, stroke_m, finger_axis)
     aim = math.radians(aim_deg)
     turn = Transform.from_pose([0.0, 0.0, 0.0, -aim * gy, aim * gx, 0.0])
     start = max(min_m, d0 / 2.0)
@@ -422,28 +472,33 @@ def look_pose(
         d = start + (far - start) * k / steps
         origin = [top[i] + unit[i] * d for i in range(3)]
         T_bf = Transform.from_axes(x, y, z, origin).compose(turn).compose(T_fc.inverse())
-        tip = T_bf.apply((0.0, 0.0, tip_m))
-        tool_z = T_bf.rotate((0.0, 0.0, 1.0))
+        T_bt = T_bf.compose(T_ft)  # the TCP frame: where the node moves to
+        tip = T_bt.translation
+        tool_z = T_bt.rotate((0.0, 0.0, 1.0))
         if math.degrees(math.acos(max(-1.0, min(1.0, -tool_z[2])))) > max_tilt_deg:
             return None
         if tip[2] >= top[2] + tip_clear_m:
-            return T_bf.to_pose()
+            return T_bt.to_pose()
     return None
 
 
 def gripper_bearing(
-    handeye: Sequence[float], tip_m: float, stroke_m: float = DEFAULT_STROKE_M, finger_axis: str = "y"
+    handeye: Sequence[float],
+    tcp_offset: Sequence[float],
+    stroke_m: float = DEFAULT_STROKE_M,
+    finger_axis: str = "y",
 ) -> tuple[float, float]:
     """Where the gripper is in the picture: the unit direction (image x, y) from the optical
-    axis toward whichever of the fingertips — the tool's centre and the two open fingers,
-    half the stroke either side along ``finger_axis`` — sits nearest that axis. ``(0, 0)``
-    when it is on the axis itself or behind the camera (no side to prefer)."""
-    T_cf = Transform.from_pose(handeye).inverse()
+    axis toward whichever of the fingertips — the TCP (``tcp_offset``, flange → tool) and
+    the two open fingers, half the stroke either side along the TCP frame's ``finger_axis``
+    — sits nearest that axis. ``(0, 0)`` when it is on the axis itself or behind the camera
+    (no side to prefer)."""
+    T_ct = Transform.from_pose(handeye).inverse().compose(Transform.from_pose(tcp_offset))
     half = stroke_m / 2.0
     side = (0.0, half, 0.0) if finger_axis == "y" else (half, 0.0, 0.0)
     best: tuple[float, float, float] | None = None
     for sign in (0.0, 1.0, -1.0):
-        px, py, pz = T_cf.apply((sign * side[0], sign * side[1], tip_m))
+        px, py, pz = T_ct.apply((sign * side[0], sign * side[1], 0.0))
         if pz <= 1e-6:
             continue
         r = math.hypot(px, py)
@@ -475,7 +530,6 @@ class PickPlanner:
         latest_seq: Callable[[], int],
         handeye: Callable[[], Sequence[float] | None],
         *,
-        tip_m: float,
         stroke_m: float = DEFAULT_STROKE_M,
         min_radius_m: float = 0.2,
         finger_axis: str = "y",
@@ -486,25 +540,85 @@ class PickPlanner:
         self.clock = clock
         self._lock = threading.Lock()
         self._queues: dict[str, dict] = {}  # node id -> {"t", "pointer", "items": [...]}
-        self.tip_m, self.stroke_m, self.min_radius_m, self.finger_axis = (
-            tip_m,
-            stroke_m,
-            min_radius_m,
-            finger_axis,
-        )
+        self.stroke_m, self.min_radius_m, self.finger_axis = stroke_m, min_radius_m, finger_axis
         self.log = log or (lambda text, ok: None)
+        # the program's run (Nick, 2026-10-08: "disable errors while it's not actually in a
+        # measurement feedback state"): from its first request or "LOG start" until its "LOG at the
+        # grip" / "LOG no pick", or RUN_TTL_S of silence; while it runs the teach screens are told
+        # to stay quiet and get the program's own last measurement instead of judging every frame
+        self._run_since: float | None = None
+        self._run_last: float | None = None
+        self.last_measurement: dict | None = None
+
+    # -- the program's run -----------------------------------------------------------------
+
+    def _note_request(self) -> None:
+        now = self.clock()
+        with self._lock:
+            if self._run_since is None:
+                self._run_since = now
+            self._run_last = now
+
+    def _note_log(self, text: str) -> None:
+        low = text.strip().lower()
+        with self._lock:
+            if low.startswith("start"):
+                self._run_since = self._run_last = self.clock()
+            elif low.startswith(("at the grip", "no pick")):
+                self._run_since = self._run_last = None
+
+    def running(self) -> bool:
+        """Is a program talking to this server right now (its run not ended, not silent for
+        :data:`RUN_TTL_S`)?"""
+        with self._lock:
+            if self._run_since is None:
+                return False
+            if self.clock() - (self._run_last or self._run_since) > RUN_TTL_S:
+                self._run_since = self._run_last = None
+                return False
+            return True
+
+    def quiet(self) -> bool:
+        """Should a teach screen stay quiet — no judging of frames, no errors — now?"""
+        return self.running()
+
+    def run_state(self) -> dict:
+        running = self.running()
+        now = self.clock()
+        last = self.last_measurement
+        return {
+            "running": running,
+            "since_s": None if not running else round(now - (self._run_since or now), 1),
+            "last_request_s": None if self._run_last is None else round(now - self._run_last, 1),
+            "last_measurement": None
+            if last is None
+            else {
+                "verb": last.get("verb"),
+                "loc": last.get("loc"),
+                "age_s": round(now - last.get("t", now), 1),
+            },
+        }
 
     def answer(self, line: str) -> str:
         try:
             req = parse_request(line)
         except RequestError as exc:
             self.log(f"pick request refused: {exc}", False)
-            # a protocol-2 program reads 16 numbers: answer in its shape, or it sees a timeout
-            return format_reply2(-9) if re.search(r"\bproto=2\b", line) else format_reply(-9)
+            # a protocol-2/3 program reads 16 numbers: answer in its shape, or it sees a timeout
+            return format_reply2(-9) if re.search(r"\bproto=[23]\b", line) else format_reply(-9)
         if req["verb"] == "LOG":
             self.log(f"robot: {req['text']}", True)
+            self._note_log(req["text"])
             return ""  # the program does not read a reply to LOG
-        if req["options"].proto == 2 and req["verb"] != "LOOK":
+        self._note_request()
+        proto = req["options"].proto
+        if proto < PROTOCOL and req["options"].tcp_offset is None:
+            # a node before 0.10.0 zeroed the TCP, never sent it, and expected flange poses for a
+            # tool length of the server's: answering it in the TCP frame would drive the flange
+            # into the part. (Protocol 1 with a tcp= is the legacy detector in the TCP frame.)
+            self.log(f"pick {req['verb']} refused: protocol {proto} node — {STATUS[-14]}", False)
+            return format_reply2(-14) if proto == 2 else format_reply(-14)
+        if proto >= 2 and req["verb"] != "LOOK":
             return self._answer2(req)
         status, centre, pose = self._look(req) if req["verb"] == "LOOK" else self._plan(req)
         what = STATUS.get(status, "?")
@@ -518,10 +632,20 @@ class PickPlanner:
         pixel: tuple[int, int] | None = None,
         lean: float = 0.0,
         part: PartSpec | None = None,
+        tcp_offset: Sequence[float] | None = None,
     ) -> dict:
         """A FIND for a caller that already has the flange pose (the node's teach-time
-        check through the cockpit): ``{status, reason, centre, top_pose}``."""
-        req = {"verb": "FIND", "flange": [float(v) for v in flange], "lean": float(lean), "part": part}
+        check through the cockpit): ``{status, reason, centre, top_pose}`` — ``top_pose`` a
+        pose of the TCP frame ``tcp_offset`` (flange → tool; default the flange itself)."""
+        off = list(tcp_offset or ZERO_POSE)
+        req = {
+            "verb": "FIND",
+            "flange": [float(v) for v in flange],
+            "tcp_pose": pose_trans([float(v) for v in flange], off),
+            "tcp_offset": off,
+            "lean": float(lean),
+            "part": part,
+        }
         if pixel is not None:
             req["pixel"] = pixel
         status, centre, pose = self._plan(req)
@@ -535,7 +659,7 @@ class PickPlanner:
             req["flange"],
             req["near"],
             he,
-            self.tip_m,
+            req["tcp_offset"],
             stroke_m=req["options"].stroke_m,
             finger_axis=self.finger_axis,
         )
@@ -583,9 +707,9 @@ class PickPlanner:
             return -1, blk.centre_base, None
         if self.min_radius_m and math.hypot(blk.centre_base[0], blk.centre_base[1]) < self.min_radius_m:
             return -2, blk.centre_base, None
-        rot = grasp_rotation(flange, blk.centre_base, req["lean"])
+        rot = grasp_rotation(req["tcp_pose"], blk.centre_base, req["lean"])
         yaw = grasp_yaw_deg(rot, blk.theta + math.pi / 2, self.finger_axis)
-        return 1, list(blk.centre_base), tip_pose(blk.centre_base, rot, self.tip_m, yaw)
+        return 1, list(blk.centre_base), tip_pose(blk.centre_base, rot, 0.0, yaw)
 
     # -- protocol 2 ----------------------------------------------------------------------
 
@@ -641,7 +765,7 @@ class PickPlanner:
         frame = self.frame_source(arrived + FRESH_FRAMES - 1)
         if frame is None:
             return -4, None, None
-        _, w, h, _ch, _rgb, depth, scale, K = frame
+        _, w, h, ch, rgb, depth, scale, K = frame
         T_bc = None if flange is None else Transform.from_pose(flange).compose(Transform.from_pose(he))
         scene = find_parts(
             w,
@@ -650,6 +774,8 @@ class PickPlanner:
             scale,
             K,
             T_bc,
+            colour=rgb,
+            colour_channels=ch,
             spec=opts.part,
             surface=opts.surface,
             reach=keep_out(opts),
@@ -670,53 +796,95 @@ class PickPlanner:
             p.order = n
         return 1, scene, frame
 
+    def report(self, scene: Scene, frame: tuple, flange: Sequence[float] | None, opts: PickOptions) -> dict:
+        """``scene`` as a teach screen draws it (:func:`scene_report`'s body): every part with its
+        outline in picture pixels, its pick-order number and its grasp (a pose of the TCP frame
+        ``opts.tcp_offset``), every rejected candidate with why, the surface used."""
+        seq, w, h = frame[0], frame[1], frame[2]
+        out = scene.as_dict()
+        if flange is not None:
+            # the grasp for each part (the TCP on its top centre): the teach screen's "Check
+            # approach" backs it off along the tool axis for PolyScope's move screen
+            tcp_now = pose_trans(flange, list(opts.tcp_offset or ZERO_POSE))
+            for d, p in zip(out["parts"], scene.parts, strict=True):
+                d["grasp_pose"] = [round(v, 6) for v in self._grasp(p, tcp_now, 0.0, opts)]
+        out.update(
+            ok=True,
+            seq=seq,
+            width=w,
+            height=h,
+            base_frame=flange is not None,
+            status=scene_status(scene),
+            reason=STATUS.get(scene_status(scene), "?"),
+            part=None if opts.part is None else opts.part.as_dict(),
+            order=list(opts.order),
+        )
+        if flange is None:
+            out["notes"].append("no live robot pose: reach and the pick area are not checked")
+        return out
+
     def reachable(self, part, flange: Sequence[float], opts: PickOptions) -> bool:
         """Does ``opts.arm`` have a joint solution for the approach and the grip on ``part`` —
         straight down, or at one of the leans the program tries next? True when the arm is
-        not named or not in the table: the controller's own IK decides in the program."""
-        from urctl.pose import pose_trans
-
+        not named or not in the table: the controller's own IK decides in the program. The
+        kinematics answer for the flange: the TCP-frame poses go back through ``tcp_offset``."""
         from .armik import has_solution
 
         if not opts.arm:
             return True
+        offset = list(opts.tcp_offset or ZERO_POSE)
+        back = pose_inv(offset)
+        tcp_now = pose_trans(flange, offset)
         for lean in LEANS_DEG:
-            top = self._grasp(part, flange, lean, opts)
-            hover = pose_trans(top, [0.0, 0.0, -opts.approach_m, 0.0, 0.0, 0.0])
-            grip = pose_trans(top, [0.0, 0.0, opts.grip_below_m, 0.0, 0.0, 0.0])
+            top = self._grasp(part, tcp_now, lean, opts)
+            hover = pose_trans(pose_trans(top, [0.0, 0.0, -opts.approach_m, 0.0, 0.0, 0.0]), back)
+            grip = pose_trans(pose_trans(top, [0.0, 0.0, opts.grip_below_m, 0.0, 0.0, 0.0]), back)
             answers = [has_solution(hover, opts.arm), has_solution(grip, opts.arm)]
             if None in answers or all(answers):
                 return True
         return False
 
     def _grasp(
-        self, part, flange: Sequence[float], lean: float, opts: PickOptions | None = None
+        self, part, tcp_pose: Sequence[float], lean: float, opts: PickOptions | None = None
     ) -> list[float]:
-        rot = grasp_rotation(flange, part.centre_base, lean)
+        """The grasp as a pose of the TCP frame: its origin on the part's top centre, its Z
+        straight down (or leaned), its heading kept from ``tcp_pose`` and turned so the
+        fingers (the frame's Y) close across the side asked for."""
+        rot = grasp_rotation(tcp_pose, part.centre_base, lean)
         if opts is not None and opts.part is not None and opts.part.is_round:
-            return tip_pose(part.centre_base, rot, self.tip_m, 0.0)  # no long side: the wrist stays
+            return tip_pose(part.centre_base, rot, 0.0, 0.0)  # no long side: the wrist stays
         long_way = opts is not None and opts.across == "long"
         # the fingers travel across the short side (perpendicular to the long one) — or along it
         heading = part.theta if long_way else part.theta + math.pi / 2
         yaw = grasp_yaw_deg(rot, heading, self.finger_axis)
-        return tip_pose(part.centre_base, rot, self.tip_m, yaw)
+        return tip_pose(part.centre_base, rot, 0.0, yaw)
 
     def _item(
-        self, part, flange: Sequence[float], lean: float, loc: int, opts: PickOptions | None = None
+        self, part, tcp_pose: Sequence[float], lean: float, loc: int, opts: PickOptions | None = None
     ) -> dict:
         return {
             "centre": list(part.centre_base),
-            "pose": self._grasp(part, flange, lean, opts),
+            "pose": self._grasp(part, tcp_pose, lean, opts),
             "loc": loc,
             "order": part.order,
             "dims_mm": [round(v * 1000, 1) for v in (part.length_m, part.width_m, part.height_m)],
         }
 
+    def _remember(
+        self, verb: str, loc: int, scene, frame, flange: Sequence[float], opts: PickOptions
+    ) -> None:
+        """Keep what the program just measured: the teach screens show it while the program runs."""
+        got = self.report(scene, frame, flange, opts)
+        got.update(verb=verb, loc=loc, t=self.clock())
+        with self._lock:
+            self.last_measurement = got
+
     def _find2(self, req: dict, opts: PickOptions) -> dict:
         loc = opts.loc or 1
-        ok, scene, _ = self.scene(req["flange"], opts)
+        ok, scene, frame = self.scene(req["flange"], opts)
         if ok != 1:
             return {"status": ok, "loc": loc}
+        self._remember("FIND", loc, scene, frame, req["flange"], opts)
         for note in scene.notes:
             self.log(f"pick FIND at {loc}: {note}", False)
         for p in scene.rejected[:6]:
@@ -725,7 +893,7 @@ class PickPlanner:
                 f"{p.height_m * 1000:.0f} mm at {[round(c, 3) for c in p.centre]}: {p.why}",
                 False,
             )
-        items = [self._item(p, req["flange"], req["lean"], loc, opts) for p in scene.parts]
+        items = [self._item(p, req["tcp_pose"], req["lean"], loc, opts) for p in scene.parts]
         with self._lock:
             q = self._queue(opts.node or "-")
             q["t"] = self.clock()
@@ -738,9 +906,10 @@ class PickPlanner:
             return {**items[0], "status": 1, "remaining": len(items) - 1}
 
     def _refine2(self, req: dict, opts: PickOptions) -> dict:
-        ok, scene, _ = self.scene(req["flange"], opts)
+        ok, scene, frame = self.scene(req["flange"], opts)
         if ok != 1:
             return {"status": ok, "loc": opts.loc}
+        self._remember("REFINE", opts.loc, scene, frame, req["flange"], opts)
         near = req["near"]
         # the close look sees the part from nearer: its neighbours may now be cut off or out of
         # the area, but the part itself is judged only by its size
@@ -754,7 +923,7 @@ class PickPlanner:
         part = min(close, key=lambda p: math.dist(p.centre[:2], near[:2]))
         if part.why and part.why.startswith("no room"):
             return {"status": -11, "loc": opts.loc, "centre": list(part.centre)}
-        item = self._item(part, req["flange"], req["lean"], opts.loc, opts)
+        item = self._item(part, req["tcp_pose"], req["lean"], opts.loc, opts)
         with self._lock:
             remaining = len(self._queue(opts.node or "-")["items"])
         return {**item, "status": 1, "order": 0, "remaining": remaining}
@@ -789,28 +958,32 @@ def preview(
 ) -> dict:
     """The node's teach-time check: what the program would do from where the arm is
     now. ``flange_pose`` is a ``get_flange_pose`` result (``flange``, ``tcp_offset``,
-    ``tcp_offset_consistent``); one FIND, and the hover and grip poses both as flange
-    poses and in the controller's **active** TCP (``polyscope_*``: what PolyScope's
-    hold-to-move screen takes). Moves nothing."""
-    from urctl.pose import pose_trans
-
+    ``tcp_offset_consistent``); one FIND, and the hover and grip poses in the controller's
+    **active** TCP frame — the ``polyscope_*`` names (what PolyScope's hold-to-move screen
+    takes) are the same poses, kept for the 0.9.x screens. Moves nothing."""
     fp = flange_pose
     if not fp.get("ok") or not fp.get("flange"):
         return {"ok": False, "error": fp.get("error") or "could not read the flange pose", "robot": fp}
-    planned = planner.plan(fp["flange"], pixel, part=part)
+    offset = fp.get("tcp_offset")
+    if offset is not None and fp.get("tcp_offset_consistent") is False:
+        offset = None
+    planned = planner.plan(fp["flange"], pixel, part=part, tcp_offset=offset)
     out: dict = {"ok": planned["status"] == 1, **planned, "flange_pose": fp["flange"]}
+    out["tcp_offset"] = list(offset) if offset is not None else None
     if planned["status"] != 1:
         out["error"] = planned["reason"]
         return out
     top = planned["top_pose"]
     out["hover_pose"] = pose_trans(top, [0.0, 0.0, -hover_mm / 1000.0, 0.0, 0.0, 0.0])
     out["grip_pose"] = pose_trans(top, [0.0, 0.0, grip_below_mm / 1000.0, 0.0, 0.0, 0.0])
-    offset = fp.get("tcp_offset")
-    if offset is not None and fp.get("tcp_offset_consistent") is not False:
-        out["polyscope_hover_pose"] = pose_trans(out["hover_pose"], offset)
-        out["polyscope_grip_pose"] = pose_trans(out["grip_pose"], offset)
+    if offset is not None:
+        out["polyscope_hover_pose"] = list(out["hover_pose"])
+        out["polyscope_grip_pose"] = list(out["grip_pose"])
     else:
-        out["polyscope_note"] = "the controller's active TCP offset is unknown or inconsistent"
+        out["polyscope_note"] = (
+            "the controller's active TCP offset is unknown or inconsistent: "
+            "these poses take the TCP at the flange"
+        )
     return out
 
 
@@ -819,7 +992,6 @@ def detect_report(
     *,
     pick_port: int | None,
     handeye: bool,
-    tip_m: float | None,
     part: PartSpec | None = None,
 ) -> dict:
     """What the node's teach screen draws: the blocks the pick server would choose
@@ -839,7 +1011,6 @@ def detect_report(
         "height": h,
         "pick_port": pick_port,
         "handeye": handeye,
-        "tip_m": tip_m,
         "part": None if part is None else part.as_dict(),
         "blocks": [
             {
@@ -864,31 +1035,29 @@ def scene_report(
     """What the 0.5.0 node's teach screen draws, computed exactly as the program's FIND
     would from ``flange`` (the live pose; None: camera-only, no reach or pick area):
     every part with its outline in picture pixels and its pick-order number, every
-    candidate that isn't picked with why, the surface used. Moves nothing."""
+    candidate that isn't picked with why, the surface used; each part's ``grasp_pose`` is
+    a pose of the TCP frame ``opts.tcp_offset`` (the flange when none). Moves nothing."""
+    if planner.quiet():
+        # Nick, 2026-10-08: as the arm comes down to the part the camera is inside its own
+        # minimum range and every frame would be judged wrong — the program is told nothing
+        # between its own FIND / REFINE, and neither is the operator
+        last = planner.last_measurement
+        return {
+            "ok": False,
+            "quiet": True,
+            "running": True,
+            "status": 0,
+            "error": QUIET_REASON,
+            "reason": QUIET_REASON,
+            "pick_port": pick_port,
+            "run": planner.run_state(),
+            "last": None if last is None else {**last, "pick_port": pick_port},
+        }
     ok, scene, frame = planner.scene(flange, opts, after=max(0, planner.latest_seq() - FRESH_FRAMES))
     if ok != 1:
         return {"ok": False, "status": ok, "error": STATUS.get(ok, "?")}
-    seq, w, h = frame[0], frame[1], frame[2]
-    out = scene.as_dict()
-    if flange is not None:
-        # the grasp for each part (fingertips on its top centre, flange pose): the teach screen's
-        # "Check approach" backs it off along the tool axis for PolyScope's move screen
-        for d, p in zip(out["parts"], scene.parts, strict=True):
-            d["grasp_pose"] = [round(v, 6) for v in planner._grasp(p, flange, 0.0, opts)]
-    out.update(
-        ok=True,
-        seq=seq,
-        width=w,
-        height=h,
-        pick_port=pick_port,
-        base_frame=flange is not None,
-        status=scene_status(scene),
-        reason=STATUS.get(scene_status(scene), "?"),
-        part=None if opts.part is None else opts.part.as_dict(),
-        order=list(opts.order),
-    )
-    if flange is None:
-        out["notes"].append("no live robot pose: reach and the pick area are not checked")
+    out = planner.report(scene, frame, flange, opts)
+    out["pick_port"] = pick_port
     return out
 
 

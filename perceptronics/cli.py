@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .cell import ENV_CELL, apply_cell, list_cells
@@ -109,6 +110,33 @@ def build_parser() -> argparse.ArgumentParser:
     gu.add_argument("--demo", action="store_true", help="open the demo view: one picture, four big buttons")
     add_cors_arg(gu)
     add_pick_port_arg(gu)
+
+    ini = sub.add_parser(
+        "init",
+        help="a few questions -> a cell file for your robot and camera (then: doctor, up)",
+    )
+    ini.add_argument("name", nargs="?", default="mycell", help="the cell's name (default: mycell)")
+    ini.add_argument("--out", default=None, help="write <name>.env here (default: the current directory)")
+    ini.add_argument("--yes", action="store_true", help="take every default without asking")
+    ini.add_argument("--force", action="store_true", help="overwrite an existing file")
+
+    up = sub.add_parser(
+        "up",
+        help="the cockpit for a cell, no flags needed: the camera, the robot from the cell, the page opens",
+    )
+    add_camera_args(up)
+    add_robot_args(up)
+    up.add_argument(
+        "--bind",
+        default=None,
+        help="interface to bind (default: every interface when the cell names a robot, so the pendant "
+        "reaches it; loopback otherwise)",
+    )
+    up.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"port (default {DEFAULT_PORT})")
+    up.add_argument("--no-browser", action="store_true", help="don't open the browser automatically")
+    up.add_argument("--demo", action="store_true", help="open the demo view: one picture, four big buttons")
+    add_cors_arg(up)
+    add_pick_port_arg(up)
 
     pc = sub.add_parser(
         "pick-cycle",
@@ -235,6 +263,17 @@ def main(argv: list[str] | None = None) -> int:
         return run_pick_cycle(args)
     if args.cmd == "calibrate":
         return run_calibrate(args)
+    if args.cmd == "init":
+        from .wizard import run_init
+
+        return run_init(args.name, out_dir=args.out, yes=args.yes, force=args.force)
+    if args.cmd == "up":
+        from .wizard import up_bind
+
+        if args.bind is None:
+            args.bind = up_bind(os.environ)
+        args.cmd = "gui"
+        return _realsense_command(args)
     if args.cmd in ("rs-info", "gui"):
         return _realsense_command(args)
     return 2

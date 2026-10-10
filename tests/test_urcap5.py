@@ -33,7 +33,7 @@ import urcap5  # noqa: E402
 
 SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.10.0.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.11.0.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")
@@ -307,13 +307,6 @@ public class Harness {
                 out = rr;
                 break;
             }
-            case "fingertip": {
-                double[] tcp = Cockpit.six(Json.parse(a[1]));
-                double[] off = Cockpit.six(Json.parse(a[2]));
-                double[] r = PoseMath.fingertip(tcp, off, Double.parseDouble(a[3]));
-                out = Arrays.asList(r[0], r[1], r[2]);
-                break;
-            }
             case "trans": {
                 double[] r = PoseMath.trans(Cockpit.six(Json.parse(a[1])), Cockpit.six(Json.parse(a[2])));
                 List<Object> rr = new ArrayList<Object>();
@@ -331,6 +324,7 @@ public class Harness {
                 List<Object> drawn = new ArrayList<Object>();
                 for (Scene.Part p : sc.nearMisses()) drawn.add(p.why);
                 m.put("drawn", drawn); m.put("summary", sc.summary());
+                m.put("banner", sc.banner(a.length > 2 ? a[2] : "110 × 50 × 30 mm"));
                 m.put("orders", orders); m.put("whys", whys); m.put("surface", sc.surface);
                 m.put("width", sc.width); m.put("base", sc.baseFrame);
                 out = m;
@@ -716,9 +710,9 @@ def test_target_text_says_which_check_judged_reach(java_client):
         "reachable": True,
         "reach_check": "controller_ik",
     }
-    tips = dict(loc, reference="fingertip", tip_m=0.163, approach_pose=[-0.2, 0.3, -0.2, 0, 3.14, 0])
-    assert java_client("target", json.dumps(tips)).splitlines()[1] == (
-        "fingertips -0.200, 0.300, -0.200, 0.000, 3.140, 0.000  0.075 m above the object (tool 0.163 m)"
+    tcp = dict(loc, reference="tcp", approach_pose=[-0.2, 0.3, -0.2, 0, 3.14, 0])
+    assert java_client("target", json.dumps(tcp)).splitlines()[1] == (
+        "tool     -0.200, 0.300, -0.200, 0.000, 3.140, 0.000  0.075 m above the object (the robot's TCP)"
     )
     text = java_client("target", json.dumps(loc))
     assert text.splitlines()[1].startswith("flange   -0.232, 0.310, -0.216")
@@ -733,7 +727,7 @@ def test_target_text_says_which_check_judged_reach(java_client):
         approach_pose=[0.1, 0.2, 0.3, 0, 3.14, 0],
     )
     text = java_client("target", json.dumps(sphere))
-    assert "approach 0.100, 0.200, 0.300" in text
+    assert "tool     0.100, 0.200, 0.300" in text
     assert text.endswith("OUT OF REACH  (0.50 m datasheet radius, UR3E — no IK answer)")
 
 
@@ -828,9 +822,7 @@ def test_release_check_publishes_exactly_the_committed_jar_for_its_version():
     out = urcap5.release_check(f"urcap5-v{version}", SRC, DIST.parent)
     assert out["version"] == version and Path(out["path"]) == DIST
     assert out["sha256"] == hashlib.sha256(DIST.read_bytes()).hexdigest()
-    # ... and the stick's auto-install file for that jar, which the release attaches beside it
-    assert Path(out["stick"]) == DIST.parent / urcap5.MAGIC_NAME
-    assert out["sha256"] in Path(out["stick"]).read_text(encoding="utf-8")
+    assert set(out) == {"version", "path", "sha256"}  # nothing else is released beside the jar
 
 
 @pytest.mark.parametrize(
@@ -859,14 +851,6 @@ def test_release_check_refuses_a_stale_or_missing_jar(tmp_path):
     dist = tmp_path / "dist"
     dist.mkdir()
     shutil.copy(DIST, dist / DIST.name)
-    with pytest.raises(urcap5.Urcap5Error, match="urmagic_perceptronic.sh is not committed"):
-        urcap5.release_check(f"urcap5-v{version}", src, dist)  # a release without its stick file
-    stick = dist / urcap5.MAGIC_NAME
-    good = (DIST.parent / urcap5.MAGIC_NAME).read_text(encoding="utf-8")
-    stick.write_text(good.replace(hashlib.sha256(DIST.read_bytes()).hexdigest(), "0" * 64), encoding="utf-8")
-    with pytest.raises(urcap5.Urcap5Error, match="is not the one for"):
-        urcap5.release_check(f"urcap5-v{version}", src, dist)  # ... or one written for another jar
-    stick.write_text(good, encoding="utf-8")
     urcap5.release_check(f"urcap5-v{version}", src, dist)  # a faithful copy passes
     java = next((src / "src").rglob("PickScript.java"))
     java.write_text(java.read_text(encoding="utf-8") + "\n// edited after the build\n", encoding="utf-8")
@@ -950,3 +934,22 @@ def test_the_installation_screen_has_a_log_tab_fed_by_the_nodes_own_log():
     assert "JScrollPane" not in view  # the pendant rule: nothing scrolls; the area shows what fits
     log = (JAVA / "Log.java").read_text(encoding="utf-8")
     assert "KEEP = 50" in log and "static synchronized List<String> recent()" in log
+
+
+def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits(java_client):
+    # the same scenes and the same words as the PolyScope X node (tests/test_urcapx_pick.py)
+    import importlib.util
+
+    words_py = Path(__file__).with_name("test_urcapx_pick.py")
+    spec = importlib.util.spec_from_file_location("urcapx_pick_words", words_py)
+    words = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(words)
+    got = [java_client("scene", json.dumps(sc))["banner"] for sc in words.BANNER_SCENES]
+    assert got == words.BANNERS
+    # while the program runs (0.10.1): the program's last measurement, no banner, told as such
+    quiet = java_client("scene", json.dumps(words.QUIET_SCENE))
+    assert quiet["banner"] is None and quiet["orders"] == [1] and quiet["drawn"] == []
+    assert quiet["summary"] == "program running · last measured: 1 part to pick"
+    empty = java_client("scene", json.dumps(words.QUIET_EMPTY))
+    assert empty["banner"] is None and empty["orders"] == []
+    assert empty["summary"] == "program running · the picture is measured only where the program asks"

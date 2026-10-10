@@ -48,7 +48,6 @@ public final class Preview {
     final List<double[][]> areaTouches = new ArrayList<double[][]>(); // 3 points each, null until taught
     int selected;
     int selectedArea;
-    double tipMm = 163;
     volatile boolean depthView;
     volatile boolean partTaught; // the Part step: a size taught by a tap (0.9.0)
     volatile Scene lastScene = Scene.empty();
@@ -313,7 +312,7 @@ public final class Preview {
             list.add(new LocationsScreen.Area(areaNames.get(i), new boolean[] {done, done, done}, plane(i)));
         }
         double[] m = PickScript.modelReach("UR3");
-        areas.show(list, selectedArea, "UR3e", m[0], m[1], tipMm);
+        areas.show(list, selectedArea, "UR3e", m[0], m[1]);
     }
 
     private static Double ask(String what, double now) {
@@ -376,6 +375,12 @@ public final class Preview {
         @Override
         public void retake(int i) {
             pick.setStatus("on the robot: picture " + (i + 1) + " retaken where the arm is now", Ui.Kind.INFO);
+        }
+
+        @Override
+        public void lookDown(int i) {
+            pick.setStatus("on the robot: the camera computer works out a straight-down view over the pick area, a"
+                    + " little out from the base, and PolyScope's move screen takes the arm there", Ui.Kind.INFO);
         }
 
         @Override
@@ -546,16 +551,5 @@ public final class Preview {
             refresh();
         }
 
-        @Override
-        public void stepTip(double byMm) {
-            tipMm = Math.max(0, tipMm + byMm);
-            refresh();
-        }
-
-        @Override
-        public void askTip(JLabel anchor) {
-            Double v = ask("Fingertip length (mm)", tipMm);
-            if (v != null) stepTip(v - tipMm);
-        }
     }
 }
