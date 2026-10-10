@@ -38,6 +38,13 @@ The Pi and the pendant move together: a 0.9.x node against the new camera comput
 - [ ] **Customer MCP servers:** decide whether a customer's agent gets the motion tools at all, and behind what confirmation (`urctl-mcp --no-motion` and `perceptronics-vision-mcp` ship; `MCP.md`).
 - [ ] **Prune B's split, when Tend starts:** `pickcycle.py`'s helpers stay (the cockpit, the pick node, the pick plan and orbitcal import them); the `perceptronics pick-cycle` routine goes once its lift-and-place logic has been mined for the tending template (ENTERPRISE.md §5.2).
 
+## GPU line (JETSON.md §6 experiments, §9 open points; written 2026-10-10)
+
+- [ ] **Run E3 on the pick PC** over Wi-Fi: RF-DETR-Seg-N and SAM 2 small as ONNX (`pip` on the Pi, ~20 min) — does Line A get the learned segmenter with no GPU?
+- [ ] **NVIDIA Inception:** find out whether advin.io / Perceptronics is in it and which entity applies if not (no loaner programme exists; Inception pricing is the pitch's fallback).
+- [ ] **Source the first camera into `hardware/BOM.md`:** the Arducam AR0234 USB 3 module (~$150, UVC, no SDK) or a Basler ace 2 GigE (PoE / flange-powered, Aravis). E1–E5 need neither, so this can wait for E3's answer.
+- [ ] **Read SAM 3's license in full** (Meta's own, not Apache) before it is in anything shipped; SAM 2 (Apache 2.0) stays the shipping default until then.
+
 ## Deploy and site
 
 - [ ] **perceptronics.advin.io is stale** (last upload 2026-10-04: URCap 0.9.0 / 0.7.0, "3D Pick"). `site/site.sh sync` from a machine with the site's AWS profile, or the CI deploy below.
