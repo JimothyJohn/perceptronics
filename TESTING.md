@@ -152,7 +152,16 @@ that changes with reach is probably real.
 2. **Split a blob by the part's size.** Touching blocks never split (P5, P6, P7); two bars in the
    oblique view read as one 151 × 60; a cylinder and its cable as 87 × 74. The seam is a visible
    line in colour for side-by-side blocks (P5, P7), invisible end to end (P6): the split must come
-   from the part's length, with colour as a tie-breaker.
+   from the part's length, with colour as a tie-breaker. **Done 2026-10-09 evening**
+   (`fusion._split_touching`, `PartSpec.touching`): an outline the size check would call
+   "n parts touching?" is cut into n cells along the multiplied side; every cell must hold 80 %
+   of its rectangle and measure as the part. The three `touch_*` fixtures split into 2 / 2 / 3
+   parts of 50 × 30; the leaner (74 × 49) does not, its second cell comes up short; the covered
+   block stays "too tall" because the split only follows the size check's own verdict. Solid
+   parts touching (the depth path) are not cut yet: no fixture. **Known limit**: at ±25 % a
+   2 × 2 of 50 × 30 (100 × 60) and three across (90 × 50) fit the same outline about equally
+   (the three-across frame: 0.62 vs 0.72 tolerances off); the fewer parts win. The seams in
+   colour (visible side by side) would be the tie-breaker; not built.
 3. **A "too close" guard at the camera's floor.** A white outline with no depth under it is taken
    for foam and given the part's height; when the blob's expected top sits inside the camera's
    minimum range, no depth means too close, not foam (P8: a 57 mm stack passed as 30 at 0.28 m).
@@ -172,6 +181,16 @@ that changes with reach is probably real.
    Parts read taller by the mat's thickness and a strip's end passed as a standing block once.
    The datasheet line is reworded accordingly. The 10-08 reading (blocks 42–62 mm tall) was the
    laser at full power on the other preset.
+
+**Frames for items 2 and 4, captured 2026-10-09 evening** (`tests/fixtures/d435/`, from the parked
+0.35 m view with `cell_sweep.py view … --no-move`): `touch_side_0p35m`, `touch_end_0p35m`,
+`touch_three_0p35m` (one outline each, "2 / 2 / 3 parts touching?" once the side assignment was
+fixed), `stack_0p35m` and `stack_0p28m` ("too tall" from both heights; this stack's top returned
+99 % depth at 0.214 m), `lean_0p35m` (both tops 11–14 % depth: no tilt to read on foam, the
+outline is all there is), `covered_0p35m` (a T: the top block at 56 mm swallows the lower one's
+free end), `cable_0p35m` (the block passes at 49 × 34 with the cable clipped where it lies on the
+table), `cyl_lead_0p35m` (the puck by depth, the lead nothing). `tests/test_fusion.py` holds them
+to: nothing fused is ever a part, the counts are right, the cable and the lead cost nothing.
 
 Not the detector: the D435 returns full depth on foam tops over white paper where over the grey
 table it leaves 10–60 % holes (the surface's brightness decides); the side views past ~0.36 m

@@ -112,15 +112,32 @@ class PartSpec:
         (:meth:`poses`), or None when it is. The reason is the nearest pose's. An unmeasured
         height (no surface visible around it) is not held against it. ``floor_m``: no
         tolerance tighter than this (:meth:`slack`)."""
-        best: tuple[tuple[float, float], str] | None = None
+        return self._judge(major_m, minor_m, height_m, floor_m)[1]
+
+    def touching(
+        self, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
+    ) -> tuple[int, int] | None:
+        """How many parts of this size a measurement is along its long side and its short side
+        when :meth:`why_not` calls it parts touching (``(2, 1)`` two in a row, ``(3, 1)`` three
+        across, ``(2, 2)`` a square of four), else None. The nearest pose judges, as for
+        :meth:`why_not`: a block on a block (50 x 35 x 56 for a 50 x 30 x 30 part) is "too tall"
+        by its nearest face, not two upright blocks side by side by a further one."""
+        pose, why = self._judge(major_m, minor_m, height_m, floor_m)
+        if pose is None or why is None or not why.endswith("parts touching?"):
+            return None
+        return self._touching_as(pose, major_m, minor_m, height_m, floor_m)
+
+    def _judge(self, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0):
+        """The pose the measurement is nearest to and its reason (None: it is the part)."""
+        best: tuple[tuple[float, float], tuple, str] | None = None
         for pose in self.poses():
             why = self._why_not_as(pose, major_m, minor_m, height_m, floor_m)
             if why is None:
-                return None
+                return pose, None
             off = self._offness(pose, major_m, minor_m, height_m, floor_m)
             if best is None or off < best[0]:
-                best = (off, why)
-        return best[1] if best else None
+                best = (off, pose, why)
+        return (best[1], best[2]) if best else (None, None)
 
     def nominal_height(
         self, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
@@ -149,9 +166,17 @@ class PartSpec:
         up = 0.0 if pose[2] is None or height_m is None else abs(height_m - pose[2]) / sl(pose[2])
         return foot, up
 
-    def _why_not_as(
+    def _touching_as(
         self, pose, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
-    ) -> str | None:
+    ) -> tuple[int, int] | None:
+        """The count along the long and the short side if the measurement is parts lying as
+        ``pose``, touching, else None. Parts touching share the part's height, and the sides
+        that are not n parts long are the part's own: a thing twice the part every way is one
+        big thing, not two parts (2026-10-09). Three across read 89 x 57 against 50 x 30 (UR3e,
+        2026-10-09): the long side is three widths and the short side one length, so both
+        assignments of the sides are tried and the fewer parts that fit (then the better fit)
+        is the count — that frame is also a 2 x 2 at the tolerance's edge, and three is the
+        simpler story."""
         length, width, height = pose
         sl = lambda d: self.slack(d, floor_m)  # noqa: E731
         lo, hi = lambda d: d - sl(d), lambda d: d + sl(d)  # noqa: E731
@@ -163,12 +188,26 @@ class PartSpec:
             n = round(got / want)
             return n if n >= 2 and abs(got - n * want) <= sl(n * want) else 0
 
-        # parts touching share the part's height, and the sides that are not n parts long are the
-        # part's own: a thing twice the part every way is one big thing, not two parts (2026-10-09)
-        n, m = multiple(major_m, length), multiple(minor_m, width)
-        fits_h = height is None or height_m is None or lo(height) <= height_m <= hi(height)
-        if n * m > 1 and fits_h:
-            return f"{n * m} parts touching?"
+        if height is not None and height_m is not None and not lo(height) <= height_m <= hi(height):
+            return None
+        if multiple(major_m, length) == 1 and multiple(minor_m, width) == 1:
+            return None  # the part itself
+        counts = []
+        for a, b in ((length, width), (width, length)):
+            n, m = multiple(major_m, a), multiple(minor_m, b)
+            if n * m > 1:
+                off = abs(major_m - n * a) / sl(n * a) + abs(minor_m - m * b) / sl(m * b)
+                counts.append((n * m, off, (n, m)))
+        return min(counts)[2] if counts else None
+
+    def _why_not_as(
+        self, pose, major_m: float, minor_m: float, height_m: float | None, floor_m: float = 0.0
+    ) -> str | None:
+        length, width, height = pose
+        lo, hi = lambda d: d - self.slack(d, floor_m), lambda d: d + self.slack(d, floor_m)  # noqa: E731
+        nm = self._touching_as(pose, major_m, minor_m, height_m, floor_m)
+        if nm is not None:
+            return f"{nm[0] * nm[1]} parts touching?"
         if major_m > hi(length):
             return "too long"
         if minor_m > hi(width):

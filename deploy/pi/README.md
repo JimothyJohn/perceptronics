@@ -73,7 +73,7 @@ What `install.sh` does, idempotently:
 | user | system user `perceptronics` in `plugdev` + `video`, state in `/var/lib/perceptronics` |
 | app | a venv per wheel under `/opt/perceptronics/releases/<version>-<sha>`, `pip install --no-index --no-deps` (nothing fetched), `/opt/perceptronics/current` and `previous` symlinks, the three newest releases kept |
 | config | `/etc/perceptronics/cell.env` from the shipped cell (`perceptronics/cells/<cell>.env`) minus the Mac's webcam lines, plus `cell.env.template`, plus `--robot-host`. Written only when missing or with `--reconfigure` (`--cell` / `--robot-host` on `deploy-pi.sh` imply it). The old file is kept as `cell.env.<timestamp>`. |
-| firewall | `/etc/nftables.conf` (the original is kept as `.pre-perceptronics`). Inbound traffic is dropped except loopback, replies, ICMP, SSH, :7621/:7622 from the cell subnet (`--allow-from CIDR`, default `UR_HOST`'s /24) and DHCP requests on the cell port. |
+| firewall | `/etc/nftables.conf` (the original is kept as `.pre-perceptronics`). Inbound traffic is dropped except loopback, replies, ICMP, SSH, :7621/:7622 (and :80, rewritten to :7621) from the cell subnet (`--allow-from CIDR`, default `UR_HOST`'s /24) and DHCP requests on the cell port. |
 | cell port | `--cell-if` (default `eth0`; `none` skips this row) gets `--cell-address` (default `192.168.3.20/24`, no gateway) as the NetworkManager profile `perceptronics-cell` — unless the port is already on another network, which is left alone. `perceptronics-cell-dhcp.service` (dnsmasq, already on Raspberry Pi OS Lite) hands **one** lease, the cell's `UR_HOST` (192.168.3.3), with no route and no DNS; it starts only when `python -m perceptronics.cellnet probe <port>` heard **no other DHCP server** there, and a NetworkManager hook re-probes every time the port comes up — so plugged into a plant network by mistake it stays quiet. A `UR_HOST` off the cell subnet: no DHCP, the robot needs a static address. |
 | service | `perceptronics-cockpit.service` enabled and restarted, plus `/usr/local/bin/perceptronics-doctor` |
 
@@ -114,7 +114,8 @@ in `/var/lib/perceptronics`, librealsense and the user. Add `--purge` to remove 
 
 ## Setup portal: network and updates without SSH
 
-Every PC installed or flashed from this directory serves **http://192.168.3.20:7621/setup**
+Every PC installed or flashed from this directory serves **http://192.168.3.20/setup** (port 80
+is the cockpit's :7621, rewritten by the firewall; `:7621` works too)
 (the factory login `admin` / `admin` opens it once, to set a password; from then on that
 password is the only login — nothing else on the page works before it is set). Connect a laptop to the PC's Ethernet port and give the laptop a
 **static** `192.168.3.10`, mask `255.255.255.0`. Don't use DHCP: the PC's one-lease DHCP
@@ -133,13 +134,20 @@ another subnet.
 Install. The PC checks every file against the bundle's manifest (sha256; a truncated or
 damaged upload is refused before anything changes), installs it as a new release with the
 same `install.sh`, waits up to 2 min for the cockpit to answer, and **rolls back by itself**
-if it doesn't. `cell.env`, calibrations and the network settings are kept. The page shows
+if it doesn't — to the previous release *as its bundle installed it*: every release keeps its
+deploy files and wheel, and the rollback re-runs that installer (firewall, units, helper
+included). `cell.env`, calibrations and the network settings are kept. The page shows
 the install log. Make a bundle and send it from a checkout:
 
 ```bash
 scripts/pi-update.sh bundle                       # target/pi-update/perceptronics-update-*.tar
 scripts/pi-update.sh push target/pi-update/perceptronics-update-*.tar 192.168.3.20
 ```
+
+A release is named by its **wheel's hash**, so a bundle whose changes are only under `deploy/`
+or `tests/` reads "already installed": the firewall, units and helper are still re-run from the
+bundle, but no release switch happens (2026-10-06). To exercise the switch, change something
+under `perceptronics/` or `urctl/`.
 
 A cell PC has no internet. If a bundle pins a newer librealsense than the PC has, add the
 prebuilt library: `scripts/pi-update.sh bundle --librealsense
@@ -156,6 +164,10 @@ everything the cockpit wrote (no symlinks, size caps, every field), runs `instal
 are saved to `/etc/perceptronics/network.env` and are the defaults of every later install, so
 an update never undoes the portal. Logs: `journalctl -u perceptronics-admin`.
 
+**Verified on the Pi 5 test board, 2026-10-06** (`PI.md` part 3 log): a network change and
+back through the page, an update pushed and one uploaded on the page, a broken bundle rolled back
+in 2 min 21 s with the firewall restored, a truncated bundle refused, the 401/403 refusals.
+
 **Trust.** Bundles carry checksums, not a signature (decided 2026-10-03). Anyone who can
 reach `:7621` from the allowed subnets and knows the login can install software as root. The
 firewall limits that to the cell. Change the default login on a PC that leaves the bench.
@@ -166,6 +178,7 @@ firewall limits that to the cell. Change the default login on a PC that leaves t
 | --- | --- | --- | --- |
 | 22/tcp | in | SSH | anyone (key auth; tighten in `nftables.conf` if the PC is on a wider network) |
 | 7621/tcp | in | cockpit HTTP API (`perceptronics gui --port`), incl. `/api/color.png`, and the setup portal `/setup` (login) | cell subnet only (+ the backup subnet after a network change) |
+| 80/tcp | in | the same, without a port number: nftables rewrites it to 7621 (`http://192.168.3.20/setup`) | the same subnets |
 | 7622/tcp | in | pick server for the Pounce node (`--pick-port`) | cell subnet only |
 | 29999, 30001, 30004/tcp | out | robot Dashboard, Primary, RTDE (`UR_*_PORT` in `cell.env`) | — |
 
