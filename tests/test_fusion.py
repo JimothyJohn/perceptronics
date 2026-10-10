@@ -258,3 +258,111 @@ def test_a_hole_blob_nearer_than_the_camera_can_measure_is_too_close_not_foam():
         W, H, 3, *frame((120, 90, 200, 150), holes=True), 0.001, K, T_DOWN, SURF, spec
     )
     assert ok.why is None
+
+
+# -- the 2026-10-09 scenes: touching, stacked, leaning, covered, a cable, a lead ---------------------
+# Labelled frames from the cell (TESTING.md). The contract today: nothing in them is ever passed
+# as the part except the block under the cable and the puck beside its lead; the fused blobs are
+# near misses with the right count. Splitting them into parts is the detector's open item.
+
+
+def labelled(name: str):
+    meta = json.loads((REAL / f"{name}.json").read_text())
+    spec = PartSpec.from_mm(*meta["part_mm"], shape=meta.get("shape", "box"))
+    return real(name, spec)
+
+
+@pytest.mark.parametrize(
+    ("name", "count"), [("touch_side_0p35m", 2), ("touch_end_0p35m", 2), ("touch_three_0p35m", 3)]
+)
+def test_touching_blocks_are_split_into_the_parts_they_are(name, count):
+    # one outline (59 x 51, 98 x 29, 89 x 57) that the spec says is n parts: cut into n cells
+    # along the multiplied side, every cell the part's size (the seam is faint side by side,
+    # absent end to end: the size does the splitting, not the colour)
+    meta, sc = labelled(name)
+    assert len(sc.parts) == count, [(p.pixel, p.length_m, p.width_m, p.why) for p in sc.parts + sc.rejected]
+    for p in sc.parts:
+        assert abs(p.length_m * 1000 - 50) <= 6 and abs(p.width_m * 1000 - 30) <= 4, (p.length_m, p.width_m)
+        assert abs(p.height_m * 1000 - 30) <= 4
+    # the cells lie along one line through the whole blob's centre, a part's width apart
+    centres = sorted(p.centre[:2] for p in sc.parts)
+    gaps = [math.dist(a, b) for a, b in zip(centres, centres[1:], strict=False)]
+    along = 0.050 if name == "touch_end_0p35m" else 0.030
+    assert all(abs(g - along) < 0.006 for g in gaps), gaps
+    assert not [p for p in sc.rejected if p.near and math.dist(meta["near"][0], p.pixel) < 15]
+
+
+@pytest.mark.parametrize("name", ["stack_0p35m", "stack_0p28m", "covered_0p35m"])
+def test_a_block_standing_on_another_is_too_tall_not_a_part(name):
+    meta, sc = labelled(name)
+    assert sc.parts == []
+    # (the robot's base at the picture's edge is a "cut off" near miss in the 0.28 m frame)
+    near = [p for p in sc.rejected if p.near and math.dist(meta["near"][0], p.pixel) < 15]
+    assert len(near) == 1 and near[0].why == "too tall", [(p.pixel, p.why) for p in sc.rejected if p.near]
+    assert near[0].height_m * 1000 == pytest.approx(57, abs=4)
+
+
+def test_a_leaning_block_is_never_a_part():
+    # the two tops return 11-14 % depth, so there is no tilt to read: the fused outline is all
+    # there is. It reads 74 x 49, which the +-25 % spec takes for two blocks side by side — but
+    # the leaner's face is not a rectangle, so the second cell of that cut holds too little of
+    # the blob (SPLIT_FILL) and the outline stays one near miss
+    meta, sc = labelled("lean_0p35m")
+    assert sc.parts == [], [(p.pixel, p.length_m, p.width_m) for p in sc.parts]
+    near = [p for p in sc.rejected if p.near and math.dist(meta["near"][0], p.pixel) < 15]
+    assert len(near) == 1 and near[0].why == "2 parts touching?"
+
+
+def test_a_white_cable_across_the_block_does_not_hide_it():
+    meta, sc = labelled("cable_0p35m")
+    assert len(sc.parts) == 1, [(p.pixel, p.why) for p in sc.rejected if p.near]
+    (p,) = sc.parts
+    assert math.dist(meta["pixels"][0], p.pixel) < 15
+    # the cable where it lies on the table is clipped away (the whole blob read 49 x 39, "too
+    # wide", before); the bit on the top stays and widens the block a few mm
+    assert p.length_m * 1000 == pytest.approx(50, abs=5) and 29 <= p.width_m * 1000 <= 36
+
+
+def test_a_pucks_lead_is_not_offered_as_parts_touching():
+    meta, sc = labelled("cyl_lead_0p35m")
+    assert len(sc.parts) == 1 and not [p for p in sc.rejected if p.near], [
+        (p.pixel, p.why) for p in sc.rejected if p.near
+    ]
+    (p,) = sc.parts
+    assert math.dist(meta["pixels"][0], p.pixel) < 15
+    assert p.length_m * 1000 == pytest.approx(75, abs=6) and p.width_m * 1000 == pytest.approx(75, abs=6)
+    assert 12 <= p.height_m * 1000 <= 19  # the dark anodized top reads small (datasheet)
+
+
+def test_two_hole_blobs_joined_end_to_end_are_two_parts():
+    # synthetic: a white 160 x 60 px bar with no depth under it, for a 100 x 75 x 30 part at
+    # 0.40 m (one part is 75 x 56 px): 213 x 80 mm, two parts end to end, cut into two
+    rgb, depth = frame((80, 90, 240, 150), holes=True)
+    spec = PartSpec.from_mm(100, 75, 30)
+    parts = fusion.colour_parts(W, H, 3, rgb, depth, 0.001, K, T_DOWN, SURF, spec)
+    assert len(parts) == 2, [(p.length_m, p.width_m, p.why) for p in parts]
+    for p in parts:
+        assert p.source == "colour+spec" and p.height_m == pytest.approx(0.030)
+        assert p.length_m * 1000 == pytest.approx(105, abs=8) and p.width_m * 1000 == pytest.approx(78, abs=8)
+    assert math.dist(parts[0].centre[:2], parts[1].centre[:2]) == pytest.approx(0.105, abs=0.01)
+    # twice the part both ways, with no depth to say it is not the part's height: four
+    # touching (a sheet of the part's material cut 2 x 2 is four parts to the camera)
+    rgb, depth = frame((80, 60, 240, 180), holes=True)
+    parts = fusion.colour_parts(W, H, 3, rgb, depth, 0.001, K, T_DOWN, SURF, spec)
+    assert len(parts) == 4 and all(p.length_m * 1000 == pytest.approx(105, abs=8) for p in parts)
+
+
+def test_a_cut_whose_cell_is_mostly_empty_is_not_made():
+    # an L: a 100 x 75 part with a second square hanging off one end's corner — two parts'
+    # length, but the second cell holds half its rectangle
+    import numpy as np
+
+    rgb, depth = frame((80, 90, 160, 150), holes=True)
+    rgb = np.frombuffer(rgb, np.uint8).reshape(H, W, 3).copy()
+    d = np.frombuffer(depth, np.uint16).reshape(H, W).copy()
+    rgb[120:150, 160:240] = 245
+    d[122:148, 162:238] = 0
+    parts = fusion.colour_parts(
+        W, H, 3, rgb.tobytes(), d.tobytes(), 0.001, K, T_DOWN, SURF, PartSpec.from_mm(100, 75, 30)
+    )
+    assert len(parts) == 1 and parts[0].length_m * 1000 > 150
