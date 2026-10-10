@@ -101,8 +101,22 @@ def test_legacy_perception_variables_are_named_not_silently_ignored(capsys):
     assert env["PERCEPTRONICS_TIP_M"] == "0.163"  # nothing is copied across
     with pytest.raises(ValueError, match="PERCEPTRONICS_BRACKET"):
         parse_env_text("PERCEPTION_BRACKET=ur20")
-    apply_cell(None, {"PERCEPTRONICS_TIP_M": "0.163"})
+    apply_cell(None, {"PERCEPTRONICS_STANDOFF_M": "0.075"})
     assert capsys.readouterr().err == ""
+
+
+def test_retired_tool_variables_are_named_not_silently_ignored(capsys):
+    # 2026-10-08: the tool offset is the robot's active TCP (Nick: "You must only use tool
+    # offsets inside of the robot not your own"); a cell still carrying the Pi-side length
+    # is told so, and nothing reads it.
+    from perceptronics.cell import retired_variables
+
+    env = {"PERCEPTRONICS_TIP_M": "0.163", "PERCEPTRONICS_APPROACH_REFERENCE": "fingertip", "UR_HOST": "h"}
+    assert retired_variables(env) == ["PERCEPTRONICS_TIP_M", "PERCEPTRONICS_APPROACH_REFERENCE"]
+    assert retired_variables({"PERCEPTRONICS_TIP_M": "", "UR_HOST": "h"}) == []
+    apply_cell(None, env)
+    err = capsys.readouterr().err
+    assert "PERCEPTRONICS_TIP_M" in err and "active TCP" in err and "pendant" in err
 
 
 def test_unknown_cell_and_bad_path():

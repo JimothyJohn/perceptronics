@@ -24,16 +24,15 @@ from perceptronics.picknode import (
     scene_report,
 )
 from perceptronics.synthscene import Box, render_depth
-from urctl.pose import Transform, pose_trans
+from urctl.pose import Transform, pose_inv, pose_trans
 
 W, H = 320, 180
 K = {"fx": 230.0, "fy": 230.0, "ppx": W / 2, "ppy": H / 2}
 TABLE = -0.27
-TIP = 0.163
 FLANGE = [0.35, 0.0, 0.12, math.pi, 0.0, 0.0]  # tool straight down; flange X = base X, Y = -base Y
 EYE = [0.0] * 6  # hand-eye: the colour camera is the flange frame
 ROW = [Box(0.28 + 0.07 * c, -0.03, 0.050, 0.035, 0.030, 0.0) for c in range(3)]
-OPTS = "part=50x35x30 tol=25 order=LR,FB proto=2"
+OPTS = "part=50x35x30 tol=25 order=LR,FB proto=3"
 
 
 class Frames:
@@ -54,7 +53,7 @@ class Frames:
 
 
 def planner(frames, **kw):
-    return PickPlanner(frames.source, lambda: frames.seq, lambda: EYE, tip_m=TIP, **kw)
+    return PickPlanner(frames.source, lambda: frames.seq, lambda: EYE, **kw)
 
 
 def pose_text(p):
@@ -83,9 +82,8 @@ def test_find_answers_the_first_in_order_and_queues_the_rest():
     # the leftmost on the picture: the flange's (camera's) X is base X here
     assert r["centre"][0] == pytest.approx(0.28, abs=0.004)
     assert r["dims"] == pytest.approx([50, 35, 30], abs=5)
-    # the fingertips on the top centre, the tool straight down
-    tips = pose_trans(r["pose"], [0, 0, TIP, 0, 0, 0])
-    assert tips[:3] == pytest.approx(r["centre"], abs=1e-6)
+    # the TCP (here the flange: no tcp= sent) on the top centre, the tool straight down
+    assert r["pose"][:3] == pytest.approx(r["centre"], abs=1e-6)
     z = Transform.from_pose(r["pose"]).rotate((0, 0, 1))
     assert z[2] == pytest.approx(-1.0, abs=1e-6)
     # the Hand-E's fingers travel along flange Y: across the part's short side (base Y here)
@@ -98,22 +96,22 @@ def test_next_serves_the_queue_without_a_picture_then_sends_the_arm_back_to_look
     p = planner(f)
     ask(p, "FIND", f"node=a1 loc=2 locs=3 {OPTS}")
     taken = f.taken
-    second = ask(p, "NEXT", "node=a1 locs=3 proto=2")
-    third = ask(p, "NEXT", "node=a1 locs=3 proto=2")
+    second = ask(p, "NEXT", "node=a1 locs=3 proto=3")
+    third = ask(p, "NEXT", "node=a1 locs=3 proto=3")
     assert (second["status"], second["order"], second["remaining"]) == (1, 2, 1)
     assert (third["status"], third["order"], third["remaining"]) == (1, 3, 0)
     assert third["centre"][0] == pytest.approx(0.42, abs=0.004)
     assert f.taken == taken  # no frame: the arm goes straight to the close look
-    empty = ask(p, "NEXT", "node=a1 locs=3 proto=2")
+    empty = ask(p, "NEXT", "node=a1 locs=3 proto=3")
     assert (empty["status"], empty["loc"]) == (0, 2)  # look at location 2 again: picks uncover parts
 
 
 def test_an_empty_location_sends_the_arm_on_to_the_next_one_and_wraps():
     f = Frames([])
     p = planner(f)
-    assert ask(p, "NEXT", "node=b locs=3 proto=2")["loc"] == 1  # a new node starts at 1
+    assert ask(p, "NEXT", "node=b locs=3 proto=3")["loc"] == 1  # a new node starts at 1
     assert ask(p, "FIND", f"node=b loc=1 locs=3 {OPTS}")["loc"] == 2
-    assert ask(p, "NEXT", "node=b locs=3 proto=2")["loc"] == 2
+    assert ask(p, "NEXT", "node=b locs=3 proto=3")["loc"] == 2
     assert ask(p, "FIND", f"node=b loc=3 locs=3 {OPTS}")["loc"] == 1
 
 
@@ -123,28 +121,28 @@ def test_a_queue_goes_stale():
     p = planner(f, clock=lambda: now["t"])
     ask(p, "FIND", f"node=c loc=1 locs=1 {OPTS}")
     now["t"] += QUEUE_TTL_S + 1
-    assert ask(p, "NEXT", "node=c locs=1 proto=2")["status"] == 0
+    assert ask(p, "NEXT", "node=c locs=1 proto=3")["status"] == 0
 
 
 def test_two_nodes_never_share_a_queue():
     f = Frames(ROW)
     p = planner(f)
     ask(p, "FIND", f"node=left loc=1 locs=1 {OPTS}")
-    assert ask(p, "NEXT", "node=right locs=1 proto=2")["status"] == 0
-    assert ask(p, "NEXT", "node=left locs=1 proto=2")["status"] == 1
+    assert ask(p, "NEXT", "node=right locs=1 proto=3")["status"] == 0
+    assert ask(p, "NEXT", "node=left locs=1 proto=3")["status"] == 1
 
 
 def test_parallel_nexts_hand_each_part_out_exactly_once():
     boxes = [Box(0.27 + 0.045 * c, -0.07 + 0.07 * r, 0.03, 0.02, 0.03) for r in range(3) for c in range(4)]
     f = Frames(boxes)
     p = planner(f)
-    first = ask(p, "FIND", "node=q loc=1 locs=1 part=30x20x30 order=LR,FB proto=2")
+    first = ask(p, "FIND", "node=q loc=1 locs=1 part=30x20x30 order=LR,FB proto=3")
     assert first["status"] == 1 and first["remaining"] >= 8
     got, lock = [], threading.Lock()
 
     def worker():
         for _ in range(6):
-            r = ask(p, "NEXT", "node=q locs=1 proto=2")
+            r = ask(p, "NEXT", "node=q locs=1 proto=3")
             if r["status"] == 1:
                 with lock:
                     got.append(r["order"])
@@ -207,14 +205,92 @@ def test_a_part_gone_at_the_close_look_empties_the_queue():
     f.set(ROW[1:])  # someone took the first part
     near = pose_text(first["centre"] + [0, 0, 0])
     assert ask(p, "REFINE", f"{near} node=g loc=1 locs=1 {OPTS}")["status"] == -5
-    assert ask(p, "NEXT", "node=g locs=1 proto=2")["status"] == 0  # look again, don't trust the rest
+    assert ask(p, "NEXT", "node=g locs=1 proto=3")["status"] == 0  # look again, don't trust the rest
+
+
+def test_a_request_with_the_robots_tcp_is_answered_in_that_frame():
+    """Protocol 3 (2026-10-08): the request carries the pose under the active TCP and the
+    offset; the answer puts that TCP on the part, and the picture was placed through the
+    flange the offset recovers."""
+    p = planner(Frames(ROW))
+    offset = [0.0, 0.0, 0.10, 0.0, 0.0, 0.0]
+    tcp_now = pose_trans(FLANGE, offset)
+    off = "tcp=p[" + ", ".join(str(v) for v in offset) + "]"
+    r = ask(p, "FIND", f"node=t3 loc=1 locs=1 {OPTS} {off}", flange=tcp_now)
+    plain = ask(p, "FIND", f"node=t0 loc=1 locs=1 {OPTS}")
+    assert r["status"] == 1 and r["centre"] == pytest.approx(plain["centre"], abs=1e-6)
+    assert r["pose"][:3] == pytest.approx(r["centre"], abs=1e-6)  # the TCP on the top centre
+    assert pose_trans(r["pose"], pose_inv(offset))[2] == pytest.approx(r["centre"][2] + 0.10, abs=1e-6)
+    assert ask(p, "FIND", f"node=t2 loc=1 locs=1 {OPTS.replace('proto=3', 'proto=2')}")["status"] == -14
+
+
+# -- the program's run: quiet in between its own measurements (Nick, 2026-10-08) ---------------
+
+
+def test_the_teach_screen_is_quiet_while_the_program_runs_and_shows_its_last_measurement():
+    """ "The depth camera throws considerable errors as the table gets closer": the arm coming down
+    to the part puts the camera inside its own range, and every frame judged in between is wrong.
+    From the program's first request (or its LOG start) to its LOG at the grip / no pick, the scene
+    route answers quiet with the program's own last measurement, and judges nothing."""
+    from perceptronics.picknode import QUIET_REASON, scene_report
+
+    now = {"t": 1000.0}
+    f = Frames(ROW)
+    p = planner(f, clock=lambda: now["t"])
+    opts = parse_options(OPTS)
+    assert not p.running() and p.run_state()["running"] is False
+    live = scene_report(p, FLANGE, opts, pick_port=7622)
+    assert live["ok"] and len(live["parts"]) == 3 and "quiet" not in live
+
+    p.answer("LOG start, tool p[0.35, 0, 0.12, 3.14, 0, 0]\n")
+    assert p.running() and p.last_measurement is None
+    quiet = scene_report(p, FLANGE, opts, pick_port=7622)
+    assert quiet == {
+        "ok": False,
+        "quiet": True,
+        "running": True,
+        "status": 0,
+        "error": QUIET_REASON,
+        "reason": QUIET_REASON,
+        "pick_port": 7622,
+        "run": p.run_state(),
+        "last": None,
+    }
+    taken = f.taken
+    assert f.taken == taken  # no frame was judged for the screen
+
+    r = ask(p, "FIND", f"node=q loc=1 locs=1 {OPTS}")
+    assert r["status"] == 1
+    quiet = scene_report(p, FLANGE, opts, pick_port=7622)
+    assert quiet["quiet"] and quiet["last"]["verb"] == "FIND" and quiet["last"]["loc"] == 1
+    assert len(quiet["last"]["parts"]) == 3 and quiet["last"]["parts"][0]["order"] == 1
+    assert quiet["run"]["last_measurement"] == {"verb": "FIND", "loc": 1, "age_s": 0.0}
+    # the camera comes down to the part: the frames are garbage, and nobody is asked to judge them
+    f.set([])
+    assert scene_report(p, FLANGE, opts)["quiet"] and len(p.last_measurement["parts"]) == 3
+
+    p.answer("LOG at the grip, part from point 1\n")
+    assert not p.running()
+    live = scene_report(p, FLANGE, opts)
+    assert live["ok"] and live["parts"] == [] and "quiet" not in live  # judged again, honestly
+
+    # a run that ends in no pick, and one that just stops talking (a protective stop)
+    p.answer("LOG start, tool p[0, 0, 0, 0, 0, 0]\n")
+    p.answer("LOG no pick - the part is too close to the robot base\n")
+    assert not p.running()
+    ask(p, "NEXT", "node=q locs=1 proto=3")  # any request is a program talking
+    assert p.running()
+    now["t"] += 89.0
+    assert p.running()
+    now["t"] += 2.0
+    assert not p.running() and scene_report(p, FLANGE, opts)["ok"]
 
 
 def test_no_hand_eye_no_frame():
     f = Frames(ROW)
-    no_eye = PickPlanner(f.source, lambda: f.seq, lambda: None, tip_m=TIP)
+    no_eye = PickPlanner(f.source, lambda: f.seq, lambda: None)
     assert ask(no_eye, "FIND", f"node=e loc=1 locs=1 {OPTS}")["status"] == -3
-    no_frame = PickPlanner(lambda after: None, lambda: 0, lambda: EYE, tip_m=TIP)
+    no_frame = PickPlanner(lambda after: None, lambda: 0, lambda: EYE)
     assert ask(no_frame, "FIND", f"node=e loc=1 locs=1 {OPTS}")["status"] == -4
 
 
@@ -224,14 +300,14 @@ def test_no_hand_eye_no_frame():
 def test_options_parse_to_what_the_node_meant():
     o = parse_options(
         "FIND p[0,0,0,0,0,0] part=60x40x30 tol=20 plane=p[0.2, -0.1, -0.27, 0, 0, 0.3] area=300x200 "
-        "order=RL,BF reach=0.214,0.350 grip=12 stroke=50 node=7f3a loc=2 locs=4 proto=2"
+        "order=RL,BF reach=0.214,0.350 grip=12 stroke=50 node=7f3a loc=2 locs=4 proto=3"
     )
     assert o.part == PartSpec.from_mm(60, 40, 30, 20)
     assert o.surface.source == "taught" and o.surface.area == pytest.approx((0, 0.3, 0, 0.2))
     assert o.order == ("RL", "BF") and o.reach.min_m == 0.214 and o.reach.max_m == 0.35
-    assert (o.grip_below_m, o.stroke_m, o.node, o.loc, o.locs, o.proto) == (0.012, 0.05, "7f3a", 2, 4, 2)
+    assert (o.grip_below_m, o.stroke_m, o.node, o.loc, o.locs, o.proto) == (0.012, 0.05, "7f3a", 2, 4, 3)
     # the plane's pose is not taken for the flange
-    req = parse_request("FIND plane=p[9, 9, 9, 0, 0, 0] p[0.4, 0, 0.3, 0, 3.14, 0] proto=2 node=x")
+    req = parse_request("FIND plane=p[9, 9, 9, 0, 0, 0] p[0.4, 0, 0.3, 0, 3.14, 0] proto=3 node=x")
     assert req["flange"][0] == 0.4
 
 
@@ -256,17 +332,17 @@ def test_bad_options_are_refused_and_answered_in_protocol_2(bad):
         parse_options(f"FIND p[0,0,0,0,0,0] {bad}")
     if bad.startswith("proto"):
         return  # a line that says proto=7 is not a protocol-2 line to answer
-    text = planner(Frames([])).answer(f"FIND p[0,0,0,0,0,0] node=z proto=2 {bad}")
+    text = planner(Frames([])).answer(f"FIND p[0,0,0,0,0,0] node=z proto=3 {bad}")
     assert len(text[1:-2].split(",")) == PROTO2_FIELDS and float(text[1:-2].split(",")[0]) == -9
 
 
 def test_next_needs_a_node():
     with pytest.raises(RequestError, match="node"):
-        parse_request("NEXT p[0,0,0,0,0,0] proto=2")
+        parse_request("NEXT p[0,0,0,0,0,0] proto=3")
 
 
 def test_a_node_id_cannot_smuggle_anything():
-    o = parse_options('FIND p[0,0,0,0,0,0] node=../../etc";popup("x proto=2')
+    o = parse_options('FIND p[0,0,0,0,0,0] node=../../etc";popup("x proto=3')
     assert o.node == ""  # not an id: ignored, never echoed into a path or a script
 
 
@@ -310,7 +386,7 @@ def test_a_controller_session_over_a_real_socket():
         with socket.create_connection(server.server_address, timeout=5) as s:
             rf = s.makefile("rb")
             s.sendall(b"LOG start\n")  # never answered
-            s.sendall(f"NEXT {pose_text(FLANGE)} node=w1 locs=2 proto=2\n".encode())
+            s.sendall(f"NEXT {pose_text(FLANGE)} node=w1 locs=2 proto=3\n".encode())
             a = rf.readline().decode()
             s.sendall(f"FIND {pose_text(FLANGE)} node=w1 loc=1 locs=2 {OPTS}\n".encode())
             b = rf.readline().decode()
@@ -370,7 +446,6 @@ def test_check_approach_gets_the_approach_in_polyscopes_active_tcp():
 
     class Link:  # the parts of RobotLink the scene route reads
         handeye = Eye()
-        tip_m = TIP
 
         def flange_pose(self):
             return {"ok": True, "flange": FLANGE, "tcp_offset": offset, "tcp_offset_consistent": True}
@@ -387,13 +462,16 @@ def test_check_approach_gets_the_approach_in_polyscopes_active_tcp():
         app.stop()
     assert out["ok"], out
     first = out["parts"][0]
-    tips = pose_trans(first["grasp_pose"], [0, 0, TIP, 0, 0, 0])
-    assert tips[:3] == pytest.approx(first["centre"], abs=1e-3)
-    # the active TCP at the approach = the fingertips 25 mm over the top, backed off to where
-    # a 100 mm TCP sits: 163 - 100 + 25 = 88 mm above the top, straight down
+    # the grasp is a pose of the robot's active TCP frame: its origin on the top centre (the
+    # tool as the pendant has it — here a 100 mm TCP; the server owns no tool length)
+    assert out["tcp_offset"] == offset
+    assert first["grasp_pose"][:3] == pytest.approx(first["centre"], abs=1e-3)
+    # the approach PolyScope's move screen takes = that TCP 25 mm over the top, straight down
     tcp = first["polyscope_approach_pose"]
-    assert tcp[2] == pytest.approx(first["centre"][2] + TIP - 0.10 + 0.025, abs=1e-3)
+    assert tcp[2] == pytest.approx(first["centre"][2] + 0.025, abs=1e-3)
     assert tcp[:2] == pytest.approx(first["centre"][:2], abs=1e-3)
+    # the kinematics judged reach for the flange: 100 mm behind that TCP
+    assert pose_trans(tcp, pose_inv(offset))[2] == pytest.approx(first["centre"][2] + 0.125, abs=1e-3)
 
 
 # -- 0.7.0 (2026-09-30): the arm's kinematics decide reach, the grip check can be off, cylinders --
@@ -439,7 +517,7 @@ def test_without_the_grip_check_a_part_that_measures_too_wide_for_the_fingers_is
     """Nick, 2026-09-30: the camera reads the part wide, which made it look ungrippable — the
     part's size is known, so the measured width must not veto it."""
     wide = [Box(0.35, -0.03, 0.055, 0.047, 0.03)]
-    opts = "part=55x47x30 tol=25 order=LR,FB proto=2"
+    opts = "part=55x47x30 tol=25 order=LR,FB proto=3"
     assert ask(planner(Frames(wide)), "FIND", f"node=g loc=1 locs=1 {opts}")["status"] == -1
     assert ask(planner(Frames(wide)), "FIND", f"node=g loc=1 locs=1 {opts} gripcheck=1")["status"] == -1
     assert ask(planner(Frames(wide)), "FIND", f"node=g loc=1 locs=1 {opts} gripcheck=0")["status"] == 1
@@ -454,7 +532,7 @@ def test_without_the_grip_check_a_crowded_part_is_still_picked():
 
 def test_a_cylinder_is_found_by_its_diameter_and_gripped_without_turning_the_wrist():
     can = [Box(0.35, -0.03, 0.04, 0.04, 0.03, round=True)]
-    cyl = "part=40x40x30 tol=25 shape=cyl order=LR,FB proto=2"
+    cyl = "part=40x40x30 tol=25 shape=cyl order=LR,FB proto=3"
     got = ask(planner(Frames(can)), "FIND", f"node=y loc=1 locs=1 {cyl}")
     assert got["status"] == 1 and got["dims"][:2] == pytest.approx([40, 40], abs=5)
     assert got["centre"][:2] == pytest.approx([0.35, -0.03], abs=0.004)
@@ -484,7 +562,7 @@ def test_a_cylinder_with_two_different_sides_is_refused():
 
 
 def test_the_new_options_parse_to_what_the_node_meant():
-    o = parse_options("part=40x40x30 tol=20 shape=cyl grip=12 approach=30 gripcheck=0 arm=UR3 proto=2")
+    o = parse_options("part=40x40x30 tol=20 shape=cyl grip=12 approach=30 gripcheck=0 arm=UR3 proto=3")
     assert o.part == PartSpec.from_mm(40, 40, 30, 20, shape="cyl") and o.part.is_round
     assert (o.approach_m, o.grip_check, o.arm, o.reach) == (0.03, False, "UR3", None)
     old = parse_options(OPTS)  # a 0.6.0 node says none of it: its behaviour is unchanged
@@ -554,7 +632,7 @@ def test_the_cockpit_serves_the_depth_as_a_heatmap_png_the_same_way_as_the_colou
 
 # -- 0.8.0 (2026-10-01): the node drives no gripper; finger room is the operator's number; either side --
 
-ROOM = "part=50x35x30 tol=25 order=LR,FB gripcheck=1 proto=2"
+ROOM = "part=50x35x30 tol=25 order=LR,FB gripcheck=1 proto=3"
 
 
 def test_finger_room_is_the_clear_space_asked_for_on_each_side_of_the_part():
@@ -574,7 +652,7 @@ def test_finger_room_is_the_clear_space_asked_for_on_each_side_of_the_part():
 
 def test_a_node_that_drives_no_gripper_has_no_stroke_to_refuse_a_wide_part_with():
     wide = [Box(0.35, -0.03, 0.09, 0.07, 0.03)]
-    opts = "part=90x70x30 tol=25 order=LR,FB gripcheck=1 proto=2"
+    opts = "part=90x70x30 tol=25 order=LR,FB gripcheck=1 proto=3"
     assert (
         ask(planner(Frames(wide)), "FIND", f"node=s loc=1 locs=1 {opts}")["status"] == -1
     )  # 0.7.0: 50 mm stroke
@@ -583,7 +661,7 @@ def test_a_node_that_drives_no_gripper_has_no_stroke_to_refuse_a_wide_part_with(
 
 def test_a_box_is_gripped_across_its_short_side_or_its_long_one():
     part = [Box(0.35, -0.03, 0.06, 0.03, 0.03, 0.0)]  # the long side along base X
-    opts = "part=60x30x30 tol=25 order=LR,FB gripcheck=1 room=20 proto=2"
+    opts = "part=60x30x30 tol=25 order=LR,FB gripcheck=1 room=20 proto=3"
     short = ask(planner(Frames(part)), "FIND", f"node=x loc=1 locs=1 {opts}")
     also_short = ask(planner(Frames(part)), "FIND", f"node=x loc=1 locs=1 {opts} across=short")
     long_ = ask(planner(Frames(part)), "FIND", f"node=x loc=1 locs=1 {opts} across=long")
@@ -598,7 +676,7 @@ def test_a_box_is_gripped_across_its_short_side_or_its_long_one():
     # the room is checked where the fingers will be: a neighbour off the part's END is in the
     # way of a long-side grip only
     end_on = part + [Box(0.405, -0.03, 0.03, 0.03, 0.03)]  # 10 mm past the end
-    spec = "part=60x30x30 tol=10 order=LR,FB gripcheck=1 room=20 proto=2"
+    spec = "part=60x30x30 tol=10 order=LR,FB gripcheck=1 room=20 proto=3"
     assert ask(planner(Frames(end_on)), "FIND", f"node=x2 loc=1 locs=1 {spec}")["status"] == 1
     seen = scene_report(planner(Frames(end_on)), FLANGE, parse_options(f"{spec} across=long"))
     longest = max(seen["rejected"], key=lambda q: q["size_mm"][0])  # the part, not its neighbour
@@ -614,7 +692,7 @@ def test_the_0_8_options_are_refused_when_malformed(bad):
 
 
 def test_the_0_8_options_parse_and_older_nodes_are_unchanged():
-    o = parse_options("part=50x30x30 gripcheck=1 room=20 across=long proto=2")
+    o = parse_options("part=50x30x30 gripcheck=1 room=20 across=long proto=3")
     assert (o.grip_check, o.room_m, o.across) == (True, 0.02, "long")
     assert o.fingers() == {"grasp_below_m": 0.015, "stroke_m": 0.05, "across": "long", "room_m": 0.02}
     old = parse_options(OPTS)

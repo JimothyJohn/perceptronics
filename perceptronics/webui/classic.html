@@ -42,17 +42,6 @@
          grid-template-rows: auto auto; grid-template-areas: "color depth side" "color depth side"; }
   @media (max-width: 1200px) { main { grid-template-columns: 1fr 1fr; grid-template-areas: "color depth" "side side"; } }
   @media (max-width: 760px) { main { grid-template-columns: 1fr; grid-template-areas: "color" "depth" "side"; } }
-  /* extra viewpoints (--view): a second row → the 2×2 grid */
-  .panel.view { display: none; }
-  body.views .panel.view { display: flex; }
-  body.views main { grid-template-rows: 1fr 1fr; grid-template-areas: "color depth side" "view0 view1 side"; }
-  body.views.views1 main { grid-template-areas: "color depth side" "view0 view0 side"; }
-  @media (max-width: 1200px) { body.views main { grid-template-areas: "color depth" "view0 view1" "side side"; }
-                               body.views.views1 main { grid-template-areas: "color depth" "view0 view0" "side side"; } }
-  @media (max-width: 760px) { body.views main, body.views.views1 main { grid-template-areas: "color" "depth" "view0" "view1" "side"; } }
-  #view0Panel { grid-area: view0; } #view1Panel { grid-area: view1; }
-  .stage img.view { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-  body.demo .panel.view { display: none; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: flex;
            flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
   .panel > .head { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -180,16 +169,6 @@
     </div>
   </section>
 
-  <section id="view0Panel" class="panel view">
-    <div class="head"><h2 id="view0Title">View 1</h2><div class="right"><span id="view0Meta">–</span></div></div>
-    <div class="body"><div class="stage" id="view0Stage"><img class="view" id="view0Img" alt=""><div class="readout" id="view0Readout">waiting for the first frame…</div></div></div>
-  </section>
-
-  <section id="view1Panel" class="panel view">
-    <div class="head"><h2 id="view1Title">View 2</h2><div class="right"><span id="view1Meta">–</span></div></div>
-    <div class="body"><div class="stage" id="view1Stage"><img class="view" id="view1Img" alt=""><div class="readout" id="view1Readout">waiting for the first frame…</div></div></div>
-  </section>
-
   <aside id="side" class="panel">
     <div class="head"><h2>Pilot</h2><div class="right"><span id="cellMeta">–</span></div></div>
     <div class="body pilot" id="pilotSec">
@@ -231,13 +210,13 @@
         <div class="head" style="padding:7px 0 0;border:0"><h2>Robot</h2><div class="right"><span id="robotMeta">–</span></div></div>
         <div class="row">
           <label>standoff <input id="standoff" type="number" value="0.10" step="0.005" min="0" max="1" style="width:5.5em"> m</label>
-          <label>from <select id="reference"><option value="fingertip">fingertips</option><option value="flange">flange</option><option value="tcp">active TCP</option></select></label>
+          <label>from <select id="reference"><option value="tcp">active TCP (the robot's tool)</option><option value="flange">flange</option></select></label>
           <button id="locateBtn">Locate in base</button>
           <button id="moveBtn" disabled>Move TCP to approach</button>
           <button id="cycleBtn" class="primary" disabled title="over the object → down to the standoff → hold 1 s → back up → back here">Approach</button>
         </div>
         <table id="robotTable"><tbody><tr><td colspan="2" class="hint">Segment an object with depth, then Locate.</td></tr></tbody></table>
-        <div class="hint">Locate reads the live flange pose and maps the segment's camera point into the base frame through the hand-eye transform (bracket nominal unless <code>PERCEPTRONICS_T_FLANGE_CAMERA</code> is set). Move sends one safety-validated <code>movel</code> to the approach pose, tool orientation unchanged. <em>from</em> picks what the standoff is measured to: the gripper's <em>fingertips</em> (the default — <code>PERCEPTRONICS_TIP_M</code> along the flange axis, approached along the tool axis, and the move runs with that TCP; the controller's active TCP is not used), the tool <em>flange</em>, or the controller's <em>active TCP</em> (both along the camera ray). The cell file sets the defaults (<code>PERCEPTRONICS_STANDOFF_M</code>, <code>PERCEPTRONICS_APPROACH_REFERENCE</code>, <code>PERCEPTRONICS_TIP_M</code>). <b>Approach</b> is the test loop: click an object (depth region-growing, no model), then Approach — the arm goes over it, down to the standoff, holds a second, comes back up and returns to where the picture was taken, all as one program. Move the object, click, Approach again.</div>
+        <div class="hint">Locate reads the live flange pose and maps the segment's camera point into the base frame through the hand-eye transform (bracket nominal unless <code>PERCEPTRONICS_T_FLANGE_CAMERA</code> is set). Move sends one safety-validated <code>movel</code> to the approach pose, tool orientation unchanged. <em>from</em> picks what the standoff is measured to: the controller's <em>active TCP</em> (the default — the tool as the pendant has it; the cockpit carries no tool length) or the tool <em>flange</em>, both along the camera ray. The cell file sets the default standoff (<code>PERCEPTRONICS_STANDOFF_M</code>). <b>Approach</b> is the test loop: click an object (depth region-growing, no model), then Approach — the arm goes over it, down to the standoff, holds a second, comes back up and returns to where the picture was taken, all as one program. Move the object, click, Approach again.</div>
         <details class="cal" id="calSec">
           <summary>Calibrate hand-eye <span id="calMeta" style="font-weight:400;letter-spacing:0;text-transform:none">–</span></summary>
           <div class="hint">1. Freedrive the tool tip onto a mark → <b>Record mark</b>. 2. From 4–6 varied poses (rotate + tilt the wrist), click the mark in the colour view → <b>Add view</b>. 3. <b>Solve</b>, check the residuals, <b>Apply</b>.</div>
@@ -492,7 +471,7 @@
       ['view ray (base)', vec(j.view_ray_base, 2)],
       ['flange pose', vec(j.flange_pose)],
       ['tcp offset', vec((j.robot || {}).tcp_offset)],
-      ['approach pose', `<b>${vec(j.approach_pose)}</b> (standoff ${fmt(j.standoff_m)} m from the ${j.reference === 'fingertip' ? `fingertips, TCP ${vec(j.tcp)}` : (j.reference || 'tcp')})`],
+      ['approach pose', `<b>${vec(j.approach_pose)}</b> (standoff ${fmt(j.standoff_m)} m from the ${j.reference === 'flange' ? 'flange' : "robot's active TCP"})`],
       ['flange at approach', vec(j.flange_target_pose)],
       ['reach', j.reachable === false ? `<b style="color:var(--bad,#c33)">OUT OF REACH</b> — approach ${fmt(j.commanded_distance_m)} m from base, ${j.model || 'arm'} reaches ${fmt(j.max_reach_m)} m` : (j.reachable === true ? `ok (${fmt(j.commanded_distance_m)} m of ${fmt(j.max_reach_m)} m)` : 'unknown model')],
       ['hand-eye', `${j.handeye.source} · flange→depth ${vec(j.handeye.flange_to_depth_pose)}`],
@@ -673,49 +652,16 @@
 
 
   // ---- info poll -------------------------------------------------------------------
-  // ---- extra viewpoints (--view): one long-poll loop per view, image bytes → <img> ----
-  const viewLoops = new Set();
-  function viewLoop(i) {
-    if (viewLoops.has(i) || i > 1) return;   // the page lays out two view panels
-    viewLoops.add(i);
-    const img = $(`view${i}Img`), meta = $(`view${i}Meta`), readout = $(`view${i}Readout`);
-    let vseq = 0, url = null;
-    (async () => {
-      while (true) {
-        if (!running) { await sleep(120); continue; }
-        try {
-          const r = await fetch(`/api/view/${i}?after=${vseq}&timeout_ms=1500`);
-          if (r.status === 503) { const j = await r.json(); readout.textContent = j.last_error || 'waiting for the first frame…'; readout.style.display = ''; await sleep(500); continue; }
-          if (r.status === 404) { readout.textContent = 'view gone'; await sleep(2000); continue; }
-          if (!r.ok) throw new Error(`view fetch ${r.status}`);
-          const s = parseInt(r.headers.get('X-Seq') || '0', 10);
-          if (s === vseq) continue;   // long-poll timed out: nothing new
-          vseq = s;
-          const blob = await r.blob(), next = URL.createObjectURL(blob);
-          img.src = next; if (url) URL.revokeObjectURL(url); url = next;
-          readout.style.display = 'none';
-          meta.textContent = `${r.headers.get('X-Fps') || '0'} fps · seq ${s}`;
-        } catch (e) { readout.textContent = `view: ${e.message}`; readout.style.display = ''; await sleep(500); }
-      }
-    })();
-  }
-  function views(list) {
-    const n = Math.min((list || []).length, 2);
-    document.body.classList.toggle('views', n > 0); document.body.classList.toggle('views1', n === 1);
-    list.slice(0, 2).forEach((v, i) => { $(`view${i}Title`).textContent = v.name || `View ${i + 1}`; viewLoop(i); });
-  }
-
   async function info() {
     try {
       const j = await (await fetch('/api/info')).json(); const c = j.camera, d = c.device || {};
-      views(j.views || []);
       $('cam').textContent = `${d.name || c.kind}${d.serial ? ' · ' + d.serial : ''}`;
       $('chipKind').textContent = c.kind; $('chipKind').className = 'chip ' + (c.kind === 'synthetic' ? 'warn' : (c.open ? 'ok' : 'crit'));
       $('chipUsb').textContent = d.usb_type ? `usb ${d.usb_type}` : 'usb –'; $('chipUsb').className = 'chip ' + (d.usb_type && !String(d.usb_type).startsWith('3') ? 'warn' : '');
       $('chipSeg').textContent = `seg ${j.segmenter}`;
       robotInfo = j.robot; $('robotSec').hidden = !robotInfo;
       if (robotInfo && robotInfo.approach && !$('standoff').dataset.touched) {
-        $('standoff').value = robotInfo.approach.standoff_m; $('reference').value = robotInfo.approach.reference || 'fingertip';
+        $('standoff').value = robotInfo.approach.standoff_m; $('reference').value = robotInfo.approach.reference || 'tcp';
       }
       if (robotInfo) $('robotMeta').textContent = `${robotInfo.host}${robotInfo.dry_run ? ' · dry-run' : ''} · ${robotInfo.handeye.source}`;
       const cell = j.cell || {};

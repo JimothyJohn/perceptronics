@@ -11,16 +11,13 @@ license = { file = "LICENSE" }
 dependencies = []
 
 [project.optional-dependencies]
-# Classic-CV perception backend (blob detection) + numpy/OpenCV Frame interop.
+# numpy/OpenCV/Pillow interop for the cockpit's optional paths.
 vision = ["numpy>=1.24", "opencv-python>=4.8", "pillow>=10.0"]
-# Learned monocular depth (Depth Anything V2) backend.
-depth = ["torch>=2.0", "transformers>=4.40", "numpy>=1.24", "pillow>=10.0"]
 # Segment Anything click-to-segment backend for the RealSense cockpit.
 sam = ["torch>=2.0", "transformers>=4.40", "numpy>=1.24", "pillow>=10.0"]
 
 [project.scripts]
 urctl = "urctl.cli:main"
-urctl-mcp = "urctl.mcp_server:main"
 perceptronics = "perceptronics.cli:main"
 perceptronics-gui = "perceptronics.webapp:main"
 perceptronics-mcp = "perceptronics.mcp_server:main"

@@ -28,7 +28,7 @@ urctl/                      Host-side control library + CLI + MCP server + agent
 perceptronics/              RGB-D cockpit, detector, pick server, cells (+ README.md = the RealSense notes, ARCHITECTURE.md, cell.html)
 integrations/urcap/         The Perceptronic URCaps (PolyScope 5 + X), their tooling, dist/ and the PS5 matrix compose file;
                             other robot embeds/apps go beside it under integrations/
-deploy/                     pi/ (pick PC installer, image, PI.md, PLUG-AND-PLAY.md), windows/ (Setup.cmd, Start.cmd, compose), Dockerfile.perceptronics
+deploy/                     pi/ (pick PC installer, image, PI.md, PLUG-AND-PLAY.md)
 hardware/                   BOM + the D435 tool bracket
 site/                       perceptronics.advin.io (the only published pages; docs/ and GitHub Pages are gone, 2026-10-04)
 requirements/               dev.{in,txt}, vision.{in,txt} (hashed; CI + `make install-dev`)
@@ -40,7 +40,7 @@ tests/                      pytest suite (unit + URSim integration); tests/fixtu
 the Dashboard + Primary clients), a `SafetyEnvelope` (pre-execution
 validation), an `AuditLog` (structured JSON action log), a JSON-schema'd tool
 registry (`urctl.tools`) for agent frameworks (OpenClaw/ROSClaw, MCP, plain
-function-calling), an `urctl` CLI, and an `urctl-mcp` MCP server. The older
+function-calling), an `urctl` CLI, and the JSON-RPC loop `perceptronics-mcp` serves them through. The older
 `scripts/` are kept as standalone shell/Python helpers; `scripts/urp_convert.py`
 is the single source of truth for the converter (vendored into the wheel as
 `urctl/_urp_convert.py`).
@@ -61,7 +61,7 @@ what the operator can load. All three are also agent tools
 (`ur_rtde_state`/`ur_system_snapshot`/`ur_list_programs`) and therefore MCP
 tools.
 
-**Portability:** the runtime — `urctl`, the GUI, and `urctl-mcp` (rewritten
+**Portability:** the runtime — `urctl`, the GUI, and `perceptronics-mcp` (rewritten
 as stdlib JSON-RPC/stdio; the `mcp` extra is now an empty no-op) — has **zero
 dependencies** and runs on Windows/macOS/Linux, amd64/arm64 (CI tests all
 four). External binaries are only reached for by the *filesystem* layer and
@@ -83,14 +83,10 @@ the arm: `ur_flange_pose` (new tool) + the bracket-nominal hand-eye seed
 base-frame point and an approach pose; **Move** is one `ur_move_tcp` through the
 same tool registry (`perceptronics/robotlink.py`; `perceptronics/README.md` §Sending a
 point to the robot). `urctl/pose.py` is the stdlib pose math (`pose_trans` /
-`pose_inv` semantics). **Extra viewpoints** (`--view DEVICE`, `PERCEPTRONICS_VIEWS` in the
-cell): plain webcams under the colour/depth pair (2×2 grid) and in every snapshot,
-via ffmpeg (`perceptronics/views.py`; macOS picks devices by AVFoundation name; launch
-from a local Terminal — SSH sessions are denied camera access by TCC). **macOS needs `sudo`** to open the camera (libusb
+`pose_inv` semantics). **macOS needs `sudo`** to open the camera (libusb
 must detach Apple's UVC driver — `failed to set power state` otherwise); Linux
 needs the udev rules. `--fake` runs everything on a synthetic scene. The
-target compute is a Jetson Orin next to the robot: `deploy/Dockerfile.perceptronics` +
-`docker compose --profile perceptronics`. The camera mounts on the tool flange via
+shipped compute is the pick PC (`deploy/pi/`; the Jetson container was dropped 2026-10-04). The camera mounts on the tool flange via
 `hardware/d435-tool-bracket/` (parametric CadQuery, STL/STEP, spec in its
 README; nominal `T_flange_camera` seed in §3).
 
@@ -113,8 +109,7 @@ found by identity, trimmed) and clicks every view into the cockpit's session;
 `--apply` saves it (`perceptronics/orbitcal.py`, `perceptronics/README.md` §Hand-eye
 without a mark; unverified on hardware as of 2026-09-26). `perceptronics-mcp` (`.mcp.json`)
 serves robot + `cam_*`/`cell_*` tools; the camera tools proxy the running
-cockpit because one process owns the USB camera. Windows bring-up:
-`scripts/setup-windows.ps1` + `scripts/cockpit.ps1`. **Keep
+cockpit because one process owns the USB camera. **Keep
 `perceptronics/cell.html` current** — it is the demo/explainer and has a dated
 field log; append to it when something is verified or changes.
 
@@ -129,7 +124,7 @@ pass that lets each block go from 120 mm up. A close on nothing opens and moves
 on; a protective stop unlocks, lifts and moves on. It is a client of the running
 cockpit (HTTP, like the MCP tools) and falls back to `urctl gripper` when the
 cockpit predates the gripper route. `--record DIR` saves the three feeds + the
-captioned events for `scripts/pilot/assemble.py`. Hand-E as mounted: the fingers
+captioned events (the pilot-era timelapse scripts that read them were deleted 2026-10-04). Hand-E as mounted: the fingers
 travel along flange **Y**; a yaw about the tool Z (pointing down) is the negative
 of the base-heading yaw — `grasp_yaw_deg` handles it and a composed-pose test
 locks it. First runs 2026-09-25 on the UR3e + Hand-E.
@@ -179,17 +174,35 @@ against the controller's flange; other models guarded by the same check).
 view-dependently (the tilted survey and a vertical look disagreed by 26–28 mm; both
 grasps missed). Re-run `perceptronics calibrate` before trusting a pick again.
 
-**Approach by the fingertips, always (Nick, 2026-09-27: "the tool offset is
-critical").** The cockpit's default approach reference is `fingertip`: the gripper's
-fingertips (`PERCEPTRONICS_TIP_M` along flange +Z — 0.163 m = Hand-E 157 mm + 6 mm adapter,
-the same length pick-cycle uses) sit `PERCEPTRONICS_STANDOFF_M` short of the object along the
-**tool axis**, and every cockpit move, approach cycle and controller-IK reach check runs
-with the TCP set to those fingertips (`RobotLink.reference_tcp`; `RobotLink.move` applies
-it when a client sends only a pose, an explicit `tcp` still wins). The controller's active
-TCP is never trusted for this — on the UR3e it is a 220 mm training offset the Hand-E
-doesn't match. `flange` / `tcp` references remain for a cell with no tool; `perceptronics
-doctor`'s `approach` line names the tool length and whether the active TCP differs. A new
-cell with a different tool must set `PERCEPTRONICS_TIP_M` (the `ur20.env` stub says so).
+**The tool offset is the robot's, only (Nick, 2026-10-08: "You must only use tool offsets
+inside of the robot not your own"; this supersedes the 2026-09-27 "approach by the fingertips"
+rule).** The cockpit, the pick server and both URCaps carry **no tool length**: the tool is the
+controller's **active TCP** as the operator set it on the pendant (Installation → General → TCP).
+A cockpit approach puts that TCP `PERCEPTRONICS_STANDOFF_M` short of the clicked point along the
+camera's ray (`locate(reference="tcp")`, the default; `flange` stays for the calibration and
+explicit callers), every cockpit move and reach check runs with the active TCP as it is
+(`RobotLink.reference_tcp` → `None`), and the Pounce node's script never calls `set_tcp`: it
+sends its pose under the active TCP plus the offset (`tcp=p[…]`, pick-server **protocol 3**,
+`PROTOCOL = 3`) and the server answers poses of that TCP frame — the TCP on the part, Z straight
+down, fingers along the frame's Y — which the node reaches with `movej(get_inverse_kin(pose))`.
+A node before 0.10.0 (it zeroed the TCP and expected flange poses for a 163 mm tool) is answered
+**-14** "update the Perceptronic URCap"; a cockpit before 0.10.0 answers the new node -9. The
+retired `PERCEPTRONICS_TIP_M` / `PERCEPTRONICS_APPROACH_REFERENCE` are ignored and named by the
+cell loader and `perceptronics doctor`'s `approach` line, which now says what the active TCP is
+and warns when it is the flange (right with nothing fitted, a crash with a gripper on). On the
+UR3e the pendant must therefore hold the Hand-E's 0.163 m as the active TCP, not the old 223 mm
+training offset. `pick-cycle` (the legacy routine) takes its tip length from the active offset's
+Z. A pick-area touch records the active TCP's pose (`RobotPositionCallback2`'s pose on
+PolyScope 5, `convertJointPositionsToTcpPose` on PolyScope X).
+
+**Quiet while the program runs (0.10.1 / 0.8.1, Nick 2026-10-08: "disable errors while it's not
+actually in a measurement feedback state").** As the arm comes down the camera is inside its own
+range and every frame judged in between is wrong. `PickPlanner` tracks the program's run (its first
+request or `LOG start` → `LOG at the grip` / `LOG no pick`, or `RUN_TTL_S` = 90 s of silence) and
+remembers what the program measured last (`last_measurement`, from `_find2` / `_refine2`); while it
+runs, `scene_report` answers `{quiet: true, last: …}` and judges no frame, both nodes draw the last
+measurement with no banner and say *program running*. The cockpit keeps **one** `PickPlanner`
+(`pick_planner()` is cached) so the socket and the teach-screen routes share that state.
 Cell files also note where the work surface is relative to the base (UR3e: parts ~0.27 m
 below it) — that height, not the datasheet radius, is what decides reach.
 
@@ -253,6 +266,13 @@ answers an unsolvable pose (the node gives it 8 s). Cockpit field shorthand (`:7
 `host:port`) is completed to a URL; a bare `:7621` used to be fetched relative to
 PolyScope's own page and its 404 misread as an outdated cockpit.
 
+**Names on the pendant (Nick, 2026-10-04: "Perceive is the name of the tool and Pounce is what we'll call the
+approach"):** the Installation node, the P button and the bundle name read **Perceive**; the program node reads
+**Pounce** (3D Pick until 0.10.1; service id `PerceptronicPick` / tag `advin-perceptronic-pick` unchanged, so saved
+programs load). The URCap files and bundle ids stay `perceptronic`. Landed 2026-10-10 as PS5 **0.11.0** / PSX **0.9.0**:
+the 0.10.0/0.10.1 and 0.8.0/0.8.1 releases of 2026-10-08 (tool offset, quiet while running) shipped under the old name
+while this sat in PR #65, so a pendant on 0.10.x must take 0.11.0 to see the new names.
+
 **The URCaps are "Perceptronic" (renamed from "RealSense Pilot" 2026-09-29, Nick: "not this
 weird RealSense Pilot thing"), owned by Nick personally, namespaced by his domain advin.io
 (Nick, 2026-09-30; the 09-29 builds were `com.nickarmenta.perceptronic` / `nickarmenta/perceptronic`,
@@ -308,14 +328,9 @@ no Primary) and talks to a pick server over a plain socket (`:7622`; `FIND`/`LOO
 `LOG` lines that are never answered — a stray reply would be read as the next answer). No survey
 position is needed: the first look is from where the arm is, the closer look from halfway toward
 the block with it centred (never nearer than 0.25 m). Every stage is a `textmsg` **and** a `LOG`
-line; a failed pick raises a blocking popup naming the reason. The cockpit serves the pick server
-itself; a cockpit already running older code gets it from **`perceptronics pick-server`** — a sidecar
-on `:7631` (point the node's cockpit URL there) that answers from the cockpit's frames, forwards
-every other route, and writes the whole trace to `captures/pick-server.log` or, when that's
-root-owned, `~/Library/Logs/perceptronics/` (also `GET /api/pick/log`; the cockpit answers the same
-route from its `kind: pick` events since 2026-10-08). **Kill the sidecar before
-relaunching the cockpit** (`pkill -f "pick-server --bind"`): both bind `:7622`, and the cockpit
-just warns and runs without its pick server. The 0.3.0 script has not yet run on a controller.
+line; a failed pick raises a blocking popup naming the reason. The cockpit serves the pick server itself and keeps its trace: every line is a `pick` event, appended to
+`captures/pick.log` (or `~/Library/Logs/perceptronics/` when `captures/` is root-owned) and served as
+text at `GET /api/pick/log`. (The `:7631` `pick-server` sidecar for older cockpits was removed 2026-10-04.) The 0.3.0 script has not yet run on a controller.
 **Part size (0.4.0, `perceptronics/partspec.py`):** the node's Length × Width [× Height] ± tolerance
 (any face down since 2026-10-03; default ±25 %, never under ±5 mm) rides on FIND/REFINE as `part=60x40x30 tol=25`
 and replaces `detect_blocks`' fixed foam-block gate (≤ 70 × 60 mm); height is measured against the
@@ -388,10 +403,10 @@ dialog was clicked through in the 10.13 sim (`integrations/urcap/e2e.py`: depth 
 **The picture is the thing (Nick, 2026-10-08: "the stream ... should take up much more of the page").**
 On both platforms and both nodes the controls are one column on the **left** — where PolyScope's own
 screens keep their settings — and the picture fills everything right of it: PolyScope 5's Installation
-camera tab (`PilotView.CONTROLS` = 300 px, the feed centred in the rest, no size cap) and the 3D Pick
+camera tab (`PilotView.CONTROLS` = 300 px, the feed centred in the rest, no size cap) and the Pounce
 screen (`PickScreen` sidebar `WEST`); PolyScope X's `.rsp .cam` / `.pk .cols` (the `.side`/`.ctl` first,
 the stage `flex: 1`, no `max-width`). The Installation camera tab has no off-pendant render (`PilotView`
-needs the UR API); the 3D Pick pictures in `screens/` are the layout.
+needs the UR API); the Pounce pictures in `screens/` are the layout.
 
 **3D Pick drives no gripper (URCap 0.8.0 / PolyScope X 0.6.0; Nick 2026-10-01 — this corrects the
 paragraph above where it says the node clamps).** "The node should not control the gripper
@@ -429,7 +444,7 @@ robot's /24 and what the pendant's Cockpit field needs (nothing at 192.168.3.20)
 
 **Settled 2026-10-01 (Nick):** green overlays for pickable parts and yellow for *marginal* ones (the
 server's `near` flag) is the intended picture — nothing is drawn for what is nothing like the part;
-the 3D Pick node's picture carries no watermark; the **UR7e is the UR5e's arm and the UR12e the
+the Pounce node's picture carries no watermark; the **UR7e is the UR5e's arm and the UR12e the
 UR10e's** (`armfk.DH` aliases, so `armik` judges them). The UR30 and UR15 rows are UR's published table (2026-10-02); an arm not in `armfk.DH` is left to the controller.
 
 **Three traps from the 2026-10-02 sessions.** (1) **Every request the URCap pages make to the
@@ -516,7 +531,7 @@ range-scaled tolerance also loosens the height check; a fixed deployment could s
 empty-surface depth map instead of fitting the floor (not built).
 
 **Setup portal + update bundles (2026-10-03, Nick: "a setup portal ... at its default IP address",
-`admin`/`admin` for now; bundles checksummed, **not signed** — his call).** `http://<pick PC>:7621/setup`
+`admin`/`admin` for now; bundles checksummed, **not signed** — his call).** `http://<pick PC>/setup` (port 80 → :7621 in the firewall; `:7621` works too)
 (`perceptronics/setupportal.py`, `webui/setup.html`) changes the cell port's address/gateway/DNS, the
 robot's address and the cell DHCP, and installs `perceptronics-update-*.tar` bundles
 (`scripts/pi-update.sh bundle|push`). The cockpit only queues; root work is
@@ -528,9 +543,16 @@ what the portal chose; (2) after `--network` the port keeps `192.168.3.20/24` as
 the new network holds it; (3) the network rules live twice (helper + `setupportal.validate_network`) and
 a hypothesis test holds them equal — change both; (4) install.sh must never restart
 `perceptronics-admin.service` (an update runs install.sh from inside it); (5) a card flashed before
-this has no portal: reflash it, or SSH with `deploy-pi.sh`. Not yet run on a board.
+this has no portal: reflash it, or SSH with `deploy-pi.sh`. **Run on the old card 2026-10-06**
+(`deploy/pi/PI.md` part 3 log): network change and back, update by `pi-update.sh push` and by the
+page, rollback, the refusals. Two more rules from that run: (6) **every release keeps its deploy files
+and its wheel** (`<release>/deploy`, `.wheel`) and `--rollback` re-runs the previous release's own
+installer — the first version only swapped `current` and left the broken bundle's firewall and
+`install.sh` behind; (7) a `--network` run computes `ALLOW_FROM` for the new network (the saved list
+is an update's default, else the subnets the PC left stay open). Port 80 is the cockpit too
+(nftables `redirect` to :7621), so the portal is `http://<pick PC>/setup`.
 
-**Three traps from the 3D Pick sessions.** (1) `integrations/urcap/pick5_e2e.py` compiles the test harness in
+**Three traps from the Pounce sessions.** (1) `integrations/urcap/pick5_e2e.py` compiles the test harness in
 `tests/test_urcap5.py` (`HARNESS`): anything the harness starts to use must be in the source list
 `generate()` copies (`PURE_JAVA` + `SCREEN_JAVA`) — a mismatch failed all 23 controller jobs in a
 minute; `tests/test_pick5_e2e.py` now builds the e2e's scripts and replays its session. (2) The
@@ -576,11 +598,9 @@ go with this reference doc — use them, don't re-derive:
   jogging to a limit + protective-stop recovery, load/play programs.
 - **ur-program-authoring** — write/convert/run/save a `.script`/`.urp` program:
   conventions, URScript dialect traps, and the movej blend-radius pitfall.
-- **ur-pick-from-image** — turn a photo of objects into a pick/stack program when
-  there's no camera calibration (scale-from-object-size + anchor-the-cluster).
 
 **Connection target is configurable, not hardcoded.** Nothing in `urctl/` (or
-`poweron.sh` / `e2e_drive.py`) bakes in `localhost` — they default to it for
+`poweron.sh`) bakes in `localhost` — they default to it for
 dev but read `UR_HOST` / `UR_DASH_PORT` / `UR_PRIMARY_PORT` / `UR_TIMEOUT_S`
 (and `RobotConfig.from_env(host=...)` / `--host`) so the same code drives a
 real robot at an IP. The only `localhost` references that *should* stay are the
@@ -793,74 +813,6 @@ visible flow reads as named operations (`close_gripper()`) instead of I/O
 plumbing. `make regen-urps` runs any `tests/fixtures/programs/*/build.py` to refresh its `.urp`
 (falling back to the `.script`→`.urp` converter for script-based samples).
 
-### Guided build with on-pendant confirmation
-
-`urctl/guided.py` (`GuidedSession`) builds a node-tree program **interactively**:
-the operator issues a step, the robot raises a **Yes/No dialog on its own
-pendant** describing what it's about to do, and on Yes the step *executes live
-and is recorded* into the growing `.urp`. The console front end is
-`urctl guided <name> --save <path>` (a REPL: `movej`, `movetcp [rel]`, `out`,
-`comment`, `summary`, `save`, `quit`).
-
-Two authoring conventions are baked in (see
-`urctl/PROGRAM-AUTHORING.md`): every recorded step is preceded by a
-**Comment node** built from its `; description` (so always pass one), and
-waypoints are **named by function** (CamelCased description), reusing an earlier
-name when a step returns to the same pose. Because each step gets its own
-comment, guided moves are intentionally not grouped into shared Move nodes.
-Passing **`--freedrive`** makes each move drop into freedrive after executing so
-the operator can hand-guide the exact pose and tap Yes (No/Cancel skips)
-(`Robot.reteach_in_freedrive`); the achieved pose is recorded and later relative
-steps build off it.
-
-**Multi-point inspection app** (`urctl inspect <name> --save <path> [--live]`,
-built on `guided.run_inspection`): a pendant-led loop for "walk the robot to each
-spot and snap a picture." It embeds a camera-trigger subprogram once
-(`guided.CAMERA_TRIGGER_DEF` — a digital-out pulse placeholder; swap for the real
-trigger via `--call` or by editing the def), then repeatedly drops into freedrive
-so the operator hand-guides to a point and taps **Yes** to capture (records a
-MoveJ waypoint + a `script_line` call to the subprogram) or **No/Cancel** to
-finish. This is the canonical use of the Yes/No/Cancel return: Cancel ends the
-loop. No camera calibration needed — points are joint-space teach poses.
-
-The pendant gate is `Robot.confirm_on_pendant(prompt, timeout=…)`, built on
-`request_boolean_from_primary_client` — which **PolyScope's own UI answers**
-(the operator taps the choice on the teach pendant; see the dialect note below
-on `request_*_from_primary_client`). Hard-won details, all verified against the
-sim:
-
-- **Confirm, then act — two round-trips, not one.** The confirm is separate from
-  the motion so the move still flows through the `SafetyEnvelope`; inlining the
-  action into the confirm script would bypass validation.
-- **A timed-out confirm leaves a dialog up on the controller** that blocks the
-  next step. `confirm_on_pendant` detects no-answer (`confirmed=None`) and
-  issues `stop` + `close popup` to clear it. On Yes/No the request program ends
-  itself, so cleanup only runs on timeout.
-- **Only approved *and* executed steps are recorded.** A reject, a safety-refused
-  move, or a move that doesn't confirm completion is tallied in `session.steps`
-  but never added to the program.
-- **Moves are recorded as joint-space waypoints at the achieved pose** (read back
-  after the move), so a Cartesian step replays to the same physical spot without
-  calibration — `move_tcp` becomes a `MoveL` over a joint `Waypoint`.
-
-**Live tree growth (`--live`).** By default the node tree is built host-side and
-only appears in PolyScope's Program tab once the `.urp` is loaded. To make the
-tree grow *node-by-node as you confirm*, pass `urctl guided … --live`: after
-every recorded step the program is saved, placed on the controller, and
-reloaded. An e-Series controller **only refreshes its tree by loading a file**,
-so there's no avoiding a brief reload blink per step. The env-specific bit —
-getting the file into the controller's program dir — is a *placer*:
-`docker_placer(container)` (`docker cp` into this repo's URSim; the default,
-`--live-container`) or `local_dir_placer(dir)` (a host-reachable program dir, a
-mounted real-robot share; `--live-program-dir`). `GuidedSession(on_record=…)` is
-the generic post-record hook; `LiveReloader` is the supplied save→place→load
-implementation (reload failures are swallowed + logged — the in-memory program
-and the final save are unaffected).
-
-The one thing that can't be CI-verified is a human actually tapping Yes/No on
-the pendant; everything up to and after that (dialog raised, blocks, readback,
-timeout cleanup, record-on-approve, live publish+reload) is covered by tests.
-
 ## URScript dialect notes
 
 These are gotchas I hit writing `tests/fixtures/programs/InspectionBot/InspectionBot.script`:
@@ -1042,17 +994,6 @@ term, `ssh-copy-id root@<ip>` and drop `sshpass`. There is no Dashboard
 upload command and no SMB/NFS exposed — SSH is the only file-placement
 path.
 
-For step-by-step live program authoring on a real robot, `urctl guided
---live` accepts **`--live-scp root@<ip>`** (in addition to the URSim
-`--live-container` and mounted-share `--live-program-dir`). Each
-approved step is saved → scp'd into `/programs/` → reloaded over
-Dashboard, so the PolyScope tree grows node-by-node on the pendant. Set
-`SSHPASS` once per shell or enroll a pubkey first — the placer does not
-prompt for a password. The matching `<installation>.installation` is
-expected to already exist on the controller (the placer does not push one
-— a real-cell installation is configuration the operator owns, not
-something to overwrite from the dev box).
-
 ### Build motion programs with script nodes (for real-robot cells)
 
 ```python
@@ -1060,13 +1001,16 @@ from urctl.urp_builder import UrpProgram
 
 prog = UrpProgram("Dance", run_only_once=False)
 prog.comment("Looping dance — raw movej() bypasses MoveJ-node IK validation")
-prog.script_file("dance", """def dance():
+prog.script_file(
+    "dance",
+    """def dance():
   movej([-0.7427, -2.1034, -2.5358, -0.0718, 1.5714, 2.9782], a=1.2, v=1.0, r=0.03)
   ...
   movej(home, a=1.2, v=1.0)   # final waypoint — no r= (see movej blend pitfall)
   sync()
 end
-""")
+""",
+)
 prog.script_line("dance()")
 prog.save("tests/fixtures/programs/Dance/Dance.urp")
 ```
@@ -1102,8 +1046,8 @@ runs and one that pops "cannot reach the required pose" mid-cycle.
 | `make sim-up` fails with `port 5900 … address already in use` on a Mac | macOS **Screen Sharing** serves VNC on 5900 (`nc localhost 5900` answers `RFB …`) | Use noVNC on 6080 instead; publish the container's 5900 elsewhere (`15900:5900`) or turn Screen Sharing off. Compose < 2.24 has no `!override` for `ports:`, so edit the mapping or `docker run` the service |
 | URSim container is `Up` but 29999 refuses / resets and `docker logs` shows `Trace/breakpoint trap   Xvfb` | Docker Desktop is emulating amd64 with **Rosetta**; Xvfb crashes under it, PolyScope (which serves the Dashboard) never starts, and URControl stops listening within minutes. Seen 2026-09-04 on the Mac Studio; the `Exited (101)` containers from weeks earlier were the same | **Docker Desktop's emulators can't run the e-Series sim on the Mac Studio**: with Rosetta off (QEMU user-mode) Xvfb survives but URControl dies (TODO.md, 2026-09-04; re-confirmed 2026-09-27). The image is amd64-only (every tag). `scripts/ursim-e-vm.sh up` runs it in a full x86_64 QEMU VM instead: URControl, Dashboard, Primary/RTDE and the URCap loader work (8 min to Dashboard), but PolyScope's JVM crashes in JIT code there (SIGILL/SIGSEGV, `hs_err_pid*.log`) — fine for "does the URCap load", not for clicking through PolyScope. For that: an amd64 host, CI, or the real UR3e |
 | Every cockpit click on the UR3e cell reads **OUT OF REACH** although the arm reaches the parts | The reach check was the datasheet radius (0.5 m) from the base **origin**; the parts sit 0.27 m below the base | Fixed 2026-09-27: `locate` and every absolute move ask the controller's IK (`reach_check: controller_ik`); the sphere is only the no-answer fallback. If you still see `reach_check: sphere`, Primary isn't answering (PolyScope X in Local, Primary disabled) |
-| A cockpit Move with the Hand-E on drives the fingers into the part | The standoff was measured from the **flange** (`PERCEPTRONICS_APPROACH_REFERENCE=flange`, 75 mm) — the fingertips are 163 mm past it | Fixed 2026-09-27: approach by the fingertips (the default); check `perceptronics doctor`'s `approach` line shows the tool length you measured |
-| The Perceptronic Pick node (or any FIND) seems **hung**: nothing moves, the pick-server log shows `FIND: no fresh camera frame` (status −4) over and over | The D435 dropped out of the cockpit: its frames freeze at one `seq` (`/api/info` now says `stalled: true`, `fps` 0 — before 2026-09-30 `fps` kept reading ~30), and `/api/info`'s `last_error` says `Frame didn't arrive within 5000` (the macOS USB-claim race). Each FIND waits for a frame newer than the request, gets none, answers −4, and a looping program asks again | Re-plug the camera; the lean open re-opens it by itself. The sidecar's log now says `cockpit frames stalled at seq N` with the camera's error, and 0.3.0 pops up the reason instead of looping silently |
+| A cockpit Move with the Hand-E on drives the fingers into the part | The standoff was measured from the **flange** (75 mm) — the fingertips are 163 mm past it | 2026-09-27 to 2026-10-08 the cockpit forced its own 163 mm fingertip TCP; since 0.10.0 the tool is the **pendant's active TCP** — set the gripper's TCP there; `perceptronics doctor`'s `approach` line shows the active offset and warns when it is the flange |
+| The Perceptronic Pick node (or any FIND) seems **hung**: nothing moves, the pick log (`GET /api/pick/log`) shows `FIND: no fresh camera frame` (status −4) over and over | The D435 dropped out of the cockpit: its frames freeze at one `seq` (`/api/info` now says `stalled: true`, `fps` 0 — before 2026-09-30 `fps` kept reading ~30), and `/api/info`'s `last_error` says `Frame didn't arrive within 5000` (the macOS USB-claim race). Each FIND waits for a frame newer than the request, gets none, answers −4, and a looping program asks again | Re-plug the camera; the lean open re-opens it by itself. The sidecar's log now says `cockpit frames stalled at seq N` with the camera's error, and 0.3.0 pops up the reason instead of looping silently |
 | The cockpit runs the **old hand-eye** although `perceptronics/cells/ur3.env` has the new solve (`/api/info` → `robot.handeye.flange_to_depth_pose` ≠ the cell file's value; seen 2026-09-27) | `apply_cell` only fills keys the environment doesn't already have, so a `PERCEPTRONICS_T_FLANGE_CAMERA` already in the cockpit's environment wins. `handeye.source` reads `env:…` either way, so it can't tell you which one won | Launch with `sudo env -u PERCEPTRONICS_T_FLANGE_CAMERA python3 -m perceptronics --cell ur3 gui …`; after every launch compare `flange_to_depth_pose` in `/api/info` with the cell file |
 | RealSense colour panel black, depth fine, RGB options at factory | depth and colour streaming at **different sizes** on the D435 | keep both at 848×480 (the default); `perceptronics/README.md` §Depth quality |
 | Cockpit shows nothing on a **USB 2** link; log says `Couldn't resolve requests` then `RS2_USB_STATUS_ACCESS` on every retry | USB 2 lists **no 848×480 colour** (and 848×480 depth only at 10/6 Hz), so the default pair can't start; each failed open re-runs the macOS UVC race | Fixed: `open()` enumerates the camera's profiles (`Api.stream_modes`) and `negotiate_mode` picks the fastest same-size pair it offers (640×480 @ 15 on the D435) — no flags needed; re-plug once to clear the race. `perceptronics/README.md` §Troubleshooting |
@@ -1149,7 +1093,7 @@ use `JimothyJohn/perceptronics` only).
 
 **`perceptronics doctor` exits 1 when the verdict is NOT READY** — the right answer on a machine
 with no robot, so a script or CI step must not treat that exit code as a crash: look for the
-`verdict:` line (the Windows CI step does; `scripts/setup-windows.ps1` ends with its own `exit 0`).
+`verdict:` line.
 `doctor | head; echo $?` reports `head`'s 0, which is how this was misread once.
 
 Unit tests assume a clean shell: with `UR_CELL` (or `PERCEPTRONICS_*`) exported,
@@ -1181,9 +1125,8 @@ the same for the `vision` extra). CI installs with `pip install --require-hashes
 lockfile rule, kept) and builds with `python -m build --no-isolation` so hatchling is the
 pinned one. Dependabot's `pip` ecosystem updates the pins and their hashes; a bump that needs a
 *new* transitive package fails the hash check in CI — add it to the `.txt` by hand (name,
-version, `--hash` lines from PyPI). Windows: `scripts/setup-windows.ps1` installs Python with
-winget when none is found (`scripts/_python.ps1` finds it, skipping the Microsoft Store stub);
-the Windows CI leg runs `cockpit.ps1 -Doctor` and `deploy/windows/Setup.cmd` under Windows PowerShell 5.1.
+version, `--hash` lines from PyPI). The Windows launchers and the Windows Docker path were dropped 2026-10-04
+(the pick PC is the cell's computer); the Windows unit-test leg stays because the runtime is portable.
 
 ```bash
 make install-dev                              # .venv + the pinned dev tools (pip, hash-checked)
@@ -1201,7 +1144,7 @@ urctl move-joints 0 -1.57 0 -1.57 0 0    # safety-validated movej
 urctl move-tcp 0 0.05 0 0 0 0 --relative # safety-validated movel: +50mm base +Y
 urctl --dry-run move-joints 99 0 0 0 0 0 # validate + audit, send nothing
 urctl tools                              # dump the agent tool schemas (JSON)
-urctl-mcp --host 10.0.0.5                # serve the same tools over MCP
+perceptronics-mcp --cell ur3             # serve the same tools (+ the camera's) over MCP
 ```
 
 When adding a new robot capability, add it in one place — a `Robot` method —

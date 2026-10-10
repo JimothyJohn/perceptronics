@@ -65,6 +65,48 @@ def test_a_measurement_is_the_part_within_tolerance_and_says_why_not_otherwise()
     assert tiny.why_not(0.014, 0.012, None) is None
 
 
+def test_a_thing_the_parts_size_in_every_direction_is_too_big_not_parts_touching():
+    # "2 parts touching?" was said of anything a multiple of the length, whatever its other
+    # sides (2026-10-09, a 100 x 60 x 60 thing against a 50 x 30 x 30 part): parts in a row share
+    # the part's height and the other side; otherwise the thing is just too long or too tall
+    spec = PartSpec.from_mm(60, 40, 30, tol_pct=20)
+    assert spec.why_not(0.120, 0.040, 0.030) == "2 parts touching?"
+    assert spec.why_not(0.120, 0.040, None) == "2 parts touching?"  # the height unseen: still may be
+    assert spec.why_not(0.180, 0.040, 0.030) == "3 parts touching?"
+    assert spec.why_not(0.120, 0.080, 0.030) == "4 parts touching?"  # a 2 x 2 of them
+    assert spec.why_not(0.120, 0.080, 0.060) == "too long"  # twice the part every way: one thing
+    assert spec.why_not(0.120, 0.040, 0.060) == "too long"
+    assert spec.why_not(0.120, 0.080, 0.010) == "too long"
+    assert spec.why_not(0.060, 0.040, 0.060) == "too tall"
+    assert spec.why_not(0.120, 0.020, 0.030) == "too long"  # twice as long and half as wide
+    # parts side by side: the long side is n widths and the short side one length
+    assert spec.why_not(0.080, 0.060, 0.030) == "2 parts touching?"
+    assert spec.why_not(0.120, 0.060, 0.030) == "3 parts touching?"
+    assert spec.why_not(0.120, 0.060, 0.060) == "too long"
+    # the cell's frames (50 x 30 x 30 foam, +-25 %): two side by side, two end to end, three across
+    foam = PartSpec.from_mm(50, 30, 30)
+    assert foam.why_not(0.059, 0.051, 0.027) == "2 parts touching?"
+    assert foam.why_not(0.098, 0.029, 0.032) == "2 parts touching?"
+    assert foam.why_not(0.089, 0.057, 0.027) == "3 parts touching?"
+
+
+def test_touching_counts_the_parts_along_each_side_and_only_when_that_is_the_verdict():
+    spec = PartSpec.from_mm(50, 30, 30)
+    assert spec.touching(0.059, 0.051, 0.027) == (2, 1)  # two side by side: the long side is 2 widths
+    assert spec.touching(0.098, 0.029, 0.032) == (2, 1)  # two end to end: 2 lengths
+    assert spec.touching(0.089, 0.057, 0.027) == (3, 1)  # three across
+    # a square of four, 100 x 60, is also three across (90 x 50) at +-25 %: the fewer parts
+    # win (the cell's frame read 88 x 58 and is three); at +-15 % only the square fits
+    assert spec.touching(0.100, 0.060, 0.030) == (3, 1)
+    assert PartSpec.from_mm(50, 30, 30, tol_pct=15).touching(0.100, 0.060, 0.030) == (2, 2)
+    assert spec.touching(0.050, 0.030, 0.030) is None  # the part
+    assert spec.touching(0.074, 0.049, 0.060) is None  # too tall
+    # a block on a block, 50 x 35 x 56: "too tall" by the nearest face, though a further face
+    # (30 x 30 standing 50) would call it two upright blocks side by side
+    assert spec.why_not(0.050, 0.035, 0.056) == "too tall"
+    assert spec.touching(0.050, 0.035, 0.056) is None
+
+
 def test_a_box_is_the_part_lying_on_any_of_its_faces():
     spec = PartSpec.from_mm(60, 40, 30, tol_pct=10)
     assert spec.poses() == [(0.06, 0.04, 0.03), (0.06, 0.03, 0.04), (0.04, 0.03, 0.06)]
@@ -223,8 +265,10 @@ def test_without_a_spec_the_foam_block_gate_is_unchanged():
 def test_a_spec_keeps_only_the_part_that_size():
     found, rejects = detect([BLOCK, SMALL, LONG], PartSpec.from_mm(54, 40, 40, tol_pct=15))
     assert [(round(b.major_m * 1000), round(b.minor_m * 1000)) for b in found] == [(54, 40)]
-    # SMALL's footprint fits the 40 x 40 face, which stands 54 tall (a box lies on any face)
-    assert sorted(r["why"] for r in rejects) == ["2 parts touching?", "too flat"]
+    # SMALL's footprint fits the 40 x 40 face, which stands 54 tall (a box lies on any face);
+    # LONG reads 108 x 54: not two parts end to end (54 is a third wider than 40), but three
+    # side by side would be 120 x 54, within the 15 %
+    assert sorted(r["why"] for r in rejects) == ["3 parts touching?", "too flat"]
 
 
 def test_a_spec_can_ask_for_a_part_bigger_than_a_foam_block():
@@ -277,3 +321,20 @@ def test_a_near_miss_is_a_candidate_a_little_off_and_nothing_else():
     assert not spec.near_miss(0.100, 0.030, 0.090)  # parts' worth long, but nothing like as tall
     assert not spec.near_miss(0.050, 0.030, 0.090)  # three times as tall
     assert spec.near_miss(0.066, 0.030, None)  # no height measured: not held against it
+
+
+# -- the nominal height (Nick, 2026-10-04: the taught size is the truth, the measurement the filter)
+
+
+def test_nominal_height_is_the_matched_faces_height():
+    spec = PartSpec.from_mm(60, 40, 30)
+    assert spec.nominal_height(0.060, 0.040, 0.027) == pytest.approx(0.030)  # flat, read 3 mm low
+    assert spec.nominal_height(0.060, 0.030, 0.043) == pytest.approx(0.040)  # on its long side
+    assert spec.nominal_height(0.040, 0.030, 0.058) == pytest.approx(0.060)  # on its end
+    assert spec.nominal_height(0.060, 0.040, 0.010) is None  # not this part: too flat
+    assert spec.nominal_height(0.090, 0.040, 0.030) is None  # not this part: too long
+    assert spec.nominal_height(0.060, 0.040, None) == pytest.approx(0.030)  # height unseen: the given face
+
+
+def test_nominal_height_is_none_without_a_taught_height():
+    assert PartSpec.from_mm(60, 40).nominal_height(0.060, 0.040, 0.025) is None

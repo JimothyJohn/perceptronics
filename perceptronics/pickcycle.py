@@ -20,12 +20,14 @@ is a client, the same way the MCP tools are. The routine:
    ``drop_mm`` up so the pile shuffles.
 
 Every phase is an event with a wall-clock stamp (``events.json``), and
-``--record DIR`` saves the three cockpit feeds alongside so
-``scripts/pilot/assemble.py`` can cut a subtitled timelapse.
+``--record DIR`` saves the wrist feed alongside, stamped, for a timelapse.
 
-The fingertip length is the one number the routine cannot see: ``tip_m``
-(Hand-E 157 mm + the 6 mm bracket adapter by default). The tool axis may be
-tilted, so every target is placed for the **tip**, ``flange = tip − R·(0,0,L)``.
+The fingertip length, ``tip_m``, is the robot's own: the Z of its active TCP offset,
+read with the first flange pose (Nick, 2026-10-08: tool offsets live in the robot). The
+routine moves flange poses (``tcp=[0]*6``), and the tool axis may be tilted, so every
+target is placed for the **tip**, ``flange = tip − R·(0,0,L)``. An offset with X, Y or a
+rotation is honoured only along Z — this routine predates the Pounce node, which works
+in the TCP frame itself.
 """
 
 from __future__ import annotations
@@ -47,7 +49,6 @@ from urctl.config import RobotConfig
 from urctl.pose import Transform
 from urctl.robot import Robot
 
-from .handeye import DEFAULT_TIP_M, tip_m_from_env
 from .partspec import PartSpec
 from .pngio import load_png
 
@@ -484,7 +485,7 @@ class Block:
 class PickCycle:
     cockpit: Cockpit = field(default_factory=Cockpit)
     robot: Robot | None = None  # direct drive: motion + gripper over Primary as compiled programs
-    tip_m: float = DEFAULT_TIP_M
+    tip_m: float | None = None  # resolved from the robot's active TCP offset (its Z) at the first use
     hover_mm: float = 40.0
     look_mm: float = 90.0  # the second look: camera ≥ 0.25 m from the top (D435 range)
     grasp_below_mm: float = 15.0
@@ -508,7 +509,7 @@ class PickCycle:
     def say(self, text: str, *, think: str | None = None, do: str | None = None) -> None:
         """Log one event. ``text`` is the engineer's line; ``think`` / ``do`` are the
         same moment in plain words (what the robot has concluded, what it is about
-        to do) — what ``scripts/pilot/assemble.py`` captions for a lay audience."""
+        to do) — captions for a lay audience."""
         ev: dict = {"t": round(time.time() - self.t0, 2), "text": text}
         if think:
             ev["think"] = think
@@ -531,13 +532,30 @@ class PickCycle:
             r = self.robot.get_flange_pose(stand_in=False)
             if not r.get("ok"):
                 raise CockpitError(r.get("error") or "no flange pose")
+            self._take_tip(r.get("tcp_offset"))
             return list(r["flange"])
         r = self.cockpit.post(
             "/api/robot/locate", {"standoff_m": 0.2, "reference": "flange", "point_m": [0, 0, 0.3]}
         )
         if not r.get("flange_pose"):
             raise CockpitError(r.get("error") or "no flange pose")
+        self._take_tip(r.get("tcp_offset"))
         return r["flange_pose"]
+
+    def _take_tip(self, tcp_offset) -> None:
+        """The fingertip length from the robot's active TCP offset, once (its Z; 0 when the
+        controller reports none — then the flange is the tool)."""
+        if self.tip_m is not None:
+            return
+        off = list(tcp_offset) if tcp_offset else None
+        self.tip_m = float(off[2]) if off and len(off) == 6 and math.isfinite(off[2]) else 0.0
+        side = math.hypot(off[0], off[1]) if off and len(off) == 6 else 0.0
+        aside = f" (and {side * 1000:.0f} mm off its axis, ignored here)" if side > 0.002 else ""
+        self.say(
+            f"tool: the robot's active TCP puts the fingertips {self.tip_m * 1000:.0f} mm along the flange Z"
+            + aside
+            + ("" if off else " — no offset reported: the flange is the tool")
+        )
 
     def _move(self, pose: Sequence[float], v: float | None = None) -> dict:
         if self.dry_run:
@@ -915,7 +933,8 @@ class PickCycle:
                     probe()  # the reach cap is sized from the model on first use
                 reach = self.robot.max_reach
                 lean = math.radians(max(self.leans_deg or (0.0,)))
-                limit = float(reach() if callable(reach) else reach) - 0.05 + self.tip_m * math.sin(lean)
+                tip = self.tip_m or 0.0  # resolved with the first flange read; the robot's TCP offset
+                limit = float(reach() if callable(reach) else reach) - 0.05 + tip * math.sin(lean)
             except Exception:
                 limit = 0.0
         if limit and r > limit:
@@ -1013,48 +1032,21 @@ class PickCycle:
 
 
 class Recorder:
-    """Save ``/api/view/0``, ``/api/view/1`` (JPEG) and ``/api/rgbd`` (PNG) to
-    ``out`` with timestamps relative to ``t0``; ``index.json`` + ``t0.json`` are
-    what ``scripts/pilot/assemble.py`` reads."""
+    """Save ``/api/rgbd`` (PNG) to ``out`` with timestamps relative to ``t0``, plus
+    ``index.json`` + ``t0.json``."""
 
     def __init__(self, cockpit: Cockpit, out: str, t0: float):
         self.cockpit, self.out, self.t0 = cockpit, out, t0
-        self.idx: dict[str, list] = {"v0": [], "v1": [], "c": []}
+        self.idx: dict[str, list] = {"c": []}
         self.stop = threading.Event()
         self.lock = threading.Lock()
-        for d in ("v0", "v1", "c"):
-            os.makedirs(f"{out}/{d}", exist_ok=True)
+        os.makedirs(f"{out}/c", exist_ok=True)
         json.dump({"t0": t0}, open(f"{out}/t0.json", "w"))
-        self.threads = [
-            threading.Thread(target=self._view, args=(0,), daemon=True),
-            threading.Thread(target=self._view, args=(1,), daemon=True),
-            threading.Thread(target=self._wrist, daemon=True),
-        ]
+        self.threads = [threading.Thread(target=self._wrist, daemon=True)]
 
     def start(self) -> None:
         for t in self.threads:
             t.start()
-
-    def _view(self, i: int) -> None:
-        seq = 0
-        while not self.stop.is_set():
-            try:
-                r = urllib.request.urlopen(
-                    f"{self.cockpit.base}/api/view/{i}?after={seq}&timeout_ms=1000", timeout=5
-                )
-                s = int(r.headers.get("X-Seq", "0"))
-                data = r.read()
-                if s == seq:
-                    continue
-                seq = s
-                t = time.time() - self.t0
-                name = f"{self.out}/v{i}/{int(t * 1000):08d}.jpg"
-                open(name, "wb").write(data)
-                with self.lock:
-                    self.idx[f"v{i}"].append((t, name))
-                time.sleep(0.15)
-            except Exception:
-                time.sleep(0.3)
 
     def _wrist(self) -> None:
         while not self.stop.is_set():
@@ -1081,32 +1073,6 @@ class Recorder:
         return {k: len(v) for k, v in self.idx.items()}
 
 
-def lock_view_focus(cockpit: Cockpit, spec_text: str | None) -> list[dict]:
-    """Before recording: lock the cockpit's webcam views at the focus the cell names
-    (``PERCEPTRONICS_VIEW_FOCUS``, ``perceptronics.uvc``) — a C920 hunting for focus blurs
-    every other second of a timelapse. Runs from this (unprivileged) process, never
-    touches the RealSense; failures are reported and recording goes on."""
-    from .uvc import focus_for, parse_focus_spec, set_focus
-
-    spec = parse_focus_spec(spec_text)
-    if spec is None:
-        return []
-    try:
-        views = [v.get("name", "") for v in cockpit.get("/api/info").get("views") or []]
-    except Exception:
-        views = []
-    out = []
-    for name in views:
-        act, focus = focus_for(spec, name)
-        if act:
-            r = set_focus(name, focus)
-            out.append(r)
-            state = "autofocus" if focus is None else f"focus locked at {focus}"
-            failed = "" if r.get("ok") else f" FAILED: {r.get('error')}"
-            print(f"view {name!r}: {state}{failed}", file=sys.stderr)
-    return out
-
-
 # -- CLI --------------------------------------------------------------------------------
 
 
@@ -1119,12 +1085,6 @@ def add_pick_cycle_args(ap) -> None:
         action="store_true",
         help="after the in-place pass, drop each block from --drop-mm to shuffle",
     )
-    ap.add_argument(
-        "--tip-m",
-        type=float,
-        default=None,
-        help="flange-to-fingertip length (default: $PERCEPTRONICS_TIP_M, else 0.163 Hand-E + adapter)",
-    )
     ap.add_argument("--lift-mm", type=float, default=25.4, help="in-place lift (default 25.4 = one inch)")
     ap.add_argument("--drop-mm", type=float, default=120.0, help="release height for the drop pass")
     ap.add_argument(
@@ -1134,7 +1094,7 @@ def add_pick_cycle_args(ap) -> None:
         "--record",
         default=None,
         metavar="DIR",
-        help="record the three cockpit feeds + events for a timelapse",
+        help="record the wrist feed + events for a timelapse",
     )
     ap.add_argument(
         "--survey-pose",
@@ -1203,7 +1163,6 @@ def run_pick_cycle(args) -> int:
         velocity=args.velocity,
         min_radius_m=args.min_radius_m,
         max_radius_m=args.max_radius_m,
-        tip_m=tip_m_from_env() if args.tip_m is None else args.tip_m,
         lift_mm=args.lift_mm,
         drop_mm=args.drop_mm,
         grasp_below_mm=args.grasp_below_mm,
@@ -1213,7 +1172,6 @@ def run_pick_cycle(args) -> int:
     )
     rec = None
     if args.record:
-        lock_view_focus(cockpit, os.environ.get("PERCEPTRONICS_VIEW_FOCUS"))
         rec = Recorder(cockpit, args.record, cycle.t0)
         rec.start()
         time.sleep(1.0)

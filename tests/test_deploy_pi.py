@@ -136,11 +136,6 @@ def test_librealsense_is_pinned_to_the_binding_release():
     binding = _text(ROOT / "perceptronics" / "realsense.py")
     minor = re.search(r"written against librealsense (\d+\.\d+)", binding).group(1)
     assert tag.lstrip("v").startswith(minor + "."), f"{tag} is not librealsense {minor}.x"
-    # and the container builds the same release
-    docker_ref = re.search(r"LIBREALSENSE_REF=(\S+)", _text(ROOT / "deploy/Dockerfile.perceptronics")).group(
-        1
-    )
-    assert docker_ref == tag
     assert 'rev-parse HEAD)"' in text and "$LIBREALSENSE_COMMIT" in text, "the clone's commit is checked"
 
 
@@ -246,7 +241,6 @@ def test_unit_execstart_parses_under_the_real_cli(monkeypatch):
     served = {}
     monkeypatch.setattr(webapp, "camera_from_args", lambda args, config: None)
     monkeypatch.setattr(webapp, "robot_from_args", lambda args: None)
-    monkeypatch.setattr(webapp, "views_from_args", lambda args, config: [])
     monkeypatch.setattr(webapp, "serve", lambda *a, **kw: served.update(kw))
     from perceptronics import cli
 
@@ -261,7 +255,7 @@ def test_unit_documents_ports_and_stop_command():
     text = _text(UNIT)
     assert str(webapp.DEFAULT_PORT) in text and str(DEFAULT_PICK_PORT) in text
     assert "systemctl stop perceptronics-cockpit" in text
-    assert "pick-server" in text, "the :7622 clash with the sidecar is written where the next person looks"
+    assert "/api/pick/log" in text, "where the pick trace is read is written where the next person looks"
 
 
 # ----- cell.env ---------------------------------------------------------------------------
@@ -316,7 +310,6 @@ def test_written_cell_env_parses_and_is_self_contained(tmp_path, cell):
     assert result.returncode == 0, result.stderr
     values = parse_env_text((tmp_path / "cell.env").read_text(encoding="utf-8"))
     assert values["UR_HOST"] == "192.168.3.3"
-    assert "PERCEPTRONICS_VIEWS" not in values, "the Mac's webcam names must not reach the pick PC"
     assert values["REALSENSE_LIB"] == parse_env_text(_text(TEMPLATE))["REALSENSE_LIB"]
     assert set(values) <= _env_names_read_by_code()
 
@@ -558,3 +551,176 @@ def test_deploy_skips_a_python_without_pip(tmp_path):
     assert picked not in (str(nopip), "python3")  # never the pip-less one (a later install, or none)
     env["PYTHON"] = good
     assert subprocess.run([bash, "-c", script], env=env, capture_output=True, text=True).stdout == good
+
+
+def test_deploy_copies_the_files_of_deploy_pi_not_its_directories():
+    # Regression (2026-10-06): the first deploy after #49 died at the copy with
+    # `scp: local ".../deploy/pi/image" is not a regular file` — deploy/pi/ grew a
+    # subdirectory (image/, the card-image tooling, not for the PC). The fix that held at the
+    # cell (2026-10-08) copies deploy/pi's regular files only, never a bare `deploy/pi/*`.
+    assert any(p.is_dir() for p in PI.iterdir()), "deploy/pi has no subdirectory any more"
+    text = _text(DEPLOY)
+    assert 'for f in "$repo"/deploy/pi/*; do [ -f "$f" ] && pi_files+=("$f"); done' in text
+    copies = [line for line in text.splitlines() if line.lstrip().startswith("scp ")]
+    assert not [c for c in copies if "deploy/pi/*" in c], copies
+    assert any('"${pi_files[@]}"' in c for c in copies), copies
+
+
+def test_removing_the_cell_dhcp_clears_its_failed_state():
+    # Regression (2026-10-06, old card): switching the robot DHCP off through the portal left
+    # `perceptronics-cell-dhcp.service: failed (Result: signal)` in `systemctl --failed` — the
+    # NetworkManager hook had restarted the unit on the address change and remove_cell_dhcp
+    # stopped and deleted it mid-start. A deleted unit's failed entry stays until reset-failed.
+    code = _text(INSTALL)
+    body = code[code.index("remove_cell_dhcp() {") :]
+    body = body[: body.index("\n}\n")]
+    assert "reset-failed" in body, body
+    assert body.index("daemon-reload") < body.index("reset-failed"), body
+
+
+# ----- port 80: the portal without a port number (Nick, 2026-10-06) -----------------------
+
+
+def test_firewall_serves_the_cockpit_on_port_80_too():
+    # "Users won't be familiar with ports": http://<pick PC>/setup must work. The cockpit stays
+    # unprivileged on :7621; nftables rewrites :80 before the input chain sees it, from the
+    # same subnets that may reach :7621 (the input chain then admits it as :7621).
+    chain = _chain("prerouting")
+    assert re.search(r"type nat hook prerouting priority dstnat; policy accept;", chain)
+    rules = [ln.strip() for ln in chain.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    assert rules[1:] == [f"ip saddr $CELL_NET tcp dport 80 redirect to :{webapp.DEFAULT_PORT}"], rules
+    # and the input chain is unchanged: no separate accept for :80 (it never reaches input as :80)
+    assert "dport 80" not in _chain("input")
+
+
+def _installer_functions(tmp_path: Path, **paths: Path) -> Path:
+    """A copy of install.sh to `source`: its functions, without the trailing `main "$@"`, with the
+    named readonly paths (NETWORK_ENV, APP_ROOT, DEPLOY_COPY, ...) pointed into tmp_path."""
+    code = _text(INSTALL).replace('\nmain "$@"\n', "\n")
+    for name, value in paths.items():
+        if name == "HERE":  # the bundle's deploy dir: set from BASH_SOURCE, then made readonly
+            code, n = re.subn(r"^HERE=.*$", f'HERE="{value}"', code, flags=re.M)
+        else:
+            code, n = re.subn(rf"^readonly {name}=.*$", f'readonly {name}="{value}"', code, flags=re.M)
+        assert n == 1, f"install.sh has no `{name}=` line to point at {value}"
+    copy = tmp_path / "install.sh"
+    copy.write_text(code)
+    return copy
+
+
+def test_a_network_change_recomputes_the_allowed_subnets(tmp_path):
+    # Regression (2026-10-06, old card): after the portal moved the PC to 192.168.50.20 and back,
+    # the firewall still admitted 192.168.50.0/24 — the saved ALLOW_FROM is the default of every
+    # later run (right for an update), and --network reused it instead of computing the list for
+    # the network it was moving to. A network change starts from the new address; only an explicit
+    # --allow-from on that command line is kept.
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    saved = tmp_path / "network.env"
+    saved.write_text(
+        "CELL_IF=eth0\nCELL_ADDRESS=192.168.50.20/24\nALLOW_FROM=192.168.50.0/24,192.168.3.0/24\n"
+    )
+    copy = _installer_functions(tmp_path, NETWORK_ENV=saved)
+    script = f"""
+        source {copy}
+        id() {{ echo 0; }}
+        apply_network() {{ printf '%s|' "$@"; echo; }}
+        main --network --cell-address 192.168.3.20/24 --gateway none --dns none
+        main --network --cell-address 192.168.3.20/24 --allow-from 10.9.0.0/16
+        main --wheel /nowhere.whl 2>/dev/null || true
+    """
+    out = subprocess.run([bash, "-c", script], capture_output=True, text=True)
+    lines = out.stdout.strip().splitlines()
+    assert len(lines) >= 2, (out.stdout, out.stderr)
+    assert lines[0] == "eth0|192.168.3.20/24||||auto||", out  # recomputed by apply_network
+    assert lines[1] == "eth0|192.168.3.20/24||||auto|10.9.0.0/16|", out  # the explicit one wins
+
+
+# ----- rollback brings back the previous release's deploy files (2026-10-06) ---------------
+
+
+def _fake_app_root(tmp_path: Path) -> Path:
+    """releases/good (with its deploy files and wheel name kept) and releases/bad; current -> bad."""
+    root = tmp_path / "opt"
+    for name in ("good", "bad"):
+        rel = root / "releases" / name
+        (rel / "bin").mkdir(parents=True)
+        (rel / "bin" / "perceptronics").write_text("#!/bin/sh\n")
+        (rel / "bin" / "perceptronics").chmod(0o755)
+        (rel / ".complete").touch()
+    good = root / "releases" / "good"
+    # every wheel has this name, so the release keeps its own copy (wheels/ holds only the newest)
+    (good / "perceptronics-0.1.0-py3-none-any.whl").write_bytes(b"not really")
+    (good / ".wheel").write_text("perceptronics-0.1.0-py3-none-any.whl\n")
+    (good / "deploy").mkdir()
+    stub = good / "deploy" / "install.sh"
+    stub.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > {tmp_path}/good-installer-argv\n')
+    stub.chmod(0o755)
+    (root / "current").symlink_to(root / "releases" / "bad")
+    (root / "previous").symlink_to(good)
+    return root
+
+
+def _run_installer_function(bash: str, copy: Path, body: str) -> subprocess.CompletedProcess:
+    script = f"""
+        source {copy}
+        systemctl() {{ echo "systemctl $*"; }}
+        {body}
+    """
+    return subprocess.run([bash, "-c", script], capture_output=True, text=True)
+
+
+def test_rollback_reinstalls_the_previous_release_with_its_own_installer(tmp_path):
+    # Regression (2026-10-06, old card): a broken bundle's install.sh rewrote the firewall, the
+    # units and /opt/perceptronics/deploy before its cockpit failed; --rollback swapped `current`
+    # back and left all of that in place (port 80 gone, an older install.sh for the next job).
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    root = _fake_app_root(tmp_path)
+    good = root / "releases" / "good"
+    copy = _installer_functions(tmp_path, APP_ROOT=root)
+    out = _run_installer_function(bash, copy, "rollback")
+    assert out.returncode == 0, (out.stdout, out.stderr)
+    argv = (tmp_path / "good-installer-argv").read_text().split()
+    assert argv == ["--wheel", str(good / "perceptronics-0.1.0-py3-none-any.whl")], out.stdout
+    assert "systemctl" not in out.stdout, "the previous installer restarts the service itself"
+
+
+def test_rollback_to_a_release_without_kept_deploy_files_swaps_and_says_so(tmp_path):
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    root = _fake_app_root(tmp_path)
+    shutil.rmtree(root / "releases" / "good" / "deploy")  # installed before the files were kept
+    copy = _installer_functions(tmp_path, APP_ROOT=root)
+    out = _run_installer_function(bash, copy, "rollback")
+    assert out.returncode == 0, (out.stdout, out.stderr)
+    assert (root / "current").resolve() == root / "releases" / "good"
+    assert (root / "previous").resolve() == root / "releases" / "bad"
+    assert "systemctl restart perceptronics-cockpit.service" in out.stdout
+    assert "not kept" in out.stdout, out.stdout
+
+
+def test_the_installer_keeps_its_deploy_files_and_wheel_name_in_the_release(tmp_path):
+    bash = _real_bash()
+    if bash is None or sys.platform == "win32":
+        pytest.skip("needs bash")
+    root = _fake_app_root(tmp_path)
+    copy = _installer_functions(tmp_path, APP_ROOT=root, HERE=PI)
+    out = _run_installer_function(bash, copy, "copy_deploy_files")
+    assert out.returncode == 0, (out.stdout, out.stderr)
+    for where in (root / "deploy", root / "releases" / "bad" / "deploy"):  # current -> bad
+        assert (where / "install.sh").is_file() and (where / "nftables.conf").is_file(), where
+        assert (where / "install.sh").stat().st_mode & 0o111, where
+        assert (where / "perceptronics-admin").stat().st_mode & 0o111, where
+    # and install_app keeps the release's own wheel + its name, for rollback to re-run its installer
+    app = _text(INSTALL)
+    # (--rollback passes the release's own copy as --wheel: on the old card the first rollback died
+    # on `cp: ... are the same file` and left the broken release running, 2026-10-06)
+    into_release = r'"\$\{dest\}/\$\(basename "\$wheel"\)"'
+    assert re.search(rf'\[ "\$wheel" -ef {into_release} \] \|\| cp -f "\$wheel" {into_release}', app), (
+        "the wheel goes into the release, unless it is that copy already"
+    )
+    assert re.search(r'basename "\$wheel" *>"\$\{dest\}/\.wheel"', app), "install_app writes .wheel"

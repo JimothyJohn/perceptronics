@@ -1,4 +1,4 @@
-"""The setup portal's cockpit side: http://<pick PC>:7621/setup.
+"""The setup portal's cockpit side: http://<pick PC>/setup (:80 is :7621 on a pick PC; :7621 works too).
 
 An operator connects a laptop to the pick PC at its default address (192.168.3.20) and, on
 this page, moves it onto the plant's network and installs update bundles. The cockpit runs
@@ -23,6 +23,7 @@ from __future__ import annotations
 import base64
 import binascii
 import datetime as _dt
+import hashlib
 import hmac
 import ipaddress
 import json
@@ -37,6 +38,12 @@ ENV_ADMIN_USER = "PERCEPTRONICS_ADMIN_USER"
 ENV_ADMIN_PASSWORD = "PERCEPTRONICS_ADMIN_PASSWORD"
 DEFAULT_USER = "admin"
 DEFAULT_PASSWORD = "admin"
+# The first login (the shipped admin/admin, or cell.env's PERCEPTRONICS_ADMIN_PASSWORD) may do one
+# thing only: set a password. It is kept hashed in <admin dir>/password and from then on it is
+# the only login (Nick, 2026-10-04: force a password change). PASSWORD_MIN..MAX bound its length.
+PASSWORD_FILE_NAME = "password"
+PASSWORD_MIN, PASSWORD_MAX = 8, 128
+PASSWORD_REQUIRED = "set a password first: this camera computer still has its factory login"
 ADMIN_HEADER = "X-Perceptronics-Admin"
 REALM = "Perceptronics setup"
 
@@ -50,6 +57,22 @@ RESCUE_ADDRESS = ipaddress.IPv4Interface("192.168.3.20/24")
 MAX_BUNDLE_BYTES = 256 * 1024 * 1024  # the helper's MAX_BUNDLE_BYTES
 FREE_MARGIN_BYTES = 64 * 1024 * 1024
 _ADDR = re.compile(r"[0-9]{1,3}(\.[0-9]{1,3}){3}")
+
+
+def _hash_password(password: str, salt: bytes | None = None) -> str:
+    """``scrypt$<salt hex>$<hash hex>`` — stdlib scrypt (n=2**14, r=8, p=1), a fresh 16-byte salt."""
+    salt = os.urandom(16) if salt is None else salt
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        _, salt_hex, digest_hex = stored.split("$", 2)
+        salt = bytes.fromhex(salt_hex)
+    except ValueError:
+        return False
+    return hmac.compare_digest(_hash_password(password, salt), f"scrypt${salt_hex}${digest_hex}")
 
 
 class PortalError(ValueError):
@@ -194,6 +217,7 @@ class Portal:
         self.queue = self.admin_dir / "queue"
         self.user = user
         self.password = password
+        self.password_file = self.admin_dir / PASSWORD_FILE_NAME
         self.status_file = status_file
         self.network_env = network_env
         self.image_release = image_release
@@ -227,8 +251,45 @@ class Portal:
             return False
         # both compared, always, in constant time
         ok_user = hmac.compare_digest(user.encode(), self.user.encode())
-        ok_pass = hmac.compare_digest(password.encode(), self.password.encode())
+        stored = self._stored_password()
+        if stored is None:  # the factory login, good for one thing: set_password
+            ok_pass = hmac.compare_digest(password.encode(), self.password.encode())
+        else:
+            ok_pass = _verify_password(password, stored)
         return ok_user and ok_pass
+
+    # -- the password --
+
+    def _stored_password(self) -> str | None:
+        try:
+            text = self.password_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        return text if text.startswith("scrypt$") else None
+
+    @property
+    def password_required(self) -> bool:
+        """True until the operator has replaced the factory login with their own password."""
+        return self._stored_password() is None
+
+    def set_password(self, new: object) -> dict:
+        """Replace the login's password (the factory one, or the current one) with ``new``."""
+        if not isinstance(new, str):
+            raise PortalError("the password must be text")
+        if len(new) < PASSWORD_MIN or len(new) > PASSWORD_MAX:
+            raise PortalError(f"the password must be {PASSWORD_MIN} to {PASSWORD_MAX} characters")
+        if any(ord(c) < 32 or ord(c) == 127 for c in new):
+            raise PortalError("the password must not contain control characters")
+        if hmac.compare_digest(new.encode(), self.password.encode()):
+            raise PortalError("choose a password that is not the factory one")
+        if not self.admin_dir.is_dir():
+            raise PortalError(f"no {self.admin_dir}: this PC's setup portal isn't installed")
+        tmp = self.admin_dir / f".{PASSWORD_FILE_NAME}.tmp"
+        with open(tmp, "w", encoding="utf-8", opener=lambda path, flags: os.open(path, flags, 0o600)) as fh:
+            fh.write(_hash_password(new) + "\n")
+        os.chmod(tmp, 0o600)
+        tmp.replace(self.password_file)
+        return {"ok": True, "message": "password set: log in again with it"}
 
     # -- what the page shows --
 
@@ -268,6 +329,7 @@ class Portal:
             },
             "release": release,
             "image": image.get("IMAGE"),
+            "password_required": self.password_required,
             "pending": self.pending(),
             "busy": bool(self.pending()) or (job is not None and job.get("state") == "running"),
             "job": job,
@@ -303,7 +365,7 @@ class Portal:
             "ok": True,
             "job": job_id,
             "network": req,
-            "new_url": f"http://{new_ip}:7621/setup",
+            "new_url": f"http://{new_ip}/setup",
             "rescue_address": str(RESCUE_ADDRESS.ip) if keeps_rescue_address(req["cidr"]) else None,
         }
 

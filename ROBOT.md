@@ -22,12 +22,12 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
 | Robot | UR3e, PolyScope 5.25.1, static `192.168.3.3` (checked 2026-09-27) | pendant, Settings → System → Network |
 | Pi pick PC | `192.168.3.20/24` on eth0, no gateway; cockpit :7621 (+ :80), pick server :7622; cell DHCP armed (hands a robot on DHCP `192.168.3.3`) | `deploy/pi/install.sh` |
 | Mac Studio | `192.168.3.10` on `en0` (manual), the dev shell | `networksetup -setmanual "Ethernet" 192.168.3.10 255.255.255.0` |
-| Tool | Hand-E through the bracket's 6 mm adapter: fingertips 0.163 m past the flange (`PERCEPTRONICS_TIP_M`); the controller's active TCP is a 223 mm training offset the cockpit never uses | `perceptronics/cells/ur3.env` → `/etc/perceptronics/cell.env` on the Pi |
+| Tool | Hand-E through the bracket's 6 mm adapter: fingertips 0.163 m past the flange — set as the pendant's **active TCP** (since 2026-10-08 the robot's TCP is the only tool offset; the 223 mm training offset must not be active) | the pendant (Installation → General → TCP); `perceptronics doctor`'s `approach` line |
 | Camera | D435 on the `eseries` bracket print, clocked 180° (camera opposite the tool connector), on a **blue** USB 3 port of the Pi, short cable, no hub | `hardware/d435-tool-bracket/` |
 | Hand-eye | the 2026-09-27 solve (RMS 2.5 mm) in `/var/lib/perceptronics/captures/calibration/handeye.json` on the Pi | `install.sh handeye_out_of_env` |
 | Picture pose | 0.37 m up, looking down in front of the stand (`PERCEPTRONICS_HOME_POSE`) | Nick, 2026-09-27 |
 | Parts | white foam blocks on the table, ~0.27 m below the base; the table is flat and parallel to base XY | — |
-| URCap | **Perceptronic 0.9.0** (`io.advin.perceptronic`, `integrations/urcap/dist/perceptronic-ps5-0.9.0.urcap`) — never on a pendant; the pendant still has **RealSense Pilot 0.2.0** | `scripts/urcap5-usb.sh` makes the stick |
+| URCap | **Perceive 0.11.0** (`io.advin.perceptronic`, `integrations/urcap/dist/perceptronic-ps5-0.11.0.urcap`) — never on a pendant; the pendant still has **RealSense Pilot 0.2.0** | `scripts/urcap5-usb.sh` makes the stick |
 | Pi software | PR #67's branch or newer (`deploy-pi.sh` fixed, port 80, rollback restores deploy files, setup portal verified 2026-10-06) | `scripts/deploy-pi.sh nick@10.0.0.56` |
 
 ## Phase 0 — the day before (Claude, 30 min, no robot)
@@ -37,7 +37,7 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
    `cockpit ~30 fps`, `network: this machine is 192.168.3.20 on 192.168.3.0/24` ok; `robot.*`
    fail (unplugged) — expected.
 2. **The stick**: `scripts/urcap5-usb.sh` ("URE MODELS"). It writes
-   `perceptronic-ps5-0.9.0.urcap` (and deletes any `urmagic_perceptronic.sh` an earlier run
+   `perceptronic-ps5-0.11.0.urcap` (and deletes any `urmagic_perceptronic.sh` an earlier run
    left on it) and ejects.
 3. **Fresh frames of the real scene are the arbiter** (`CLAUDE.md` §Detection): clear
    `captures/` on the Mac of root-owned leftovers (`sudo chown -R nick captures` from a local
@@ -70,7 +70,7 @@ robot** — note what happens either way.
 ## Phase 2 — the URCap on the pendant (Nick, 20 min)
 
 **On the pendant:** ☰ → Settings → System → URCaps: select **RealSense Pilot**, **–**,
-restart. Then **+** → the stick → `perceptronic-ps5-0.9.0.urcap` → Open → Restart.
+restart. Then **+** → the stick → `perceptronic-ps5-0.11.0.urcap` → Open → Restart.
 (Pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)
 
 **Check:** Installation tab → URCaps → **Perceptronic**. The Cockpit field reads `192.168.3.20`
@@ -105,8 +105,8 @@ Nothing in phases 0–2 moves the arm. Before the first move:
        python3 -m urctl --host 192.168.3.3 bring-up
        python3 -m urctl --host 192.168.3.3 state          # RUNNING / NORMAL, control_mode REMOTE
 
-5. **First motion, joint space, small:** the picture pose, via the cockpit so the TCP is the
-   fingertips (`RobotLink.reference_tcp`):
+5. **First motion, joint space, small:** the picture pose, via the cockpit (it moves the
+   robot's active TCP as the pendant has it):
 
        curl -s -X POST http://192.168.3.20/api/robot/home     # or the cockpit's Pilot panel: Home
 
@@ -170,11 +170,11 @@ the Hand-E open first (`urctl gripper open`), lift, set down.
 **Local** (the node runs in the robot's own program; Primary is not used). Program tab:
 
     Gripper: open          ← Robotiq's node
-    3D Pick                ← URCaps → 3D Pick
+    Pounce                ← URCaps → Pounce
     Gripper: close         ← Robotiq's node
     If rs_pick_found       ← lift 100 mm, set down, open
 
-In the 3D Pick node, in this order (each a screen on the pendant to look at, nothing clipped,
+In the Pounce node, in this order (each a screen on the pendant to look at, nothing clipped,
 nothing scrolling — note anything that is):
 
 1. **Part tab: the size first.** The node's default (110 × 50 × 30) is not your part — on 2026-10-06
@@ -193,7 +193,7 @@ nothing scrolling — note anything that is):
 5. ▶.
 
 Watch for, in order (each is a `textmsg` and a `LOG` line in the Pi's
-`captures/pick-server.log` / `GET /api/pick/log`): FIND from the picture point → the closer look
+`captures/pick.log` / `GET /api/pick/log`): FIND from the picture point → the closer look
 (0.30 m, part 12° off-axis on the side away from the gripper — is the part clear of the
 fingers? toggle the node's picture to Depth to see their hole) → REFINE → over → approach →
 grip, fingertips at grip depth, and the node ends with the gripper **open** (it drives no
@@ -214,7 +214,7 @@ did; each should raise the alarm strip with the fix and clear by itself:
 
 1. Pendant to **Local** mid-cockpit-move → PENDANT SWITCHED TO LOCAL.
 2. D435 **unplugged** mid-run → CAMERA STOPPED · PICTURE IS n S OLD; re-plug → clears, and a
-   looping 3D Pick stops answering −4 and resumes (not a hang).
+   looping Pounce stops answering −4 and resumes (not a hang).
 3. `ssh nick@10.0.0.56 sudo systemctl restart perceptronics-cockpit` while the program is on a
    block → COCKPIT NOT ANSWERING; the program's popup names it.
 4. Robot **power cut** → ROBOT NOT ANSWERING; power back → reconnects without a refresh.
@@ -256,7 +256,7 @@ booted on the cell, `http://192.168.3.20/setup` with no SSH at all.
   URScript (`urctl move-*`, `run-script`, a cockpit APPROACH). A new program on :30001 replaces
   the running one silently.
 - **Moves go through the cockpit or the program**, never hand-rolled `movel` from a shell: the
-  cockpit sets the TCP to the fingertips and asks the controller's IK first.
+  cockpit moves the pendant's active TCP and asks the controller's IK first.
 - **Don't touch the pendant's installation, safety or network from the network** — there is no
   such path, and there shouldn't be.
 - **Two failed attempts at a phase → stop and write.** The list of "never seen on hardware"

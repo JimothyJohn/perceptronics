@@ -204,7 +204,9 @@ but **has not run on a board**. The test board for it is the **old card**: hand-
 `10.0.0.56`, your key, passwordless sudo. Because SSH rides the Wi-Fi, changing eth0 never
 cuts the session.
 
-What the portal is: `http://<Pi>:7621/setup`, login `admin` / `admin`. It sets the Pi's
+*(2026-10-06: #59 merged on 10-04; the branch for this run is `test/pi-setup-portal-on-board` off `dev`.)*
+
+What the portal is: `http://<Pi>/setup` (`:7621` works too), login `admin` / `admin`. It sets the Pi's
 network (address, mask, gateway, DNS, robot address, robot DHCP) and installs a
 `perceptronics-update-*.tar` with automatic rollback. Reference: `deploy/pi/README.md`
 §Setup portal.
@@ -295,7 +297,14 @@ Afterwards: fill in the log below, move PR #59 out of draft only if 2–8 passed
 
 | Step | Date | Result |
 | --- | --- | --- |
-| | | |
+| 1 Preflight | 2026-10-06 | pass. Old card booted after the 10-03 power yank. `cell.env` as deployed 10-03; no `network.env`; `netplan-eth0` 192.168.3.20 + Wi-Fi 10.0.0.56; D435 on USB 3 (5000 Mb/s); `get_throttled` 0x0. Release before: 0.1.0-389b242fb0fa. |
+| 2 Install | 2026-10-06 | pass, after one repo fix: the first run died at the copy (`scp: local .../deploy/pi/image is not a regular file` — #49 gave `deploy/pi/` a subdirectory; `deploy-pi.sh` now copies with `-r`, regression test in `tests/test_deploy_pi.py`). Second run: 15 s to the doctor (librealsense already built). `perceptronics-admin.path` active; `network.env` written (`CELL_IF=eth0`, `CELL_ADDRESS=192.168.3.20/24`, `CELL_DHCP=auto`); queue `perceptronics:perceptronics 750`; `/var/lib/perceptronics-admin` `root:perceptronics 750`; `/setup` 401 without login, 200 with `admin:admin`, 401 with a wrong password. Doctor: camera usb 3.2, cockpit 30 fps; `robot.reach` fails (UR3e unplugged, expected). |
+| 3 Page by eye | 2026-10-06 | pass. Chrome's own Basic-auth dialog (the extension can't drive it; Nick typed the login). Shows 192.168.3.20 (subnet 24), backup "none (same network)", robot 192.168.3.3 "handed out by this computer when asked", software 0.1.0-24e381386317, card image "installed by hand". |
+| 4 Network change, back | 2026-10-06 | pass (Apply clicked by Nick: the auto-mode classifier refuses a config change on a device). Forward: `install.sh --network` finished in 3 s; eth0 `192.168.50.20/24` + `192.168.3.20/24`; nft admits `{ 192.168.3.0/24, 192.168.50.0/24 }`; `UR_HOST=192.168.50.3`; cockpit restarted; the page answered at both addresses (the Mac aliased `192.168.50.10`, `sudo` in Nick's terminal); the page shows "Backup address 192.168.3.20 (always reachable on the cable)". Back: only `192.168.3.20/24` left, `UR_HOST=192.168.3.3`, cell DHCP serving. Two findings, both fixed on the branch: the removed DHCP unit was left `failed (Result: signal)` (`remove_cell_dhcp` now `reset-failed`s it); `ALLOW_FROM` kept `192.168.50.0/24` after the move back (a `--network` run now computes the list for the new network). eth0's link bounced for 30 s after the Mac's alias came off; nothing on the Pi did it. |
+| 5 Settings survive an update | 2026-10-06 | pass. `deploy-pi.sh` with no network flags: `network.env` and eth0 unchanged, release 0.1.0-1348cef48366. **Port 80** (Nick: "users won't be familiar with ports"): nftables `redirect`s :80 to :7621 from the same subnets; `http://192.168.3.20/setup` 401 / 200 / 401 from the Mac. |
+| 6 Update through the portal | 2026-10-06 | pass, twice: `pi-update.sh push` (queued, checked, installed, `done: updated to 0.1.0`) and the same bundle uploaded on the page (progress strip, "Received. Installing", "Software update finished: updated to 0.1.0 (0.1.0-1348cef48366)"). The release id is the wheel's hash, so a bundle whose only changes are under `deploy/` or `tests/` is "already installed" — install.sh still re-runs the firewall, units and helper from the bundle. |
+| 7 Rollback | 2026-10-06 | pass on the third run, 2 min 21 s push → `rolled_back`, cockpit answering. Run 1 found the bug: `--rollback` only swapped `current` and **left the broken bundle's deploy files** (its older firewall — port 80 gone — and `install.sh`) in place. Fix: every release keeps its deploy files + its wheel (`<release>/deploy`, `<release>/perceptronics-*.whl`, `.wheel`) and `--rollback` re-runs the previous release's own installer. Run 2 found the fix's bug: that installer copied the release's wheel onto itself (`cp: ... are the same file`, `set -e`) and the board was **left on the broken release** (the helper said "(check it)"); recovered with `deploy-pi.sh`. Run 3: full restore, firewall and deploy copy included. |
+| 8 Refusals | 2026-10-06 | pass. Truncated bundle: "bundle is damaged (truncated upload?): unexpected end of data", nothing changed. Wrong password 401, no login 401, POST without `X-Perceptronics-Admin` 403 — on :7621 and on :80. |
 
 ---
 
@@ -320,7 +329,7 @@ is built, and it is far off.
 
 1. UR3e powered, `sudo perceptronics-doctor` green on `robot.*`.
 2. Pendant: remove RealSense Pilot, install Perceptronic 0.9.0 from the USB stick;
-   **Installation → URCaps → Perceptronic** shows the picture with the Cockpit field at its
+   **Installation → URCaps → Perceive** shows the picture with the Cockpit field at its
    default `192.168.3.20` (`PLUG-AND-PLAY.md` §3).
 3. Hand-eye on the Pi if the wrist moved since 2026-09-27 (`PLUG-AND-PLAY.md` §6). The solve
    is saved to the hand-eye file and survives restarts; nothing to delete.
