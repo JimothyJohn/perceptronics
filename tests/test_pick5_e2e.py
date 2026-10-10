@@ -44,7 +44,7 @@ def test_the_e2e_builds_every_script_it_runs(polyscope):
     once = pick5_e2e.generate(spec)
     no_look = pick5_e2e.generate({**spec, "closeLook": False})
     probe = pick5_e2e.generate({**spec, "popup": True})
-    assert once.startswith("# 3D Pick ") and '"LOOK "' in once and '"LOOK "' not in no_look
+    assert once.startswith("# Pounce ") and '"LOOK "' in once and '"LOOK "' not in no_look
     assert "set_standard_digital_out" not in once and "63352" not in probe  # the node drives no gripper
     assert "popup(" in probe and "popup(" not in once
     for script in (once, no_look):  # each is a whole program on its own: the e2e runs them back to back
@@ -99,7 +99,7 @@ class Controller:
         r = self.ask(f"NEXT {_pose(self.tcp)} node=e2e001 locs=1 proto=3{TCP}")
         queued = close_look and r[0] == 1
         if queued:
-            self.captured.append("3D Pick: next part already seen, #1")
+            self.captured.append("Pounce: next part already seen, #1")
         else:
             self.tcp = pose_trans(self.ready, OFFSET)  # the survey: movej to the picture point
             r = self.ask(f"FIND {_pose(self.tcp)}{tok}{TCP}")
@@ -138,7 +138,7 @@ def test_the_pass_criteria_fail_a_run_that_did_not_pick():
         "captured": [
             "rs_e2e/first= True",
             "rs_e2e/loc= 1",
-            "3D Pick: next part already seen, #1",
+            "Pounce: next part already seen, #1",
             "rs_e2e/found= True",
             "rs_e2e/nolook= True",
         ],

@@ -114,10 +114,13 @@ from .realsense import (
 from .rgbd import RgbdFrame, pack_rgbd
 from .robotlink import RobotLink, reach_note
 from .segment import Mask, StubSegmenter, extract_features, normalize_box
-from .views import ViewSource, open_views, parse_view_size, parse_view_specs
 
 DEFAULT_PORT = 7621
 DEFAULT_SNAPSHOT_DIR = "captures/snapshots"
+# Every line the pick server says (requests, answers, the program's own LOG lines) is an event of
+# kind "pick"; it is also appended here (or to the per-user log dir when captures/ is not
+# writable, e.g. root-owned after a sudo run) and served as text by GET /api/pick/log.
+DEFAULT_PICK_LOG = Path("captures") / "pick.log"
 REOPEN_DELAY_S = 1.0
 REOPEN_MAX_DELAY_S = 30.0
 STALL_AFTER_S = 2.0  # no new frame for this long: the stream is stalled, its rate is 0
@@ -132,6 +135,52 @@ def validate_name(name: str) -> str:
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name or ""):
         raise ValueError("name must be 1-64 characters of letters, digits, _ or -")
     return name
+
+
+def user_log_dir() -> Path:
+    """The per-user log directory: ``~/Library/Logs/perceptronics`` (macOS),
+    ``%LOCALAPPDATA%\\perceptronics\\logs`` (Windows), ``$XDG_STATE_HOME/perceptronics``
+    (else ``~/.local/state/perceptronics``)."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "perceptronics"
+    if os.name == "nt":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "perceptronics" / "logs"
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "perceptronics"
+
+
+def writable_log(preferred: Path) -> Path | None:
+    """``preferred`` if it can be appended to, else the same name in :func:`user_log_dir`,
+    else None (events only)."""
+    for path in (preferred, user_log_dir() / preferred.name):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8"):
+                pass
+        except OSError:
+            continue
+        return path
+    return None
+
+
+class PickLogFile:
+    """The pick server's trace as an append-only text file beside the cockpit's events."""
+
+    def __init__(self, path: Path | None):
+        self.path = path
+        self._lock = threading.Lock()
+
+    def write(self, text: str) -> None:
+        if self.path is None:
+            return
+        clean = "".join(c if " " <= c <= "~" or c in "°×→—" else " " for c in text)
+        line = f"{time.strftime('%H:%M:%S')}.{int(time.time() * 1000) % 1000:03d} {clean}\n"
+        with self._lock:
+            try:
+                with self.path.open("a", encoding="utf-8") as f:
+                    f.write(line)
+            except OSError as exc:
+                print(f"pick log {self.path}: {exc} — events only from here on", file=sys.stderr)
+                self.path = None
 
 
 class EventLog:
@@ -189,122 +238,8 @@ _CLASSIC = Path(__file__).parent / "webui" / "classic.html"  # every control, th
 _SETUP = Path(__file__).parent / "webui" / "setup.html"  # the pick PC's setup portal (setupportal.py)
 
 
-class ViewPump:
-    """One extra viewpoint (:mod:`perceptronics.views`) behind its own thread:
-    the newest encoded image, a sequence number for long-polling, fps, and
-    the same open → read → back-off-on-failure loop as the RGB-D pump."""
-
-    def __init__(self, source: ViewSource, index: int, events: EventLog):
-        self.source = source
-        self.index = index
-        self.events = events
-        self._cond = threading.Condition()
-        self._latest: bytes | None = None
-        self._seq = 0
-        self._running = False
-        self._thread: threading.Thread | None = None
-        self.last_error: str | None = None
-        self._last_logged_error: str | None = None
-        self.frames_read = 0
-        self._fps_window: list[float] = []
-
-    def start(self) -> None:
-        if self._running:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._pump, name=f"view-pump-{self.index}", daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._running = False
-        with self._cond:
-            self._cond.notify_all()
-        if self._thread is not None:
-            self._thread.join(timeout=5.0)
-            self._thread = None
-        try:
-            self.source.close()
-        except Exception:
-            pass
-
-    def _pump(self) -> None:
-        opened = False
-        failures = 0
-        label = f"view {self.index} ({self.source.name})"
-        while self._running:
-            try:
-                if not opened:
-                    self.source.open()
-                    opened = True
-                    failures = 0
-                    self.last_error = None
-                    self._last_logged_error = None
-                    desc = self.source.describe()
-                    self.events.add(
-                        "view",
-                        f"{label}: opened {desc.get('kind')} {desc.get('device') or ''}".strip(),
-                        ok=True,
-                    )
-                data = self.source.read()
-            except Exception as exc:
-                self.last_error = f"{type(exc).__name__}: {exc}"
-                if self.last_error != self._last_logged_error:
-                    self.events.add("view", f"{label}: {self.last_error}", ok=False)
-                    self._last_logged_error = self.last_error
-                try:
-                    self.source.close()
-                except Exception:
-                    pass
-                opened = False
-                failures += 1
-                with self._cond:
-                    self._cond.wait(reopen_delay(failures))
-                continue
-            now = time.monotonic()
-            with self._cond:
-                self._latest = data
-                self._seq += 1
-                self.frames_read += 1
-                self._fps_window.append(now)
-                del self._fps_window[:-30]
-                self._cond.notify_all()
-
-    def fps(self) -> float:
-        return recent_rate(self._fps_window)
-
-    def latest(self) -> tuple[int, bytes | None]:
-        with self._cond:
-            return self._seq, self._latest
-
-    def wait_frame(self, after: int | None, timeout_s: float) -> tuple[int, bytes | None]:
-        """Newest image with seq > ``after`` (blocks ≤ ``timeout_s``); else the newest."""
-        if after is None:
-            return self.latest()
-        deadline = time.monotonic() + timeout_s
-        with self._cond:
-            while self._running and self._seq <= after:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                self._cond.wait(remaining)
-            return self._seq, self._latest
-
-    def describe(self) -> dict:
-        seq, data = self.latest()
-        return {
-            **self.source.describe(),
-            "index": self.index,
-            "seq": seq,
-            "fps": round(self.fps(), 2),
-            "frames_read": self.frames_read,
-            "last_error": self.last_error,
-            "bytes": len(data) if data else 0,
-        }
-
-
 class ViewerApp:
-    """State behind the handlers: one camera, one pump thread, one segmenter —
-    plus one :class:`ViewPump` per extra viewpoint (``views``)."""
+    """State behind the handlers: one camera, one pump thread, one segmenter."""
 
     def __init__(
         self,
@@ -313,7 +248,6 @@ class ViewerApp:
         config: PerceptionConfig | None = None,
         segmenter=None,
         robot: RobotLink | None = None,
-        views: list[ViewSource] | None = None,
         cors: Sequence[str] | None = None,
         pose_stream: PoseStream | None = None,
     ):
@@ -352,9 +286,9 @@ class ViewerApp:
         self.features: dict | None = None
         self._fps_window: list[float] = []
         self.events = EventLog()
-        self.views = [ViewPump(v, i, self.events) for i, v in enumerate(views or [])]
         self._last_logged_error: str | None = None
         self.pick_port: int | None = None  # the robot program's pick server (serve(pick_port=…))
+        self.pick_log = PickLogFile(writable_log(DEFAULT_PICK_LOG))
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -365,8 +299,6 @@ class ViewerApp:
         self.started_at = time.time()
         self._thread = threading.Thread(target=self._pump, name="rgbd-pump", daemon=True)
         self._thread.start()
-        for view in self.views:
-            view.start()
 
     def stop(self) -> None:
         self._running = False
@@ -379,17 +311,8 @@ class ViewerApp:
             self.camera.close()
         except Exception:  # closing must never raise on shutdown
             pass
-        for view in self.views:
-            view.stop()
         if self.pose_stream is not None:
             self.pose_stream.stop()
-
-    def view_frame(self, index: int, after: int | None, timeout_s: float) -> tuple[int, bytes | None, str]:
-        """``(seq, image bytes | None, content type)`` of view ``index`` (long-poll
-        semantics as :meth:`packed_frame`); ``IndexError`` for an unknown view."""
-        pump = self.views[index]  # IndexError → 404
-        seq, data = pump.wait_frame(after, timeout_s)
-        return seq, data, pump.source.content_type
 
     def _pump(self) -> None:
         opened = False
@@ -1006,6 +929,20 @@ class ViewerApp:
             return None
         return self.robot.handeye.as_dict().get("flange_to_color_pose")
 
+    def _pick_said(self, text: str, ok: bool) -> None:
+        self.events.add("pick", text, ok=ok)
+        self.pick_log.write(text)
+
+    def pick_log_text(self, limit: int = 400) -> str:
+        """The last ``limit`` pick lines as text, one per line — what a browser next to the
+        pendant (or the deploy skill) reads at ``GET /api/pick/log``."""
+        lines = []
+        for item in self.events.since(0, 100000):
+            if item["kind"] == "pick":
+                stamp = time.strftime("%H:%M:%S", time.localtime(item["ts"]))
+                lines.append(f"{stamp} {item['message']}")
+        return "\n".join(lines[-limit:]) + ("\n" if lines else "")
+
     def pick_planner(self) -> PickPlanner:
         """The one planner the pick socket and the teach-screen routes share: the program's run
         (quiet while it runs) and its last measurement live on it."""
@@ -1015,7 +952,7 @@ class ViewerApp:
                 self.pick_frame,
                 lambda: self.latest()[0],
                 self._handeye_pose,
-                log=lambda text, ok: self.events.add("pick", text, ok=ok),
+                log=self._pick_said,
             )
         return planner
 
@@ -1139,7 +1076,6 @@ class ViewerApp:
             "robot": self.robot.describe() if self.robot is not None else None,
             "cell": describe_cell(),
             "events_seq": self.events.seq,
-            "views": [v.describe() for v in self.views],
             "cors": {"allowed": list(self.cors_origins), "refused": sorted(self.cors_refused)},
         }
 
@@ -1233,19 +1169,6 @@ class ViewerApp:
             ok=not res["warnings"],
         )
         return res
-
-    def pick_log_text(self, limit: int = 400) -> str:
-        """The pick server's trace as text — the ``kind: pick`` events, one per line, oldest
-        first — for a browser beside the pendant (``GET /api/pick/log``, the route the
-        sidecar serves from its own file)."""
-        lines = []
-        for e in self.events.since(0, EVENT_LOG_SIZE):
-            if e["kind"] != "pick":
-                continue
-            stamp = time.strftime("%H:%M:%S", time.localtime(e["ts"]))
-            flag = "  " if e["ok"] is None else ("ok" if e["ok"] else "!!")
-            lines.append(f"{stamp} {flag} {e['message']}")
-        return "\n".join(lines[-limit:]) + ("\n" if lines else "")
 
     def cal_apply(self, save: bool = True, force: bool = False, method: str | None = None) -> dict:
         link = self._link()
@@ -1402,21 +1325,6 @@ class ViewerApp:
             mask_path.write_bytes(self.mask.to_png())
             out["mask_png"] = str(mask_path)
             out["mask_seq"] = self.mask_seq
-        # every extra viewpoint that has a picture, as its own file (jpg or png)
-        views_out = []
-        for pump in self.views:
-            vseq, data = pump.latest()
-            entry: dict = {"index": pump.index, "name": pump.source.name, "seq": vseq}
-            if data:
-                ext = "jpg" if pump.source.content_type == "image/jpeg" else "png"
-                view_path = base / f"{stem}_view{pump.index}.{ext}"
-                view_path.write_bytes(data)
-                entry["path"] = str(view_path)
-            else:
-                entry["error"] = pump.last_error or "no frame yet"
-            views_out.append(entry)
-        if views_out:
-            out["views"] = views_out
         self.events.add("snapshot", f"snapshot → {color_path}", ok=True)
         return out
 
@@ -1437,7 +1345,7 @@ class ViewerApp:
         arm: str | None = None,
     ) -> dict:
         """The straight-down picture pose over ``point_m`` (:meth:`RobotLink.view`) for the
-        3D Pick node's Look down. Reads the flange pose; moves nothing."""
+        Pounce node's Look down. Reads the flange pose; moves nothing."""
         link = self._link()
         if arm is not None and (not isinstance(arm, str) or not re.fullmatch(r"[A-Za-z0-9]{1,8}", arm)):
             raise ValueError("arm must be a robot model name, like UR3e")
@@ -1673,6 +1581,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             self._send_json({"ok": False, "error": f"missing {setupportal.ADMIN_HEADER}: 1"}, 403)
             return None
+        # the factory login opens the page, the status and the password route — nothing else
+        route = urlparse(self.path).path.rstrip("/")
+        if portal.password_required and route not in ("/setup", "/api/admin/status", "/api/admin/password"):
+            if posting:
+                self.close_connection = True
+            self._send_json(
+                {"ok": False, "error": setupportal.PASSWORD_REQUIRED, "password_required": True}, 403
+            )
+            return None
         return portal
 
     def _portal_call(self, fn) -> None:
@@ -1780,36 +1697,6 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 )
             else:
                 self._send(blob, "application/octet-stream")
-        elif route.startswith("/api/view/"):
-            try:
-                index = int(route[len("/api/view/") :])
-                after = int(qs["after"][0]) if "after" in qs else None
-                timeout_ms = min(10000, max(0, int(qs.get("timeout_ms", ["1500"])[0])))
-            except ValueError:
-                self._send_json(
-                    {"ok": False, "error": "view index, after and timeout_ms must be integers"}, status=400
-                )
-                return
-            try:
-                seq, data, ctype = self.app.view_frame(index, after, timeout_ms / 1000.0)
-            except IndexError:
-                self._send_json({"ok": False, "error": f"no view {index}"}, status=404)
-                return
-            if data is None:
-                pump = self.app.views[index]
-                self._send_json(
-                    {"ok": False, "error": "no frame yet", "last_error": pump.last_error}, status=503
-                )
-            else:
-                self.send_response(200)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Seq", str(seq))
-                self.send_header("X-Fps", f"{self.app.views[index].fps():.2f}")
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(data)
         elif route == "/api/pick/detect":
             try:
                 part = from_query(qs)
@@ -1860,7 +1747,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
         if route == "/api/admin/update":  # a raw bundle, not a JSON body
             self._upload()
             return
-        if route == "/api/admin/network":
+        if route in ("/api/admin/network", "/api/admin/password"):
             portal = self._portal(posting=True)
             if portal is None:
                 return
@@ -1869,7 +1756,10 @@ class ViewerHandler(BaseHTTPRequestHandler):
             except (ValueError, json.JSONDecodeError) as exc:
                 self._send_json({"ok": False, "error": f"bad request: {exc}"}, status=400)
                 return
-            self._portal_call(lambda: portal.queue_network(payload))
+            if route == "/api/admin/password":
+                self._portal_call(lambda: portal.set_password(payload.get("password")))
+            else:
+                self._portal_call(lambda: portal.queue_network(payload))
             return
         try:
             payload = self._body()
@@ -2146,7 +2036,6 @@ def serve(
     open_browser: bool = True,
     robot: RobotLink | None = None,
     demo: bool = False,
-    views: list[ViewSource] | None = None,
     cors: Sequence[str] | None = None,
     pick_port: int = DEFAULT_PICK_PORT,
 ) -> None:
@@ -2154,13 +2043,12 @@ def serve(
     ``pick_port`` (0 = off) serves the PolyScope 5 Perceptronic Pick program node's
     line protocol on the same interface (:mod:`perceptronics.picknode`).
     ``demo`` opens the browser on the classic page's demo view
-    (``/classic?demo=1``: one picture, four big buttons, one light).
-    ``views`` are the extra webcam viewpoints (:mod:`perceptronics.views`)."""
+    (``/classic?demo=1``: one picture, four big buttons, one light)."""
     pose_stream = None
     if robot is not None and not robot.dry_run and os.environ.get("PERCEPTRONICS_POSE_STREAM", "1") != "0":
         pose_stream = PoseStream(robot.config)
         pose_stream.start()
-    app = ViewerApp(camera, config=config, robot=robot, views=views, cors=cors, pose_stream=pose_stream)
+    app = ViewerApp(camera, config=config, robot=robot, cors=cors, pose_stream=pose_stream)
     server = ThreadingHTTPServer((bind, port), ViewerHandler)
     server.daemon_threads = True
     server.app = app  # type: ignore[attr-defined]
@@ -2168,8 +2056,6 @@ def serve(
     host = "127.0.0.1" if bind in ("0.0.0.0", "") else bind
     url = f"http://{host}:{server.server_address[1]}/" + ("classic?demo=1" if demo else "")
     kind = camera.describe()["kind"]
-    if views:
-        kind += " + " + ", ".join(f"view {v.name}" for v in views)
     robot_desc = (
         f"robot: {robot.config.host}{' (dry-run)' if robot.dry_run else ''}"
         if robot is not None
@@ -2281,40 +2167,6 @@ def add_camera_args(ap) -> None:
         "writes, global time off (or PERCEPTRONICS_RS_LEAN=1; the macOS claim-race experiment)",
     )
     ap.add_argument("--library", default=None, help="path to librealsense2 (default: $REALSENSE_LIB / auto)")
-    ap.add_argument(
-        "--view",
-        action="append",
-        default=None,
-        metavar="DEVICE",
-        help="an extra webcam viewpoint shown under the colour/depth pair and saved with every snapshot "
-        '(repeatable; macOS: a device name from `ffmpeg -f avfoundation -list_devices true -i ""`, '
-        "Linux: /dev/videoN, lavfi:testsrc for a synthetic one; "
-        "default: $PERCEPTRONICS_VIEWS, comma-separated). "
-        "Needs ffmpeg on PATH; --fake makes them synthetic",
-    )
-    ap.add_argument(
-        "--view-res",
-        default=None,
-        metavar="WxH",
-        help="viewpoint capture size (default: $PERCEPTRONICS_VIEW_RES, 640x480)",
-    )
-    ap.add_argument(
-        "--view-fps",
-        type=int,
-        default=None,
-        help="viewpoint capture rate (default: $PERCEPTRONICS_VIEW_FPS, 15)",
-    )
-
-
-def views_from_args(args, config: PerceptionConfig) -> list[ViewSource]:
-    """The extra viewpoints named on the command line or in the cell (``PERCEPTRONICS_VIEWS``)."""
-    specs = list(getattr(args, "view", None) or parse_view_specs(config.views))
-    if not specs:
-        return []
-    width, height = parse_view_size(getattr(args, "view_res", None) or config.view_res)
-    fps = getattr(args, "view_fps", None) or config.view_fps
-    fake = bool(getattr(args, "fake", False)) or _env_flag("PERCEPTRONICS_FAKE")
-    return open_views(specs, fake=fake, width=width, height=height, fps=int(fps))
 
 
 def add_robot_args(ap) -> None:
@@ -2473,7 +2325,6 @@ def main(argv: list[str] | None = None) -> int:
         open_browser=not args.no_browser,
         robot=robot_from_args(args),
         demo=bool(getattr(args, "demo", False)),
-        views=views_from_args(args, config),
         cors=cors_from_args(args),
         pick_port=args.pick_port,
     )

@@ -3,12 +3,11 @@
 Mirrors :mod:`urctl.config`: nothing in the package hardcodes a device index,
 resolution, or model backend. Defaults are dev-friendly (a webcam at 640x480,
 the dependency-free stub backends) and every field is overridable from the
-environment so the same pipeline runs on a laptop webcam, a CI box with no
-camera, or a GPU host with the real depth model — no code change::
+environment so the same cockpit runs on the pick PC, a dev box or a CI box with
+no camera — no code change::
 
-    cfg = PerceptionConfig.from_env()                       # webcam + stubs
-    cfg = PerceptionConfig.from_env(depth_backend="depth_anything")
-    PERCEPTRONICS_DEPTH_BACKEND=depth_anything python -m perceptronics capture
+    cfg = PerceptionConfig.from_env()                       # the stub segmenter
+    cfg = PerceptionConfig.from_env(segment_backend="sam")
 
 This is the parallel to ``RobotConfig`` on the control side; a future bridge
 that picks blobs with the arm will hold one of each.
@@ -19,9 +18,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-# Frame geometry / cadence. 640x480 @ 15 fps is a deliberate middle ground:
-# enough resolution for blob centroids to be meaningful, slow enough that the
-# pure-Python stub backends keep up on a laptop without a GPU.
+# Frame geometry / cadence of the colour stream (the synthetic scene and the webcam path).
 DEFAULT_WIDTH = 640
 DEFAULT_HEIGHT = 480
 DEFAULT_FPS = 15
@@ -29,11 +26,6 @@ DEFAULT_FPS = 15
 # Which camera. -1 lets the device backend auto-pick the first working index.
 DEFAULT_DEVICE_INDEX = 0
 
-# Backend selection. "stub" is pure-Python and always importable; the real
-# backends ("depth_anything", "blob_cv") are optional extras that lazily import
-# torch / OpenCV and raise a clear install hint if missing.
-DEFAULT_DEPTH_BACKEND = "stub"
-DEFAULT_BLOB_BACKEND = "stub"
 # Click-to-segment backend for RGB-D frames: "stub" (color + depth region
 # growing, pure Python) or "sam" (Segment Anything via the `sam` extra).
 DEFAULT_SEGMENT_BACKEND = "stub"
@@ -65,35 +57,10 @@ DEFAULT_RS_LASER_POWER = "max"
 # enumeration, no preset/laser writes, global time off). A macOS experiment —
 # see perceptronics.realsense.RealSenseCamera.lean.
 DEFAULT_RS_LEAN = False
-# Extra webcam viewpoints under the colour/depth pair (perceptronics.views): device
-# names, comma-separated ("" = none), their capture size and rate.
-DEFAULT_VIEWS = ""
-DEFAULT_VIEW_RES = "640x480"
-DEFAULT_VIEW_FPS = 15
 
-# The stub depth estimator emits a normalized 0..1 map; near/far scale it into
-# metres so downstream consumers always see physical units. These bracket a
-# typical tabletop pick workspace.
-DEFAULT_DEPTH_NEAR_M = 0.20
-DEFAULT_DEPTH_FAR_M = 1.50
-
-# Blobs smaller than this (in pixels) are noise; drop them.
-DEFAULT_MIN_BLOB_AREA = 60
-
-# Stub blob segmentation. The stub finds *colorful* objects against a neutral
-# (metallic / grey / white / black) background — the apples-on-steel case this
-# repo targets. A pixel is foreground when its chroma (max channel - min
-# channel) exceeds MIN_CHROMA; neighboring foreground pixels join the same blob
-# only when their colors are within LINK_TOLERANCE (RGB distance), so touching
-# objects of *different* colors (a red and a green apple) split apart while a
-# single shaded object stays whole.
-DEFAULT_BLOB_MIN_CHROMA = 45
+# The stub click-to-segment backend grows a region from the click: neighbouring pixels join
+# while their colours are within LINK_TOLERANCE (RGB distance).
 DEFAULT_BLOB_LINK_TOLERANCE = 40
-
-# Split a single colored region into instances when it has multiple distance-
-# transform peaks (two touching same-colored apples -> two blobs). On by
-# default; disable for raw connected-components behavior.
-DEFAULT_BLOB_SPLIT_TOUCHING = True
 
 
 def _env_int(name: str, default: int) -> int:
@@ -136,14 +103,7 @@ class PerceptionConfig:
     height: int = DEFAULT_HEIGHT
     fps: int = DEFAULT_FPS
     device_index: int = DEFAULT_DEVICE_INDEX
-    depth_backend: str = DEFAULT_DEPTH_BACKEND
-    blob_backend: str = DEFAULT_BLOB_BACKEND
-    depth_near_m: float = DEFAULT_DEPTH_NEAR_M
-    depth_far_m: float = DEFAULT_DEPTH_FAR_M
-    min_blob_area: int = DEFAULT_MIN_BLOB_AREA
-    blob_min_chroma: int = DEFAULT_BLOB_MIN_CHROMA
     blob_link_tolerance: int = DEFAULT_BLOB_LINK_TOLERANCE
-    blob_split_touching: bool = DEFAULT_BLOB_SPLIT_TOUCHING
     segment_backend: str = DEFAULT_SEGMENT_BACKEND
     sam_model: str = DEFAULT_SAM_MODEL
     rs_serial: str = DEFAULT_RS_SERIAL
@@ -154,9 +114,6 @@ class PerceptionConfig:
     rs_preset: str = DEFAULT_RS_PRESET
     rs_laser_power: str = DEFAULT_RS_LASER_POWER
     rs_lean: bool = DEFAULT_RS_LEAN
-    views: str = DEFAULT_VIEWS
-    view_res: str = DEFAULT_VIEW_RES
-    view_fps: int = DEFAULT_VIEW_FPS
 
     @classmethod
     def from_env(cls, **overrides) -> PerceptionConfig:
@@ -170,16 +127,7 @@ class PerceptionConfig:
             "height": _env_int("PERCEPTRONICS_HEIGHT", DEFAULT_HEIGHT),
             "fps": _env_int("PERCEPTRONICS_FPS", DEFAULT_FPS),
             "device_index": _env_int("PERCEPTRONICS_DEVICE", DEFAULT_DEVICE_INDEX),
-            "depth_backend": _env_str("PERCEPTRONICS_DEPTH_BACKEND", DEFAULT_DEPTH_BACKEND),
-            "blob_backend": _env_str("PERCEPTRONICS_BLOB_BACKEND", DEFAULT_BLOB_BACKEND),
-            "depth_near_m": _env_float("PERCEPTRONICS_DEPTH_NEAR_M", DEFAULT_DEPTH_NEAR_M),
-            "depth_far_m": _env_float("PERCEPTRONICS_DEPTH_FAR_M", DEFAULT_DEPTH_FAR_M),
-            "min_blob_area": _env_int("PERCEPTRONICS_MIN_BLOB_AREA", DEFAULT_MIN_BLOB_AREA),
-            "blob_min_chroma": _env_int("PERCEPTRONICS_BLOB_MIN_CHROMA", DEFAULT_BLOB_MIN_CHROMA),
             "blob_link_tolerance": _env_int("PERCEPTRONICS_BLOB_LINK_TOLERANCE", DEFAULT_BLOB_LINK_TOLERANCE),
-            "blob_split_touching": _env_bool(
-                "PERCEPTRONICS_BLOB_SPLIT_TOUCHING", DEFAULT_BLOB_SPLIT_TOUCHING
-            ),
             "segment_backend": _env_str("PERCEPTRONICS_SEGMENT_BACKEND", DEFAULT_SEGMENT_BACKEND),
             "sam_model": _env_str("PERCEPTRONICS_SAM_MODEL", DEFAULT_SAM_MODEL),
             "rs_serial": _env_str("PERCEPTRONICS_RS_SERIAL", DEFAULT_RS_SERIAL),
@@ -190,9 +138,6 @@ class PerceptionConfig:
             "rs_preset": _env_str("PERCEPTRONICS_RS_PRESET", DEFAULT_RS_PRESET),
             "rs_laser_power": _env_str("PERCEPTRONICS_RS_LASER_POWER", DEFAULT_RS_LASER_POWER),
             "rs_lean": _env_bool("PERCEPTRONICS_RS_LEAN", DEFAULT_RS_LEAN),
-            "views": _env_str("PERCEPTRONICS_VIEWS", DEFAULT_VIEWS),
-            "view_res": _env_str("PERCEPTRONICS_VIEW_RES", DEFAULT_VIEW_RES),
-            "view_fps": _env_int("PERCEPTRONICS_VIEW_FPS", DEFAULT_VIEW_FPS),
         }
         values.update(overrides)
         return cls(**values)  # type: ignore[arg-type]

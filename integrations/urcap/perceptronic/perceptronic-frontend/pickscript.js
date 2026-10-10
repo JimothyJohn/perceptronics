@@ -1,4 +1,4 @@
-// 3D Pick — the program node's settings, the URScript it contributes and the pose math
+// Pounce — the program node's settings, the URScript it contributes and the pose math
 // both its presenter and its behavior worker need. One file for both: the worker
 // `importScripts` it, the page loads it with a <script> tag, tests run it under node. It is
 // the PolyScope X port of the PolyScope 5 node's PickScript.java
@@ -20,7 +20,7 @@
 
   const APP_TYPE = "advin-perceptronic";
   const PICK_TYPE = "advin-perceptronic-pick";
-  const VERSION = "0.8.1";
+  const VERSION = "0.9.0";
   const PROTOCOL = 3; // the pick server's: the TCP offset rides every request
   const DEFAULT_PICK_PORT = 7622;
   const DEFAULT_COCKPIT_PORT = 7621;
@@ -320,7 +320,7 @@
 
   /** Why the node cannot generate a program yet, or null when it can. */
   function problem(s) {
-    if (!s.cockpitSet || !s.host) return "set the camera computer's address in Application → Perceptronic";
+    if (!s.cockpitSet || !s.host) return "set the camera computer's address in Application → Perceive";
     if (!/^[A-Za-z0-9.:\-]+$/.test(s.host)) return `the camera computer's host "${s.host}" is not an address`;
     if (!(s.port >= 1 && s.port <= 65535)) return "the pick port must be 1..65535";
     if (!/^[0-9a-f]{1,12}$/.test(s.nodeId)) return "the node has no identity yet - open it once";
@@ -329,9 +329,9 @@
     for (let i = 0; i < s.points.length; i++) {
       const p = s.points[i];
       if (!finite(p.joints, 6)) return `picture point ${i + 1} is not a joint position`;
-      if (p.area >= 0 && !p.plane) return `picture point ${i + 1}'s pick area is not taught - teach it in Application → Perceptronic`;
+      if (p.area >= 0 && !p.plane) return `picture point ${i + 1}'s pick area is not taught - teach it in Application → Perceive`;
       if (p.plane && (!finite(p.plane, 6) || !(Math.abs(p.areaXmm) >= 5 && Math.abs(p.areaYmm) >= 5))) {
-        return `picture point ${i + 1}'s pick area is broken - re-teach it in Application → Perceptronic`;
+        return `picture point ${i + 1}'s pick area is broken - re-teach it in Application → Perceive`;
       }
     }
     for (const k of NUMBERS) {
@@ -382,7 +382,7 @@
   /** One stage report: textmsg for the Log tab and a LOG line to the pick server. */
   function say(s, indent, text, value) {
     const v = value == null ? '""' : value;
-    s.push(`${indent}textmsg("3D Pick: ${text}", ${v})`);
+    s.push(`${indent}textmsg("Pounce: ${text}", ${v})`);
     const line = value == null ? `"LOG ${text}"` : `str_cat("LOG ${text}", to_str(${value}))`;
     s.push(`${indent}socket_send_line(${line}, "${SOCKET}")`);
   }
@@ -429,7 +429,7 @@
     const np = st.points.length;
     const budget = np + MAX_ATTEMPTS + 1;
     const found = st.foundVariable, loc = st.locVariable;
-    s.push(`# 3D Pick ${VERSION} - camera computer ${st.host}:${st.port} - part ${partText(st)} - ${orderText(st.orderFirst, st.orderRows)} - ${np} picture point${np === 1 ? "" : "s"}${st.closeLook ? " - closer look" : ""}${st.gripCheck ? ` - finger room ${num(n(st, "fingerRoomMm"))} mm` : " - no grip check"}${st.gripLongSide && !round(st) ? " - across the long side" : ""}`);
+    s.push(`# Pounce ${VERSION} - camera computer ${st.host}:${st.port} - part ${partText(st)} - ${orderText(st.orderFirst, st.orderRows)} - ${np} picture point${np === 1 ? "" : "s"}${st.closeLook ? " - closer look" : ""}${st.gripCheck ? ` - finger room ${num(n(st, "fingerRoomMm"))} mm` : " - no grip check"}${st.gripLongSide && !round(st) ? " - across the long side" : ""}`);
     s.push(`global ${found} = False`);
     s.push(`global ${loc} = 0`);
     s.push('rs_tcp = str_cat(" tcp=", to_str(get_tcp_offset()))');
@@ -537,17 +537,17 @@
     s.push("    end");
     s.push("  end");
     s.push(`  if ${found} == False:`);
-    s.push('    textmsg("3D Pick: no pick - ", rs_why)');
+    s.push('    textmsg("Pounce: no pick - ", rs_why)');
     s.push(`    socket_send_line(str_cat("LOG no pick - ", rs_why), "${SOCKET}")`);
     s.push("  end");
     s.push(`  socket_close("${SOCKET}")`);
     s.push("else:");
     s.push(`  rs_why = "no camera computer at ${st.host}:${st.port} - is it on, and is the address in Application > Perceptronic right?"`);
-    s.push('  textmsg("3D Pick: ", rs_why)');
+    s.push('  textmsg("Pounce: ", rs_why)');
     s.push("end");
     if (st.popupOnFail) {
       s.push(`if ${found} == False:`);
-      s.push('  popup(str_cat("3D Pick: no pick - ", rs_why), "3D Pick", False, True, blocking=True)');
+      s.push('  popup(str_cat("Pounce: no pick - ", rs_why), "Pounce", False, True, blocking=True)');
       s.push("end");
     }
     return s;

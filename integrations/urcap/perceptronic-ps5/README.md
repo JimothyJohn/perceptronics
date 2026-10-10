@@ -3,7 +3,7 @@
 Vision-guided picking for an e-Series robot on PolyScope 5, with a RealSense D435 on the
 wrist and a small camera computer beside the robot (`deploy/pi/`). Two nodes and a button:
 
-- **3D Pick** (Program tab → URCaps): one move sequence — it surveys from any number of
+- **Pounce** (Program tab → URCaps): one move sequence — it surveys from any number of
   picture points, finds the part by its size, and puts the tool at the grip on the next
   one in the order you choose. It never touches the gripper: your program opens it before
   the node and closes it after.
@@ -20,12 +20,12 @@ the same glyph is the toolbar button, every screen's header and a faint watermar
 Installation's and the popup's live picture (`Logo.java` draws it with Java2D; a test holds
 it equal to the SVG).
 
-Download: [`../dist/perceptronic-ps5-0.10.1.urcap`](../dist/perceptronic-ps5-0.10.1.urcap)
+Download: [`../dist/perceptronic-ps5-0.11.0.urcap`](../dist/perceptronic-ps5-0.11.0.urcap)
 
 ## Install on the robot
 
 You need a USB stick and nothing else: no tools, no command line. One file matters, in
-[`../dist/`](../dist/): [`perceptronic-ps5-0.10.1.urcap`](../dist/perceptronic-ps5-0.10.1.urcap), the
+[`../dist/`](../dist/): [`perceptronic-ps5-0.11.0.urcap`](../dist/perceptronic-ps5-0.11.0.urcap), the
 URCap. It goes on through PolyScope's own URCaps screen, like every URCap; nothing on the
 stick runs by itself and the robot restarts only when you tap Restart.
 
@@ -40,14 +40,14 @@ stick runs by itself and the robot restarts only when you tap Restart.
    Trash) before pulling it out. A stick pulled early can hold a half-written file.
 
 On a Mac, Finder also writes hidden `._…` companions next to each file. They are harmless
-except that PolyScope's file picker lists `._perceptronic-ps5-0.10.1.urcap` too — pick the
+except that PolyScope's file picker lists `._perceptronic-ps5-0.11.0.urcap` too — pick the
 one **without** `._`. `scripts/urcap5-usb.sh` does the whole of this step without them.
 
 ### 2. Install it on the pendant
 
 1. Plug the stick into the pendant.
 2. Tap ☰ (top right) → **Settings** → **System** → **URCaps**.
-3. Tap **+**, tap `perceptronic-ps5-0.10.1.urcap`, tap **Open**.
+3. Tap **+**, tap `perceptronic-ps5-0.11.0.urcap`, tap **Open**.
 4. Tap **Restart** when PolyScope asks.
 5. After the restart: **Installation** tab → **URCaps** → **Perceptronic**.
 
@@ -65,7 +65,7 @@ this one, and type the cockpit address and teach the pick areas again — the ol
 saved data and any program's **RealSense Pick** nodes belong to the old bundle.
 
 **Upgrading from 0.6.0 / 0.7.0?** Same bundle, so the installation's address and pick areas
-stay. The program node is called **3D Pick**, has **no children** and (0.8.0) **does not
+stay. The program node is called **Pounce**, has **no children** and (0.8.0) **does not
 drive the gripper**: put your gripper's Open before it and its Close after it. A node saved
 by 0.6.0 keeps its picture points, part size and order, but what you had inside it — the
 routine after the pick, or your own gripper nodes — must move to after the node
@@ -127,25 +127,25 @@ urcap5-package`, commit `dist/`, then tag. The Python package's `v*` tags are a 
     python3 integrations/urcap/preview5.py --cockpit http://192.168.3.10:7621   # the real one
     python3 integrations/urcap/preview5.py --snapshot out.png --view part       # one screen, no display
 
-A 1280 × 800 window (the pendant's size) with the 3D Pick node's and the Installation node's
+A 1280 × 800 window (the pendant's size) with the Pounce node's and the Installation node's
 own screens: walk the three steps, tap a part to teach it, switch the picture to depth, open
 Options, teach pick areas. What is outlined is the real detector's answer. What only a robot
 can do is stood in for (no arm moves; a pick area's touches are a sample rectangle; typed
 values come from a dialog). Needs a JDK. The simulated picture is stamped **NO CAMERA
 CONNECTED — SIMULATED TEST SCENE**.
 
-## 3D Pick (0.9.0): survey, find the part by its size, go to the grip
+## Pounce (0.9.0): survey, find the part by its size, go to the grip
 
 *Rendered off-pendant from the same Swing classes (`PickScreen`), 1000 × 560, with a
 ray-cast scene through the real detector (`python3 integrations/urcap/preview5.py --screens
 integrations/urcap/perceptronic-ps5/screens` writes every picture on this page). The first look at it on
 a pendant is still owed.*
 
-**Program tab → URCaps → 3D Pick.** The node is **one line in the program — a move sequence
+**Program tab → URCaps → Pounce.** The node is **one line in the program — a move sequence
 with no children** — and **it does not control the gripper at all**:
 
     Open gripper        ← your node
-    3D Pick             ← survey … approach … down to the grip, fingers around the part
+    Pounce             ← survey … approach … down to the grip, fingers around the part
     Close gripper       ← your node
     If rs_pick_found    ← lift, place
 
@@ -273,7 +273,7 @@ PolyScope files that on a pendant has not been checked).
 
 ![The Installation's pick areas](screens/installation-areas.png)
 
-**Installation → URCaps → Perceptronic → Pick areas.** A pick area is a patch of the work
+**Installation → URCaps → Perceive → Pick areas.** A pick area is a patch of the work
 surface taught by **touching the table with the fingertips** at three points — its corner,
 a point along one edge (that edge is the area's X), a point on the far side — each through
 PolyScope's move screen. The node measures the fingertips from the flange (**Fingertip
@@ -337,8 +337,14 @@ through the arm's nominal geometry (UR3e/5e/10e/16e; `PoseMath.flange`, the rows
 `perceptronics/armfk.py`). `python3 integrations/urcap/urcap5.py check --sdk <dir>` holds the URCap to any
 version's jars (`urcap5.py sdk --image 5.12.8 --dir <dir>`).
 
-## Status (2026-10-08, 0.10.1)
+## Status (2026-10-10, 0.11.0)
 
+- 0.11.0: **the names** (Nick, 2026-10-04: "Perceive is the name of the tool and Pounce is what
+  we'll call the approach"): the URCap, its Installation node and the P button read **Perceive**, the
+  program node **Pounce** (service id `PerceptronicPick` / tag unchanged, saved programs load); a **Log**
+  tab on the Installation node (the node's last 50 lines, newest first); the grip hangs from the
+  **taught** height (`volume.to_nominal_height`), the measured one only filters. Built on 0.10.1, so
+  everything below holds. Not yet on a pendant under these names.
 - 0.10.1: **quiet while the program runs** (Nick: "the depth camera throws considerable errors as
   the table gets closer … disable errors while it's not actually in a measurement feedback
   state"). From the program's first request to its "at the grip" / "no pick" (or 90 s of

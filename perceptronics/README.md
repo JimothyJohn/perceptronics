@@ -15,7 +15,7 @@ perceptronics --segment-backend sam gui     # Segment Anything instead of region
 
 | Option | Status | Notes |
 | --- | --- | --- |
-| **Jetson Orin next to the robot** (target) | designed for; container in `deploy/Dockerfile.perceptronics` | Camera on the tool flange (`hardware/d435-tool-bracket/`), USB back to the Jetson, this package runs as a service there (`compose --profile perceptronics`). The Jetson also runs `urctl` against the controller over the network, so one box owns perception *and* motion. |
+| **Pick PC (Raspberry Pi class) next to the robot** (shipped) | `deploy/pi/`, the `perceptronics-cockpit` service (the Jetson container was dropped 2026-10-04) | Camera on the tool flange (`hardware/d435-tool-bracket/`), USB back to the Jetson, this package runs as a service there (`compose --profile perceptronics`). The Jetson also runs `urctl` against the controller over the network, so one box owns perception *and* motion. |
 | **Laptop (this Mac)** | works with the lean open | `brew install librealsense`; the SDK needs **root to claim the USB interface on macOS** (libusb has to detach Apple's UVC driver): `sudo python3 -m perceptronics --cell ur3 gui --rs-lean`. The default open loses the claim race to Apple's UVC daemon (*Troubleshooting*); the **lean open** (`--rs-lean`) streamed on 2026-09-25 — the first open still errors once, the cockpit's back-off re-opens and the stream then holds. Launch from a local Terminal: the extra webcam views go through TCC, which silently denies SSH sessions. |
 | **On the UR controller itself** | not attempted | The CB is a Debian box with USB, so librealsense *could* be built there, but it shares the CPU with URControl's real-time loop, UR re-images it on update, and there is no supported way to ship a service with the robot. The URSim container cannot see USB at all (Docker Desktop on macOS has no USB passthrough). Deferred; the Jetson makes it unnecessary. |
 
@@ -47,7 +47,6 @@ default to steady it, all through the same ctypes binding (no new deps):
 | **Post-processing chain** | on | `--no-depth-filters`, `PERCEPTRONICS_RS_FILTERS=0` | `DepthFilters`: depth→disparity → **spatial** (edge-preserving smoothing) → **temporal** (per-pixel EMA over frames, persistence "valid in 2 of the last 4") → disparity→depth, applied to the depth frame *before* alignment in Intel's recommended order. Hole filling and a min/max threshold exist on the dataclass but are off — hole filling invents depth, which is wrong for measuring. |
 | **Sensor tuning** | `high_density`, laser max | `--rs-preset NAME\|none`, `--laser-power MW\|max\|none`, `PERCEPTRONICS_RS_PRESET`, `PERCEPTRONICS_RS_LASER_POWER` | `DepthTuning`, written once **after the first frameset arrives** (writing them between pipeline start and the first frame stalled a freshly claimed D435 on macOS — no frame ever came; verified 2026-09-04): the *High Density* visual preset keeps low-confidence matches — chosen 2026-10-03 because *High Accuracy*'s higher confidence threshold left a dark, printed 30 mm-wide box top 57 % holes at 0.72 m and the detector missed the box (High Density: 92 % depth, 4 of 4 found; `tests/fixtures/d435`); full projector power puts more texture on flat surfaces. Best effort — an unsupported or refused option is reported in `/api/info` → `camera.depth.tuning_applied`, never fatal. `none` leaves a sensor you tuned in realsense-viewer alone. |
 | **Lean open** | off | `--rs-lean`, `PERCEPTRONICS_RS_LEAN=1` | The fewest USB handle opens per start: no USB-type probe, no stream-mode enumeration (the configured mode is requested as is — pick a listed one), no preset / laser writes (`tuning_applied` says `skipped`), and `RS2_OPTION_GLOBAL_TIME_ENABLED` switched off on every sensor right after the pipeline starts (the SDK otherwise polls the hardware monitor for its clock fit while streaming; result per sensor in `/api/info` → `camera.global_time_off`). Built 2026-09-25 for the macOS claim race (*Troubleshooting*) and **verified the same day on the Mac Studio**: the first open still fails once (the race), the cockpit's back-off re-opens, and the lean stream then holds — the desktop Mac is a D435 host again with this flag.  |
-| **Extra viewpoints** | none | `--view DEVICE` (repeatable), `PERCEPTRONICS_VIEWS=a,b`, `--view-res WxH`, `--view-fps N` | Plain webcams shown under the colour/depth pair (the **2×2 grid**; one view spans the row, a third is not laid out) and written into every snapshot (`POST /api/snapshot` → `views[].path`, so an agent reading the snapshot sees the robot from the room, not only from the wrist). `perceptronics/views.py`: **ffmpeg** (an external binary, like `ssh`/`docker` — zero Python deps) opens the device with the OS capture API and pipes MJPEG back; `GET /api/view/<i>?after=SEQ` long-polls one JPEG (`X-Seq`, `X-Fps`). macOS picks the device **by AVFoundation name** (`ffmpeg -f avfoundation -list_devices true -i ""`; indices shift when a camera is plugged in), Linux takes `/dev/videoN`, Windows the dshow name (both unverified); `lavfi:testsrc` is a camera-less source and `--fake` makes every view synthetic. Views measure nothing — no intrinsics, no hand-eye. Verified 2026-09-25 with two C920s (`perceptronics/cells/ur3.env`). |
 
 The filter blocks are `rs2_processing_block`s fed whole framesets, exactly like
 the `align` block, so each is one `rs2_process_frame` + queue wait per frame.
@@ -82,20 +81,6 @@ of a grasp (top-down, close across the minor axis). Turning that into a base-
 frame pick needs the hand-eye transform — the bracket spec gives a nominal
 `T_flange_camera` seed, and `urctl` supplies the flange pose.
 
-## Running it on the Jetson (container)
-
-```bash
-docker compose --profile perceptronics build      # builds librealsense (RSUSB backend) from source
-docker compose --profile perceptronics up -d      # privileged for USB; cockpit on :7621, bound 0.0.0.0
-```
-
-Verified 2026-09-02: the image builds for `linux/arm64` (librealsense v2.58.4,
-RSUSB backend, ~10 min on Apple Silicon), the SDK loads inside it, and
-`perceptronics rs-info` / `rs-capture --fake` run. USB itself was not exercised
-(Docker Desktop on macOS cannot pass the camera through).
-
-The container has no auth — it is a cell-network cockpit.
-Keep it off routable networks or put it behind the Jetson's firewall.
 
 ## Click or drag to segment
 
@@ -246,15 +231,9 @@ and the command to start one, and the robot tools keep working. An unreachable
 controller is likewise reported in-band (`robot unreachable at …`), not as a
 server crash.
 
-**Windows laptop** (today's brain): `scripts\setup-windows.ps1` installs Python when none
-is found (winget `Python.Python.3.13`), downloads and runs the Intel RealSense SDK 2.0
-installer from the librealsense GitHub release (`RealSense.SDK-WIN10-<ver>.exe`
-— the default install puts `realsense2.dll` under
-`C:\Program Files (x86)\Intel RealSense SDK 2.0\bin\x64\`, and the script
-sets `REALSENSE_LIB` to it) and runs the doctor. Then
-`scripts\cockpit.ps1 -Cell ur20` is the pilot's seat. No `sudo` story on
-Windows: librealsense uses the native backend there. **Not yet run on the
-laptop** as of 2026-09-12 — the first run is the verification.
+**Windows**: the runtime is portable (the CI unit leg runs on Windows) and librealsense's native
+backend needs no `sudo` there, but the Windows launchers and the Windows Docker path were
+dropped on 2026-10-04: the pick PC (`deploy/pi/`) is the cell's computer.
 
 ## Hand-eye calibration (touch-and-click)
 
@@ -352,8 +331,8 @@ on; a view the envelope refuses or the arm can't reach is skipped and named; the
 worst view is dropped while any residual exceeds `--trim-mm` (9). Ctrl-C stops
 the program. `tests/test_orbitcal.py` runs it end to end on a fake cell (a
 rendered block, a real `CalibrationSession` from a wrong seed) plus the fault
-campaign; **not yet run on the UR3e** — the `scripts/pilot/orbit_cal*.py`
-scratch scripts stay as the proven fallback until it is.
+campaign; **not yet run on the UR3e** (the 2026-09-25 scratch scripts it was folded in from
+were deleted on 2026-10-04; the procedure lives here now).
 
 ## Picking with the Hand-E
 

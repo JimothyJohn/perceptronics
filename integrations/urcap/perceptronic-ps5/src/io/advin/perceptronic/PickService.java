@@ -9,7 +9,7 @@ import com.ur.urcap.api.domain.data.DataModel;
 import java.util.Locale;
 
 /**
- * Program tab → URCaps → 3D Pick: one move sequence, from the survey at the picture points to
+ * Program tab → URCaps → Pounce: one move sequence, from the survey at the picture points to
  * the gripper clamped on the next part in order. It has no children (0.7.0): what happens to
  * the part is the program's next nodes. The service id keeps its 0.6.0 name so a saved
  * program still finds its node.
@@ -28,7 +28,7 @@ public class PickService implements SwingProgramNodeService<PickContribution, Pi
 
     @Override
     public String getTitle(Locale locale) {
-        return "3D Pick";
+        return "Pounce";
     }
 
     @Override

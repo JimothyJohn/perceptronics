@@ -16,7 +16,7 @@ down. Reference: `integrations/urcap/README.md` (the node, screen by screen), `D
 | Orchestration | Dashboard :29999 | the REST **Robot-API** on :80 (`UR_PLATFORM=polyscopex`, `UR_ROBOT_API_PORT=80`); every mutating call is 403 unless the robot is in **Remote** |
 | Primary / RTDE | always on | **off by default**: Settings → Security → Services → Primary Client interface + RTDE on (admin password), then Lock and Close |
 | Local / Remote | the top-right pendant indicator | Safety Overview (the icon top right) → Operational mode **Automatic** (password) → Control mode **Remote**. **Automatic hides the Application and Program tabs**: node editing and teaching happen in Manual, cockpit-driven moves over Primary in Automatic + Remote |
-| Where the node lives | Installation → URCaps → Perceptronic; Program → URCaps → 3D Pick | **Application** → URCaps → Perceptronic (the camera, pick areas); **Program** → + → 3D Pick: a one-line row, its screen is the **Teach & options…** dialog |
+| Where the node lives | Installation → URCaps → Perceptronic; Program → URCaps → Pounce | **Application** → URCaps → Perceptronic (the camera, pick areas); **Program** → + → Pounce: a one-line row, its screen is the **Teach & options…** dialog |
 | The node's cockpit address | the Cockpit field on the Installation node | the Cockpit field on the Application node; the program node reads it from there (its row says *set the camera computer's address in Application → Perceptronic* until it can) |
 | Moving to a located point | Move (PolyScope) = `RobotMovement.requestUserToMoveRobot` | Move (PolyScope) = PolyScope's IK + the **hold-to-move** screen (needs a hand on the pendant); Move (cockpit) = the cockpit over Primary (Remote) |
 | The program node's script | runs in Local, no Primary | the same URScript, run by ▶ in Manual or Automatic; FIND / NEXT go to the cockpit's pick server (:7622) **from the controller**, so the cockpit's address must be one the controller reaches (on a sim in Docker that is the host's LAN address, not `localhost`) |
@@ -68,9 +68,9 @@ Speed slider ≤ 30 %, a hand near the e-stop. With the click's target on the Ap
 
 **Check:** `GET /api/robot/pose` on the pick PC equals the approach pose; no protective stop.
 
-## Phase 4 — the 3D Pick node (both, 30 min)
+## Phase 4 — the Pounce node (both, 30 min)
 
-Manual. **Program → + → 3D Pick**. The row shows the part size and picture count; **Teach &
+Manual. **Program → + → Pounce**. The row shows the part size and picture count; **Teach &
 options…** opens the dialog: the live picture with the parts found (green, numbered) and the
 near misses (yellow, with why), the **Picture points** grid (**+** = the arm's joints now; **Go**,
 **Here**), the **pick order** tiles, **Options** (Part / Approach tabs), **Check approach**.
@@ -86,7 +86,7 @@ near misses (yellow, with why), the **Picture points** grid (**+** = the arm's j
    Since the off-level fix the parts are still found and the note says *the table reads N° off
    level in the robot's frame*; their positions are off by as much → re-run `perceptronics
    calibrate` (ROBOT.md phase 4) before any pick.
-4. **Done**, then ▶ with the program *Gripper open → 3D Pick → Gripper close → If rs_pick_found*
+4. **Done**, then ▶ with the program *Gripper open → Pounce → Gripper close → If rs_pick_found*
    (the PolyScope X gripper nodes of the gripper you have). The script: movej to the picture point
    → FIND (the controller talks to the pick server :7622) → the closer look → REFINE → over →
    approach → grip. Every stage is a `textmsg` and a `LOG` line in the cockpit's pick log.
@@ -106,7 +106,7 @@ question, the backend-container packaging), the field log in `perceptronics/cell
 UR10e sim (`ROBOT_TYPE=UR10`, 10.13.0) with the Pi's cockpit and the real D435 on the bench as the
 camera, hand-eye from the file, the sim as the robot: URCap installed through the urservice
 endpoint; Services toggled on; Application node live at 30 fps through `http://192.168.3.20`
-(port 80); click → located → reachable → `POST /api/robot/move` landed; **3D Pick** node: part size
+(port 80); click → located → reachable → `POST /api/robot/move` landed; **Pounce** node: part size
 110 × 70 × 30, picture point 1 taught from the arm's joints, four boxes green and numbered once the
 sim's wrist was tilted 19° to match the camera on the bench (the off-level note now covers the
 untilted case). Not run: ▶ (needs the controller to reach the Mac's cockpit — it does, through

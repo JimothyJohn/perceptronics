@@ -263,6 +263,7 @@ class Part:
     pixel: tuple[int, int]
     corners_px: list[tuple[int, int]]
     cells: int
+    nominal_height_m: float | None = None  # the taught face's height the centre stands at, when known
     why: str | None = None
     order: int = 0
     near: bool = True
@@ -302,6 +303,9 @@ class Part:
             "theta_deg": round(math.degrees(self.theta), 1),
             "size_mm": [round(self.length_m * 1000), round(self.width_m * 1000)],
             "height_mm": round(self.height_m * 1000),
+            "nominal_height_mm": (
+                None if self.nominal_height_m is None else round(self.nominal_height_m * 1000)
+            ),
             "why": self.why,
             "near": self.near,
         }
@@ -472,6 +476,8 @@ def find_parts(
         for part, own in _parts_in(blob, ctx, [], MAX_LEVELS):
             part.why = _why_not(part, spec, surf, reach, level_ok)
             part.near = _near(part, spec)
+            if part.why is None and spec is not None:
+                to_nominal_height(part, surf, spec)
             (parts if part.why is None else rejected).append(part)
             blobs[id(part)] = own
     if colour is not None:
@@ -1228,6 +1234,25 @@ def _fine_foot(
         for (x, y), q in band.items()
         if (x - 1, y) in band and (x + 1, y) in band and (x, y - 1) in band and (x, y + 1) in band
     ]
+
+
+def to_nominal_height(part: Part, surf: Surface, spec: PartSpec) -> Part:
+    """Stand ``part`` at the height the taught size says, not the one the camera measured:
+    its centre and corners move along the surface normal by (nominal - measured); the
+    measured ``height_m`` stays on the record. The taught size is the truth and the
+    measurement is the filter (Nick, 2026-10-04): depth smear at a top face's edges reads a
+    part low, and a grip hung from that top closed short. A part with no taught height, or
+    one the spec does not accept, is left as measured."""
+    h = spec.nominal_height(part.length_m, part.width_m, part.height_m, RANGE_SLACK * part.range_m)
+    if h is None:
+        return part
+    d = h - part.height_m
+    n = surf.normal
+    shift = lambda q: (q[0] + n[0] * d, q[1] + n[1] * d, q[2] + n[2] * d)  # noqa: E731
+    part.centre = shift(part.centre)
+    part.corners = [shift(q) for q in part.corners]
+    part.nominal_height_m = h
+    return part
 
 
 def _why_not(

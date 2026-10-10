@@ -21,7 +21,7 @@
 # Long-lived process this installs: perceptronics-cockpit.service, the cockpit on TCP :7621 and
 # the PolyScope Pick node's pick server on TCP :7622.
 #   stop:  sudo systemctl stop perceptronics-cockpit     logs: journalctl -u perceptronics-cockpit -f
-# A `perceptronics pick-server` sidecar also binds :7622 — stop it before (re)starting the unit.
+# The pick server's trace: GET /api/pick/log on the cockpit, and captures/pick.log in its state dir.
 #
 # The cell port (--cell-if, default eth0) is set up for a robot nobody has configured: it
 # holds --cell-address (default 192.168.3.20/24, what the URCap's empty Cockpit field means)
@@ -50,8 +50,7 @@ IMAGE=0
 
 # ---- pins ----------------------------------------------------------------------------
 # perceptronics/realsense.py binds the C API with ctypes and checks enum ordinals written
-# against librealsense 2.58 (`_check_enums`); v2.58.4 is also what deploy/Dockerfile.perceptronics
-# builds. It was the newest release tag on 2026-09-28 (`git ls-remote --tags`); the commit
+# against librealsense 2.58 (`_check_enums`); v2.58.4 was the newest release tag on 2026-09-28 (`git ls-remote --tags`); the commit
 # is checked after the clone so a moved tag cannot slip a different tree in.
 readonly LIBREALSENSE_TAG="v2.58.4"
 readonly LIBREALSENSE_COMMIT="34d6c778e1134d8505adcd56bb57acbe7598a459"
@@ -360,12 +359,8 @@ import sys
 from perceptronics.cell import load_cell, parse_env_text
 
 cell, robot_host, template, out = sys.argv[1:5]
-# Host-specific to the Mac Studio the shipped cells were written on: webcams by
-# AVFoundation name and their focus lock. A Pi with extra webcams sets PERCEPTRONICS_VIEWS
-# to /dev/videoN by hand.
-DROP = {"PERCEPTRONICS_VIEWS", "PERCEPTRONICS_VIEW_FOCUS"}
 try:
-    values = {k: v for k, v in load_cell(cell).items() if k not in DROP}
+    values = dict(load_cell(cell))
 except ValueError as exc:
     sys.exit(f"--cell: {exc}")
 with open(template, encoding="utf-8") as fh:

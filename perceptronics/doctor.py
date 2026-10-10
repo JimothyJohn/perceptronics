@@ -184,7 +184,7 @@ def _sdk_fix() -> str:
     if sys.platform == "win32":
         return (
             "install Intel RealSense SDK 2.0 (RealSense.SDK-WIN10-<ver>.exe from the librealsense GitHub "
-            "releases; scripts/setup-windows.ps1 does it), then set REALSENSE_LIB to "
+            "releases), then set REALSENSE_LIB to "
             r"C:\Program Files (x86)\Intel RealSense SDK 2.0\bin\x64\realsense2.dll if it is not found"
         )
     if sys.platform == "darwin":
@@ -350,7 +350,7 @@ def check_network(
     pendant = (
         "the pendant's Cockpit field can stay empty (its default)"
         if default
-        else f"on the pendant: Installation → URCaps → Perceptronic → Cockpit = {here}"
+        else f"on the pendant: Installation → URCaps → Perceive → Cockpit = {here}"
     )
     report.add(
         Check(

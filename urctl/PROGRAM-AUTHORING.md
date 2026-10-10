@@ -1,8 +1,7 @@
 # Program authoring best practices
 
 Conventions for any program we author for a UR e-Series controller in this
-repo — `.urp` node trees (via `urctl/urp_builder.py`), guided builds
-(`urctl/guided.py`), and joint-space trajectories (`Robot.move_trajectory`).
+repo — `.urp` node trees (via `urctl/urp_builder.py`) and joint-space trajectories (`Robot.move_trajectory`).
 These are *authoring* rules: they make the program readable on the pendant and
 smooth to run. They are not enforced by the loader — PolyScope will happily load
 a program that ignores all of them — so they live here as discipline.
@@ -27,10 +26,8 @@ tells them nothing; `PickApproach`, `Grasp`, `Lift` tells them everything.
   pose that equals `Home`.
 
 Tooling: `Waypoint(name, q=[...])` takes the name verbatim — author with explicit
-functional names. The guided REPL (`urctl guided`) derives the name from the
-step description (`movej … ; pick approach` → `PickApproach`) and **reuses an
-earlier waypoint's name when a step returns to the same physical pose**, so the
-duplicate-position rule is applied automatically.
+functional names (a step description like `pick approach` becomes `PickApproach`), and
+**reuse an earlier waypoint's name when a step returns to the same physical pose**.
 
 ## 2. Keep moves under one Move node unless the speed must change
 
@@ -63,8 +60,7 @@ merge them into a preceding compatible Move node. **Note the tension with rule 4
 (comment every line):** a Comment node between two moves prevents them from
 grouping, so you cannot both annotate every move *and* coalesce them. Grouping
 wins when a run of moves shares one obvious purpose (give the group a single
-comment); per-line comments win when each step needs its own note. The guided
-session chooses per-line comments, so its moves are intentionally *not* grouped.
+comment); per-line comments win when each step needs its own note.
 
 ## 3. Blend every waypoint except stopping points
 
@@ -99,8 +95,7 @@ Tooling status:
   load-tested against URSim
   (`test_integration_ursim.py::TestUrpBuilderLoading::test_blended_waypoints_urp_loads`).
   Per the movej blend-radius pitfall, leave the final waypoint of a Move
-  unblended. The guided session does not set blends (it can't tell live which
-  points are stops) — add them when you author or post-process the `.urp`.
+  unblended.
 
 ## 4. Comment every line
 
@@ -112,11 +107,9 @@ move, add a step. Make that legible.
   the node it explains.
 - **Describe intent, not the obvious.** `lower onto part` beats `MoveL down`.
 - See rule 2 for the grouping trade-off: comments and grouping compete at the
-  tree level, and for guided builds comments win.
+  tree level.
 
-Tooling: the guided session emits a Comment before every recorded Move/Set, using
-the step's description — so always pass a `; description` on guided commands. When
-hand-authoring, call `prog.comment(...)` before each node.
+Tooling: call `prog.comment(...)` before each node.
 
 ## 5. Offer freedrive reteach when teaching positions
 
@@ -131,10 +124,8 @@ rough target, then let the operator hand-guide it to the precise pose and confir
 - **Relative steps chain off the new pose.** Because a relative move is computed
   from the live TCP, the next step starts wherever the operator left the arm.
 
-Tooling: `urctl guided … --freedrive` turns this on; each move then calls
-`Robot.reteach_in_freedrive(...)` (freedrive wrapped around a pendant
-Yes/No/Cancel dialog) and records the hand-guided pose. No/Cancel skips recording
-that step.
+Tooling: `Robot.reteach_in_freedrive(...)` is freedrive wrapped around a pendant
+Yes/No/Cancel dialog; it returns the hand-guided pose (None on No/Cancel).
 
 ## Worked example — pick and place
 

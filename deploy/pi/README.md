@@ -5,7 +5,7 @@ a systemd service. The robot's PolyScope 5 URCap talks to it over Ethernet:
 
 - **Perceptronic** (Installation node) calls the cockpit's HTTP API on **:7621**,
   including `GET /api/color.png` for the feed on the pendant;
-- **3D Pick** (program node; "Perceptronic Pick" before URCap 0.7.0) runs URScript that opens a socket to the pick server
+- **Pounce** (program node; "Perceptronic Pick" before URCap 0.7.0) runs URScript that opens a socket to the pick server
   on **:7622**.
 
 Nothing here needs a desktop, a GPU, Docker or a network connection at runtime. The
@@ -116,8 +116,8 @@ in `/var/lib/perceptronics`, librealsense and the user. Add `--purge` to remove 
 
 Every PC installed or flashed from this directory serves **http://192.168.3.20/setup** (port 80
 is the cockpit's :7621, rewritten by the firewall; `:7621` works too)
-(log in `admin` / `admin` for now; `PERCEPTRONICS_ADMIN_USER` / `PERCEPTRONICS_ADMIN_PASSWORD`
-in `cell.env` change it). Connect a laptop to the PC's Ethernet port and give the laptop a
+(the factory login `admin` / `admin` opens it once, to set a password; from then on that
+password is the only login — nothing else on the page works before it is set). Connect a laptop to the PC's Ethernet port and give the laptop a
 **static** `192.168.3.10`, mask `255.255.255.0`. Don't use DHCP: the PC's one-lease DHCP
 server would hand the laptop the robot's address.
 
@@ -179,15 +179,14 @@ firewall limits that to the cell. Change the default login on a PC that leaves t
 | 22/tcp | in | SSH | anyone (key auth; tighten in `nftables.conf` if the PC is on a wider network) |
 | 7621/tcp | in | cockpit HTTP API (`perceptronics gui --port`), incl. `/api/color.png`, and the setup portal `/setup` (login) | cell subnet only (+ the backup subnet after a network change) |
 | 80/tcp | in | the same, without a port number: nftables rewrites it to 7621 (`http://192.168.3.20/setup`) | the same subnets |
-| 7622/tcp | in | pick server for the 3D Pick node (`--pick-port`) | cell subnet only |
+| 7622/tcp | in | pick server for the Pounce node (`--pick-port`) | cell subnet only |
 | 29999, 30001, 30004/tcp | out | robot Dashboard, Primary, RTDE (`UR_*_PORT` in `cell.env`) | — |
 
 Both inbound services are **unauthenticated** (a trusted cell network, like the robot's
 own ports). The firewall is what keeps them on the cell.
 
-A `perceptronics pick-server` sidecar also binds **:7622**. Never run one next to this
-service. If you did, `pkill -f "pick-server --bind"` before restarting the cockpit, or the
-cockpit warns and runs without its pick server.
+The pick server's trace is `GET /api/pick/log` on the cockpit (and `captures/pick.log` under
+`/var/lib/perceptronics`).
 
 ## Troubleshooting
 

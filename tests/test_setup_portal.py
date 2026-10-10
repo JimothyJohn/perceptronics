@@ -16,6 +16,7 @@ import importlib.util
 import io
 import ipaddress
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -681,6 +682,8 @@ def portal_server(tmp_path):
         current_release=tmp_path / "current",
         robot_host="192.168.3.3",
     )
+    # a password already set (the same word as the factory one, so the tests' login stays "admin")
+    (admin_dir / setupportal.PASSWORD_FILE_NAME).write_text(setupportal._hash_password("admin") + "\n")
     app = ViewerApp(SyntheticRgbdCamera(width=32, height=24, fps=0), config=PerceptionConfig())
     srv = ThreadingHTTPServer(("127.0.0.1", 0), ViewerHandler)
     srv.daemon_threads = True
@@ -702,6 +705,8 @@ def _req(base, path, *, method="GET", body=None, headers=None):
 
 
 ADMIN_H = {"Authorization": _auth(), "X-Perceptronics-Admin": "1"}
+# the fixture portal has had its password set to "admin" through set_password's own file format,
+# so every existing test keeps logging in with the factory pair; the factory-login tests unlink it
 
 
 def test_no_portal_on_a_cockpit_that_was_not_given_one(portal_server):
@@ -950,6 +955,13 @@ def test_push_to_queue_to_helper_end_to_end(portal_server, bundle, helper_paths,
     assert not list(portal.queue.iterdir())
 
 
+def test_push_refuses_to_run_against_a_factory_login(portal_server, bundle):
+    base, portal, _ = portal_server
+    (portal.admin_dir / setupportal.PASSWORD_FILE_NAME).unlink()
+    with pytest.raises(admin.AdminError, match="set a password"):
+        admin.push(bundle, base, "admin", "admin", timeout_s=5)
+
+
 def test_push_reports_a_refused_login(portal_server, bundle):
     base, *_ = portal_server
     with pytest.raises(admin.AdminError, match="login"):
@@ -1066,8 +1078,161 @@ def test_the_password_never_rides_on_a_command_line():
 def test_the_page_calls_only_routes_that_exist_and_sends_the_header():
     page = (ROOT / "perceptronics" / "webui" / "setup.html").read_text(encoding="utf-8")
     routes = set(re.findall(r'"(/api/admin/[a-z]+)"', page))
-    assert routes == {"/api/admin/status", "/api/admin/network", "/api/admin/update"}
+    assert routes == {"/api/admin/status", "/api/admin/network", "/api/admin/update", "/api/admin/password"}
     assert page.count("X-Perceptronics-Admin") >= 2
     webapp_src = (ROOT / "perceptronics" / "webapp.py").read_text(encoding="utf-8")
     for r in routes:
         assert f'"{r}"' in webapp_src
+
+
+# ---- the forced password change (Nick, 2026-10-04) ---------------------------------------------
+
+
+def _fresh(portal_server):
+    """The portal as it ships: no password set yet."""
+    base, portal, srv = portal_server
+    (portal.admin_dir / setupportal.PASSWORD_FILE_NAME).unlink()
+    assert portal.password_required
+    return base, portal
+
+
+def test_the_factory_login_may_only_set_a_password(portal_server):
+    base, portal = _fresh(portal_server)
+    status, _, body = _req(base, "/api/admin/status", headers={"Authorization": _auth()})
+    assert status == 200 and json.loads(body)["password_required"] is True
+    status, _, _ = _req(base, "/setup", headers={"Authorization": _auth()})
+    assert status == 200
+    form = json.dumps(
+        {"address": "192.168.3.21", "netmask": "255.255.255.0", "robot_host": "192.168.3.3"}
+    ).encode()
+    status, _, body = _req(
+        base,
+        "/api/admin/network",
+        method="POST",
+        body=form,
+        headers={**ADMIN_H, "Content-Type": "application/json"},
+    )
+    assert status == 403 and json.loads(body)["password_required"] is True
+    status, _, body = _req(
+        base,
+        "/api/admin/update",
+        method="POST",
+        body=b"x" * 10,
+        headers={**ADMIN_H, "Content-Type": "application/x-tar", "Content-Length": "10"},
+    )
+    assert status == 403, body
+    assert not list(portal.queue.iterdir()), "nothing was queued through the factory login"
+
+
+@pytest.mark.parametrize(
+    "password, why",
+    [
+        ("short", "8 to 128"),
+        ("x" * 129, "8 to 128"),
+        ("FACTORY", "factory"),
+        ("with\nnewline1", "control"),
+        (123456789, "text"),
+        (None, "text"),
+    ],
+)
+def test_a_bad_password_is_refused(portal_server, password, why):
+    base, portal = _fresh(portal_server)
+    if password == "FACTORY":  # a cell.env factory password long enough to pass the length check
+        portal.password = password = "factory-default-1"
+    status, _, body = _req(
+        base,
+        "/api/admin/password",
+        method="POST",
+        body=json.dumps({"password": password}).encode(),
+        headers={
+            "Authorization": _auth(password=portal.password),
+            "X-Perceptronics-Admin": "1",
+            "Content-Type": "application/json",
+        },
+    )
+    assert status == 400 and why in json.loads(body)["error"], body
+    assert portal.password_required
+
+
+def test_setting_the_password_replaces_the_factory_login(portal_server):
+    base, portal = _fresh(portal_server)
+    new = "correct horse battery"
+    status, _, body = _req(
+        base,
+        "/api/admin/password",
+        method="POST",
+        body=json.dumps({"password": new}).encode(),
+        headers={**ADMIN_H, "Content-Type": "application/json"},
+    )
+    assert status == 200 and json.loads(body)["ok"], body
+    stored = portal.password_file
+    if os.name != "nt":  # Windows has no POSIX modes; the file is private by the directory there
+        assert stored.stat().st_mode & 0o777 == 0o600
+    text = stored.read_text()
+    assert text.startswith("scrypt$") and new not in text and "admin" not in text
+    # the factory login is dead, the new one lives, and the gate is open
+    assert _req(base, "/api/admin/status", headers={"Authorization": _auth()})[0] == 401
+    status, _, body = _req(base, "/api/admin/status", headers={"Authorization": _auth(password=new)})
+    st_ = json.loads(body)
+    assert status == 200 and st_["password_required"] is False
+    assert "scrypt" not in body.decode() and new not in body.decode()
+    form = json.dumps(
+        {"address": "192.168.3.21", "netmask": "255.255.255.0", "robot_host": "192.168.3.3"}
+    ).encode()
+    status, _, body = _req(
+        base,
+        "/api/admin/network",
+        method="POST",
+        body=form,
+        headers={
+            "Authorization": _auth(password=new),
+            "X-Perceptronics-Admin": "1",
+            "Content-Type": "application/json",
+        },
+    )
+    assert status == 200, body
+    # and it can be changed again, with the current password, never the factory one
+    status, _, _ = _req(
+        base,
+        "/api/admin/password",
+        method="POST",
+        body=json.dumps({"password": "another good one"}).encode(),
+        headers={**ADMIN_H, "Content-Type": "application/json"},
+    )
+    assert status == 401
+    status, _, _ = _req(
+        base,
+        "/api/admin/password",
+        method="POST",
+        body=json.dumps({"password": "another good one"}).encode(),
+        headers={
+            "Authorization": _auth(password=new),
+            "X-Perceptronics-Admin": "1",
+            "Content-Type": "application/json",
+        },
+    )
+    assert status == 200
+    assert _req(base, "/api/admin/status", headers={"Authorization": _auth(password=new)})[0] == 401
+    assert (
+        _req(base, "/api/admin/status", headers={"Authorization": _auth(password="another good one")})[0]
+        == 200
+    )
+
+
+def test_a_tampered_password_file_locks_the_factory_login_out_too(portal_server):
+    base, portal = _fresh(portal_server)
+    portal.password_file.write_text("scrypt$zz$notahash\n")
+    assert not portal.password_required
+    assert _req(base, "/api/admin/status", headers={"Authorization": _auth()})[0] == 401
+    assert _req(base, "/api/admin/status", headers={"Authorization": _auth(password="anything")})[0] == 401
+
+
+def test_the_hash_is_salted_and_verifies():
+    a = setupportal._hash_password("same password")
+    b = setupportal._hash_password("same password")
+    assert a != b and a.startswith("scrypt$") and len(a.split("$")) == 3
+    assert setupportal._verify_password("same password", a) and setupportal._verify_password(
+        "same password", b
+    )
+    assert not setupportal._verify_password("same passwore", a)
+    assert not setupportal._verify_password("same password", "garbage")

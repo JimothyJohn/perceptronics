@@ -3,7 +3,7 @@
 // `robotSettings` and `robotContext` on it (SDK 6.5.65 JavaScript template).
 //
 // Two tabs, so nothing scrolls: Camera (the feed and the moves) and Pick areas (the areas
-// the 3D Pick node looks at, on a map of the arm's reach).
+// the Pounce node looks at, on a map of the arm's reach).
 //
 // The page talks to the RealSense cockpit (`perceptronics gui --cors <this origin>`)
 // over its HTTP API: the colour feed is `GET /api/color.png` long-polled by
@@ -58,6 +58,7 @@
     .rsp .stage .nocam > div { max-width: 90%; padding: 12px 18px; border: 3px solid #d64545; border-radius: 14px; background: #0d131a; color: #c9d3de; font-size: 13px; white-space: pre-wrap; }
     .rsp .stage .nocam b { display: block; color: #fff; font-size: 20px; text-align: center; margin-bottom: 6px; }
     .rsp .tabs { display: inline-flex; margin-left: auto; }
+    .rsp pre.log { margin: 0; padding: 8px 10px; border-radius: 6px; background: #eef2f7; font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
     .rsp .tabs button { border-radius: 0; font-size: 14px; font-weight: 600; } .rsp .tabs button:first-child { border-radius: 6px 0 0 6px; } .rsp .tabs button:last-child { border-radius: 0 6px 6px 0; }
     .rsp .tabs button.on { background: #1f5fbf; color: #fff; border-color: #1f5fbf; }
     .rsp .two { display: flex; gap: 16px; align-items: flex-start; }
@@ -178,6 +179,8 @@
   const withTimeout = (p, ms, why) =>
     Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error(why)), ms))]);
 
+  const LOG_KEEP = 50;
+
   class Perceptronic extends HTMLElement {
     // PolyScope's IK solves for *PolyScope's* active TCP, which is not the TCP the cockpit's
     // controller reported (a different robot while testing in the sim; a stale training
@@ -205,6 +208,7 @@
       this._lib = null;
       this._modelAsked = false;
       this._tab = "camera";
+      this._log = [];  // the last LOG_KEEP lines, newest first (the Log tab; the console sees them too)
       this._depth = false; // the picture's toggle: the depth as a heatmap
       this._logged = "";
       this._colourWidth = 0;
@@ -322,8 +326,8 @@
         this.innerHTML = `
           <style>${CSS}</style>
           <div class="rsp">
-            <h2><span class="dot" data-rsp="dot"></span> Perceptronic <small data-rsp="fps"></small>
-              <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button></span>
+            <h2><span class="dot" data-rsp="dot"></span> Perceive <small data-rsp="fps"></small>
+              <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button><button data-tab="log">Log</button></span>
             </h2>
             <div data-rsp="tab-camera" class="cam">
             <div class="ctl">
@@ -354,7 +358,7 @@
             </div>
             <div class="two hidden" data-rsp="tab-areas">
               <div class="card" data-rsp="areas-card">
-                <h3>Pick areas <small>for the 3D Pick node — touch the table with the tool (its TCP, as set on the pendant) at a corner, along one edge, and on the far side</small></h3>
+                <h3>Pick areas <small>for the Pounce node — touch the table with the tool (its TCP, as set on the pendant) at a corner, along one edge, and on the far side</small></h3>
                 <div data-rsp="areas"></div>
                 <div class="row"><button data-rsp="area-add">New area</button> <small data-rsp="areas-note"></small></div>
               </div>
@@ -362,6 +366,13 @@
                 <h3>The arm's reach <small data-rsp="reach-model"></small></h3>
                 <div class="reach-map" data-rsp="reach-map"></div>
                 <small data-rsp="reach-text"></small>
+              </div>
+            </div>
+            <div class="hidden" data-rsp="tab-log">
+              <div class="card">
+                <h3>Log <small>the last ${LOG_KEEP} lines this node logged, newest first</small></h3>
+                <pre class="log" data-rsp="log">nothing logged yet</pre>
+                <div class="row"><button data-rsp="log-refresh">Refresh</button> <button data-rsp="log-copy">Copy</button> <small data-rsp="log-note"></small></div>
               </div>
             </div>
           </div>`;
@@ -386,10 +397,14 @@
       this.$("bringup").addEventListener("click", () => this.bringUp());
       this.$("stop").addEventListener("click", () => this.stop());
       this.$("clear").addEventListener("click", () => this.clearTarget());
+      this.$("log-refresh").addEventListener("click", () => this.renderLog());
+      this.$("log-copy").addEventListener("click", () => this.copyLog());
       this.$("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
         this._tab = b.dataset.tab;
         this.$("tab-camera").classList.toggle("hidden", this._tab !== "camera");
         this.$("tab-areas").classList.toggle("hidden", this._tab !== "areas");
+        this.$("tab-log").classList.toggle("hidden", this._tab !== "log");
+        if (this._tab === "log") this.renderLog();
         this.$("tabs").querySelectorAll("button").forEach((t) => t.classList.toggle("on", t.dataset.tab === this._tab));
       }));
       // the Picture / Depth toggle, inside the picture's frame
@@ -416,7 +431,7 @@
       }
     }
 
-    // -- pick areas (what the 3D Pick program node reads from this node), on the arm's reach ---------
+    // -- pick areas (what the Pounce program node reads from this node), on the arm's reach ---------
     async startAreas() {
       try {
         this._lib = await loadLib();
@@ -607,7 +622,7 @@
             // a camera computer older than 0.7.0 has no heatmap: the picture instead
             this._depth = false;
             this.$("view").querySelectorAll("button").forEach((t) => t.classList.toggle("on", t.dataset.view === "picture"));
-            console.warn(`Perceptronic: ${this.cockpitUrl()} answered 404 on /api/depth.png: it predates the depth view; update it`);
+            this.log(`${this.cockpitUrl()} answered 404 on /api/depth.png: it predates the depth view; update it`);
             continue;
           }
           if (!r.ok) {
@@ -663,7 +678,33 @@
       this.setStatus(text, level);
       if (detail !== this._logged) {
         this._logged = detail;
-        console.warn(`Perceptronic: ${detail}`);
+        this.log(detail);
+      }
+    }
+
+    // -- the Log tab (Nick, 2026-10-04: a pendant has no console) --------------------------------
+
+    /** One line of detail, newest first, the same line twice in a row written once. */
+    log(detail) {
+      if (!detail || this._log[0] === detail) return;
+      this._log.unshift(detail);
+      if (this._log.length > LOG_KEEP) this._log.length = LOG_KEEP;
+      console.warn(`Perceptronic: ${detail}`);
+      if (this._built && this._tab === "log") this.renderLog();
+    }
+
+    renderLog() {
+      const pre = this.$("log");
+      if (pre) pre.textContent = this._log.length ? this._log.join("\n") : "nothing logged yet";
+    }
+
+    async copyLog() {
+      const note = this.$("log-note");
+      try {
+        await navigator.clipboard.writeText(this._log.join("\n"));
+        if (note) note.textContent = "copied";
+      } catch (e) {
+        if (note) note.textContent = "copy is not available here: select the text instead";
       }
     }
 

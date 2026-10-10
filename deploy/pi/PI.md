@@ -329,7 +329,7 @@ is built, and it is far off.
 
 1. UR3e powered, `sudo perceptronics-doctor` green on `robot.*`.
 2. Pendant: remove RealSense Pilot, install Perceptronic 0.9.0 from the USB stick;
-   **Installation → URCaps → Perceptronic** shows the picture with the Cockpit field at its
+   **Installation → URCaps → Perceive** shows the picture with the Cockpit field at its
    default `192.168.3.20` (`PLUG-AND-PLAY.md` §3).
 3. Hand-eye on the Pi if the wrist moved since 2026-09-27 (`PLUG-AND-PLAY.md` §6). The solve
    is saved to the hand-eye file and survives restarts; nothing to delete.

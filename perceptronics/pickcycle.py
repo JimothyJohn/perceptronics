@@ -20,14 +20,13 @@ is a client, the same way the MCP tools are. The routine:
    ``drop_mm`` up so the pile shuffles.
 
 Every phase is an event with a wall-clock stamp (``events.json``), and
-``--record DIR`` saves the three cockpit feeds alongside so
-``scripts/pilot/assemble.py`` can cut a subtitled timelapse.
+``--record DIR`` saves the wrist feed alongside, stamped, for a timelapse.
 
 The fingertip length, ``tip_m``, is the robot's own: the Z of its active TCP offset,
 read with the first flange pose (Nick, 2026-10-08: tool offsets live in the robot). The
 routine moves flange poses (``tcp=[0]*6``), and the tool axis may be tilted, so every
 target is placed for the **tip**, ``flange = tip − R·(0,0,L)``. An offset with X, Y or a
-rotation is honoured only along Z — this routine predates the 3D Pick node, which works
+rotation is honoured only along Z — this routine predates the Pounce node, which works
 in the TCP frame itself.
 """
 
@@ -510,7 +509,7 @@ class PickCycle:
     def say(self, text: str, *, think: str | None = None, do: str | None = None) -> None:
         """Log one event. ``text`` is the engineer's line; ``think`` / ``do`` are the
         same moment in plain words (what the robot has concluded, what it is about
-        to do) — what ``scripts/pilot/assemble.py`` captions for a lay audience."""
+        to do) — captions for a lay audience."""
         ev: dict = {"t": round(time.time() - self.t0, 2), "text": text}
         if think:
             ev["think"] = think
@@ -1033,48 +1032,21 @@ class PickCycle:
 
 
 class Recorder:
-    """Save ``/api/view/0``, ``/api/view/1`` (JPEG) and ``/api/rgbd`` (PNG) to
-    ``out`` with timestamps relative to ``t0``; ``index.json`` + ``t0.json`` are
-    what ``scripts/pilot/assemble.py`` reads."""
+    """Save ``/api/rgbd`` (PNG) to ``out`` with timestamps relative to ``t0``, plus
+    ``index.json`` + ``t0.json``."""
 
     def __init__(self, cockpit: Cockpit, out: str, t0: float):
         self.cockpit, self.out, self.t0 = cockpit, out, t0
-        self.idx: dict[str, list] = {"v0": [], "v1": [], "c": []}
+        self.idx: dict[str, list] = {"c": []}
         self.stop = threading.Event()
         self.lock = threading.Lock()
-        for d in ("v0", "v1", "c"):
-            os.makedirs(f"{out}/{d}", exist_ok=True)
+        os.makedirs(f"{out}/c", exist_ok=True)
         json.dump({"t0": t0}, open(f"{out}/t0.json", "w"))
-        self.threads = [
-            threading.Thread(target=self._view, args=(0,), daemon=True),
-            threading.Thread(target=self._view, args=(1,), daemon=True),
-            threading.Thread(target=self._wrist, daemon=True),
-        ]
+        self.threads = [threading.Thread(target=self._wrist, daemon=True)]
 
     def start(self) -> None:
         for t in self.threads:
             t.start()
-
-    def _view(self, i: int) -> None:
-        seq = 0
-        while not self.stop.is_set():
-            try:
-                r = urllib.request.urlopen(
-                    f"{self.cockpit.base}/api/view/{i}?after={seq}&timeout_ms=1000", timeout=5
-                )
-                s = int(r.headers.get("X-Seq", "0"))
-                data = r.read()
-                if s == seq:
-                    continue
-                seq = s
-                t = time.time() - self.t0
-                name = f"{self.out}/v{i}/{int(t * 1000):08d}.jpg"
-                open(name, "wb").write(data)
-                with self.lock:
-                    self.idx[f"v{i}"].append((t, name))
-                time.sleep(0.15)
-            except Exception:
-                time.sleep(0.3)
 
     def _wrist(self) -> None:
         while not self.stop.is_set():
@@ -1101,32 +1073,6 @@ class Recorder:
         return {k: len(v) for k, v in self.idx.items()}
 
 
-def lock_view_focus(cockpit: Cockpit, spec_text: str | None) -> list[dict]:
-    """Before recording: lock the cockpit's webcam views at the focus the cell names
-    (``PERCEPTRONICS_VIEW_FOCUS``, ``perceptronics.uvc``) — a C920 hunting for focus blurs
-    every other second of a timelapse. Runs from this (unprivileged) process, never
-    touches the RealSense; failures are reported and recording goes on."""
-    from .uvc import focus_for, parse_focus_spec, set_focus
-
-    spec = parse_focus_spec(spec_text)
-    if spec is None:
-        return []
-    try:
-        views = [v.get("name", "") for v in cockpit.get("/api/info").get("views") or []]
-    except Exception:
-        views = []
-    out = []
-    for name in views:
-        act, focus = focus_for(spec, name)
-        if act:
-            r = set_focus(name, focus)
-            out.append(r)
-            state = "autofocus" if focus is None else f"focus locked at {focus}"
-            failed = "" if r.get("ok") else f" FAILED: {r.get('error')}"
-            print(f"view {name!r}: {state}{failed}", file=sys.stderr)
-    return out
-
-
 # -- CLI --------------------------------------------------------------------------------
 
 
@@ -1148,7 +1094,7 @@ def add_pick_cycle_args(ap) -> None:
         "--record",
         default=None,
         metavar="DIR",
-        help="record the three cockpit feeds + events for a timelapse",
+        help="record the wrist feed + events for a timelapse",
     )
     ap.add_argument(
         "--survey-pose",
@@ -1226,7 +1172,6 @@ def run_pick_cycle(args) -> int:
     )
     rec = None
     if args.record:
-        lock_view_focus(cockpit, os.environ.get("PERCEPTRONICS_VIEW_FOCUS"))
         rec = Recorder(cockpit, args.record, cycle.t0)
         rec.start()
         time.sleep(1.0)

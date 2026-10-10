@@ -136,11 +136,6 @@ def test_librealsense_is_pinned_to_the_binding_release():
     binding = _text(ROOT / "perceptronics" / "realsense.py")
     minor = re.search(r"written against librealsense (\d+\.\d+)", binding).group(1)
     assert tag.lstrip("v").startswith(minor + "."), f"{tag} is not librealsense {minor}.x"
-    # and the container builds the same release
-    docker_ref = re.search(r"LIBREALSENSE_REF=(\S+)", _text(ROOT / "deploy/Dockerfile.perceptronics")).group(
-        1
-    )
-    assert docker_ref == tag
     assert 'rev-parse HEAD)"' in text and "$LIBREALSENSE_COMMIT" in text, "the clone's commit is checked"
 
 
@@ -246,7 +241,6 @@ def test_unit_execstart_parses_under_the_real_cli(monkeypatch):
     served = {}
     monkeypatch.setattr(webapp, "camera_from_args", lambda args, config: None)
     monkeypatch.setattr(webapp, "robot_from_args", lambda args: None)
-    monkeypatch.setattr(webapp, "views_from_args", lambda args, config: [])
     monkeypatch.setattr(webapp, "serve", lambda *a, **kw: served.update(kw))
     from perceptronics import cli
 
@@ -261,7 +255,7 @@ def test_unit_documents_ports_and_stop_command():
     text = _text(UNIT)
     assert str(webapp.DEFAULT_PORT) in text and str(DEFAULT_PICK_PORT) in text
     assert "systemctl stop perceptronics-cockpit" in text
-    assert "pick-server" in text, "the :7622 clash with the sidecar is written where the next person looks"
+    assert "/api/pick/log" in text, "where the pick trace is read is written where the next person looks"
 
 
 # ----- cell.env ---------------------------------------------------------------------------
@@ -316,7 +310,6 @@ def test_written_cell_env_parses_and_is_self_contained(tmp_path, cell):
     assert result.returncode == 0, result.stderr
     values = parse_env_text((tmp_path / "cell.env").read_text(encoding="utf-8"))
     assert values["UR_HOST"] == "192.168.3.3"
-    assert "PERCEPTRONICS_VIEWS" not in values, "the Mac's webcam names must not reach the pick PC"
     assert values["REALSENSE_LIB"] == parse_env_text(_text(TEMPLATE))["REALSENSE_LIB"]
     assert set(values) <= _env_names_read_by_code()
 

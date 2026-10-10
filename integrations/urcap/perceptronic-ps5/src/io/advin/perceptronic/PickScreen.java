@@ -24,7 +24,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 /**
- * The 3D Pick node's screen — no UR API, so a harness renders it too. Nothing on it scrolls
+ * The Pounce node's screen — no UR API, so a harness renders it too. Nothing on it scrolls
  * (0.7.0, Nick 2026-09-30).
  *
  * <p><b>Main</b> (0.9.0, Nick 2026-10-02: at most three simple stages, tap to teach, fewer
@@ -212,7 +212,7 @@ final class PickScreen extends JPanel {
         head.setOpaque(false);
         JPanel brand = Ui.row(8);
         brand.add(new Logo.Mark(26));
-        brand.add(Ui.label("3D Pick", 20f, true, Ui.INK));
+        brand.add(Ui.label("Pounce", 20f, true, Ui.INK));
         head.add(brand, BorderLayout.WEST);
         head.add(Ui.label("v" + PickScript.VERSION, 12f, false, Ui.FAINT), BorderLayout.EAST);
         head.setMaximumSize(new Dimension(SIDE - 8, 30));

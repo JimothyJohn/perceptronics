@@ -98,7 +98,7 @@ Tick what has been run; put the tag and the date in the box.
 | | Configuration | What it tests | Run |
 | --- | --- | --- | --- |
 | R1 | the UR3e, gripper off, TCP 0 | this document | 2026-10-09 |
-| R2 | the UR3e with the Hand-E, its 0.163 m the active TCP, the 3D Pick program in a loop | the real pick: protocol 3, the quiet picture, the approach 25 mm over the top | |
+| R2 | the UR3e with the Hand-E, its 0.163 m the active TCP, the Pounce program in a loop | the real pick: protocol 3, the quiet picture, the approach 25 mm over the top | |
 | R3 | a UR5e / UR10e: the same matrix at 0.5–1.0 m | the range-scaled tolerance, the kinematics tables | |
 | R4 | the UR20 cell on PolyScope X | the 0.8.1 node's first run on hardware | |
 | R5 | PolyScope 5.4 and 5.14 images in the matrix CI | the oldest API, the list-size rule | every URCap PR |

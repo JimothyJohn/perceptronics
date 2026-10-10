@@ -117,7 +117,7 @@ STATUS = {
     -12: "the parts in view are outside the pick area",
     -13: "the only part in view is cut off by the edge of the picture",
     # protocol 3 (the 0.10.0 node): the tool offset comes from the robot with every request
-    -14: "the 3D Pick node is older than this camera computer — update the Perceptronic URCap",
+    -14: "the Pounce node is older than this camera computer — update the Perceptronic URCap",
 }
 PROTOCOL = 3  # what this server speaks; older nodes are answered -14
 ZERO_POSE = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)

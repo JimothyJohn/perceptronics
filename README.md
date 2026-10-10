@@ -1,6 +1,6 @@
 # perceptronics
 
-A depth camera on the robot's wrist finds the part; the **3D Pick** node on the
+A depth camera on the robot's wrist finds the part; the **Pounce** node on the
 pendant puts the gripper on it. This page gets it onto a Universal Robots e-Series
 (PolyScope 5).
 
@@ -8,22 +8,22 @@ pendant puts the gripper on it. This page gets it onto a Universal Robots e-Seri
 
 **1. Download the URCap** (don't rename it):
 
-- [`perceptronic-ps5-0.10.1.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.10.1.urcap)
+- [`perceptronic-ps5-0.11.0.urcap`](https://github.com/JimothyJohn/perceptronics/raw/main/integrations/urcap/dist/perceptronic-ps5-0.11.0.urcap)
 
 **2. Copy it onto a USB stick**, at the top, not in a folder. The stick must be
 FAT32 (most sticks are). Eject it properly before you pull it out.
 
 **3. On the pendant:** plug the stick in, then ☰ → **Settings** → **System** →
-**URCaps** → **+** → pick `perceptronic-ps5-0.10.1.urcap` → **Open** → **Restart**
+**URCaps** → **+** → pick `perceptronic-ps5-0.11.0.urcap` → **Open** → **Restart**
 when PolyScope asks. That's the install: PolyScope's own URCaps screen, the same way
 every URCap goes on. Nothing on the stick runs by itself, and the robot restarts only
 when you tap Restart.
 
 **4. Use it.** **Installation** → **URCaps** → **Perceptronic**: type the camera
-computer's address. In your program: *your gripper's Open* → **3D Pick** → *your
+computer's address. In your program: *your gripper's Open* → **Pounce** → *your
 gripper's Close*.
 
-If the file picker lists a second `._perceptronic-ps5-0.10.1.urcap`, a Mac wrote the
+If the file picker lists a second `._perceptronic-ps5-0.11.0.urcap`, a Mac wrote the
 stick: pick the one **without** `._` (or write the stick with `scripts/urcap5-usb.sh`,
 which leaves those off).
 

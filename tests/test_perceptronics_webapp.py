@@ -814,18 +814,38 @@ def test_a_live_camera_is_not_stalled(server):
     assert info["stalled"] is False and info["frame_age_s"] < 2.0 and info["fps"] > 0
 
 
-def test_the_pick_trace_is_served_as_text_by_the_cockpit_itself(server):
-    # TODO 2026-10-08: `/api/pick/log` existed only on the sidecar; the cockpit's own pick-server
-    # lines were buried in /api/events as kind: pick. The cockpit now answers the same route.
+def test_pick_log_is_served_as_text_and_appended_to_a_file(server, tmp_path, monkeypatch):
+    """What the pick server says is a `pick` event, a line in captures/pick.log and the body of
+    GET /api/pick/log — the trace the retired sidecar used to keep, now in the cockpit."""
     base, app, _ = server
+    app._pick_said("pick FIND [n1]: 2 parts", True)
+    app._pick_said("robot: FIND\x07 refused", False)
     status, ctype, body = get(base, "/api/pick/log")
-    assert status == 200 and ctype.startswith("text/plain") and body == b""
-    app.events.add("calibration", "not a pick line", ok=True)
-    app.events.add("pick", "FIND part=60x40x30 tol=25: 2 parts", ok=True)
-    app.events.add("pick", "NEXT: queue empty", ok=None)
-    app.events.add("pick", "FIND: no fresh camera frame", ok=False)
-    status, _, body = get(base, "/api/pick/log")
-    lines = body.decode().splitlines()
-    assert status == 200 and len(lines) == 3 and "not a pick line" not in body.decode()
-    assert lines[0].endswith(" ok FIND part=60x40x30 tol=25: 2 parts")
-    assert lines[1].endswith("    NEXT: queue empty") and lines[2].endswith(" !! FIND: no fresh camera frame")
+    assert status == 200 and ctype.startswith("text/plain")
+    text = body.decode()
+    lines = text.splitlines()
+    assert len(lines) == 2 and lines[0].endswith("pick FIND [n1]: 2 parts") and "refused" in lines[1]
+    assert re.fullmatch(r"\d\d:\d\d:\d\d .*", lines[0]), lines[0]
+    assert [e["message"] for e in app.events.since(0) if e["kind"] == "pick"] == [
+        "pick FIND [n1]: 2 parts",
+        "robot: FIND\x07 refused",
+    ]
+    # the file: under the directory the cockpit was pointed at, control characters dropped
+    monkeypatch.setattr(webapp, "DEFAULT_PICK_LOG", tmp_path / "logs" / "pick.log")
+    app2 = ViewerApp(SyntheticRgbdCamera(width=16, height=12, fps=0), config=PerceptionConfig())
+    app2._pick_said("pick NEXT [n1]: part 2 of 2", True)
+    app2._pick_said("robot: LOG\x1b[0m stage 3", True)
+    written = (tmp_path / "logs" / "pick.log").read_text(encoding="utf-8").splitlines()
+    assert len(written) == 2 and written[0].endswith("pick NEXT [n1]: part 2 of 2")
+    assert "\x1b" not in written[1] and "stage 3" in written[1]
+
+
+def test_pick_log_falls_back_to_the_user_log_dir_when_captures_is_unwritable(tmp_path, monkeypatch):
+    blocked = tmp_path / "captures"
+    blocked.write_text("a file, not a directory")  # mkdir(parents=True) fails on it
+    monkeypatch.setattr(webapp, "DEFAULT_PICK_LOG", blocked / "pick.log")
+    monkeypatch.setattr(webapp, "user_log_dir", lambda: tmp_path / "userlogs")
+    app = ViewerApp(SyntheticRgbdCamera(width=16, height=12, fps=0), config=PerceptionConfig())
+    assert app.pick_log.path == tmp_path / "userlogs" / "pick.log"
+    app._pick_said("pick FIND [n1]: 1 part", True)
+    assert "1 part" in (tmp_path / "userlogs" / "pick.log").read_text(encoding="utf-8")
