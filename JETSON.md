@@ -165,10 +165,10 @@ sits on the base, the 1 m USB 3 run of a UR3e is fine either way.
 
 | | Off-the-shelf, USB 3 | Industrial, GigE |
 | --- | --- | --- |
-| Example | Arducam 2.3 MP AR0234 colour **global shutter** USB 3 module, UVC: $139.99–154.99 (Arducam store, 2026-10-10); TechNexion VCI-AR0234-C $151.75 + lens | Basler ace 2 class (e.g. a2A1920-51gc): GigE, **PoE or power on the I/O connector**, C-mount, global shutter; price and input range to source from Basler's docs |
+| Example | Arducam 2.3 MP AR0234 colour **global shutter** USB 3 module, UVC: $139.99–154.99 (Arducam store, 2026-10-10); TechNexion VCI-AR0234-C $151.75 + lens | **Sony IMX273 class — 1.6 MP, 1440 × 1080, global shutter, 1/2.9"**, the industrial sensor nearest the pipeline's need (the D435's colour is 848 × 480; the segmenter's input is 312–504 px; 2 MP+ is paid for and thrown away). Three of them at $370–500, prices 2026-10-10: **Lucid Triton TRI016S-CC $386** (Edmund; **PoE or 12–24 VDC** on its I/O connector — the flange's 24 V, no injector); FLIR Blackfly S BFS-PGE-16S2C-CS $371 (Edmund; Teledyne pushes Spinnaker, GenICam works); Basler ace 2 Basic a2A1920-51gcBAS $379–492 (Machine Vision Store / Edmund; 2.3 MP IMX392, more than needed — a $2,000 Basler is another model; this one lists at $379–492) |
 | Opens with | V4L2 / AVFoundation, no SDK (the webcam views' path) | **Aravis** (GenICam, LGPL) — not Basler's pylon, so a second vendor is a part number, not a port |
 | Cable | USB 3 (active past 3 m) | Cat5e/6, any length, power from the flange or PoE |
-| Lens | fixed M12, choose FOV at purchase | C-mount: FOV sized so the pick area fills the frame at the look height (0.40 m) |
+| Lens | fixed M12, choose FOV at purchase | C-mount: an IMX273 is 4.97 mm wide, so a **6 mm** lens sees ~0.33 m across at the 0.40 m look (8 mm: 0.25 m); the lens is a separate line to source (~$100–200 class, unpriced) |
 
 Rolling-shutter webcams (the C920) are out: the picture is taken at rest today, but a global
 shutter is what keeps a future picture-while-moving honest and costs nothing on the AR0234.
@@ -305,7 +305,8 @@ license read.
   Apache 2.0 license", XL/2XL under PML 1.0 via `rfdetr[plus]`).
 - SAM 3: github.com/facebookresearch/sam3 LICENSE (SAM License, 2025-11-19).
 - Cameras: Arducam store (AR0234 USB 3 module, $139.99–154.99); TechNexion (VCI-AR0234-C,
-  $151.75 at 1–49); Basler ace 2 listings (PoE or power on the auxiliary connector; the input
-  range not found — read the ace 2 manual).
+  $151.75 at 1–49); Edmund Optics (Lucid Triton TRI016S-CC $386, FLIR BFS-PGE-16S2C-CS $371,
+  Basler a2A1920-51gcBAS $492); Machine Vision Store (a2A1920-51gcBAS $379); the Triton's PoE 802.3af / 12–24 VDC and
+  IMX273 from Edmund's listing (Lucid's own page 404'd on the day).
 - NVIDIA Inception: pi3g's Inception-eligible product list (Aug/Sep 2026); NVIDIA developer
   forum threads on Inception hardware discounts.
