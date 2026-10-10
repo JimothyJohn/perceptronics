@@ -1,4 +1,4 @@
-"""The setup portal's cockpit side: http://<pick PC>:7621/setup.
+"""The setup portal's cockpit side: http://<pick PC>/setup (:80 is :7621 on a pick PC; :7621 works too).
 
 An operator connects a laptop to the pick PC at its default address (192.168.3.20) and, on
 this page, moves it onto the plant's network and installs update bundles. The cockpit runs
@@ -303,7 +303,7 @@ class Portal:
             "ok": True,
             "job": job_id,
             "network": req,
-            "new_url": f"http://{new_ip}:7621/setup",
+            "new_url": f"http://{new_ip}/setup",
             "rescue_address": str(RESCUE_ADDRESS.ip) if keeps_rescue_address(req["cidr"]) else None,
         }
 

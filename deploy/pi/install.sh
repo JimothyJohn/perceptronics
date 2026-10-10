@@ -314,6 +314,11 @@ install_app() {
         touch "${dest}/.complete"
     fi
     cp -f "$wheel" "${APP_ROOT}/wheels/"
+    # The release keeps its own wheel (every wheel is named perceptronics-<version>-py3-none-any.whl,
+    # so wheels/ only ever holds the newest): --rollback re-runs the release's installer with it.
+    # (--rollback passes that very copy: cp onto itself is an error under set -e — seen 2026-10-06)
+    [ "$wheel" -ef "${dest}/$(basename "$wheel")" ] || cp -f "$wheel" "${dest}/$(basename "$wheel")"
+    basename "$wheel" >"${dest}/.wheel"
     local now=""
     [ -L "$CURRENT" ] && now="$(readlink -f "$CURRENT")"
     if [ "$now" != "$dest" ]; then
@@ -471,7 +476,7 @@ install_firewall() {
     rm -f "$rendered"
     systemctl enable -q nftables.service
     [ "$IMAGE" = 1 ] || systemctl restart nftables.service
-    log "firewall: inbound SSH from anywhere; :7621/:7622 from ${net} only; DHCP on ${cell_if}; everything else dropped"
+    log "firewall: inbound SSH from anywhere; :7621/:7622 (and :80 -> :7621) from ${net} only; DHCP on ${cell_if}; everything else dropped"
 }
 
 # ---- the cell port ---------------------------------------------------------------------
@@ -725,6 +730,9 @@ remove_cell_dhcp() {
     systemctl disable --now "$CELL_DHCP_UNIT" 2>/dev/null || true
     rm -f "/etc/systemd/system/${CELL_DHCP_UNIT}" "$CELL_DHCP_CONF" "$NM_HOOK"
     systemctl daemon-reload
+    # The NM hook may have restarted it on the address change a moment ago; stopped mid-start
+    # it is left "failed (Result: signal)", and a deleted unit keeps that entry until reset.
+    systemctl reset-failed "$CELL_DHCP_UNIT" 2>/dev/null || true
 }
 
 # ---- systemd ---------------------------------------------------------------------------
@@ -761,30 +769,49 @@ install_admin() {
     log "setup portal: ${ADMIN_PATH_UNIT} watching ${ADMIN_QUEUE}"
 }
 
+# The deploy files go to /opt/perceptronics/deploy (what --rollback / --network / --uninstall
+# run) and into the release itself: a rollback re-runs the previous release's installer from
+# there, so its firewall, units and helper come back with it (2026-10-06: a failed bundle's
+# files stayed behind after the app was rolled back).
 copy_deploy_files() {
-    mkdir -p "$DEPLOY_COPY"
-    local f
+    install_deploy_set "$DEPLOY_COPY"
+    local rel
+    rel="$(readlink -f "$CURRENT" 2>/dev/null || true)"
+    [ -n "$rel" ] && [ -d "$rel" ] && install_deploy_set "${rel}/deploy"
+}
+
+install_deploy_set() {
+    local dir="$1" f
+    mkdir -p "$dir"
     for f in install.sh perceptronics-cockpit.service nftables.conf cell.env.template perceptronics-doctor README.md \
         cell-dhcp.conf perceptronics-cell-dhcp.service 50-perceptronics-cell \
         perceptronics-admin perceptronics-admin.path perceptronics-admin.service; do
-        [ "${HERE}/${f}" -ef "${DEPLOY_COPY}/${f}" ] && continue
-        install -m 0644 "${HERE}/${f}" "${DEPLOY_COPY}/${f}"
+        [ "${HERE}/${f}" -ef "${dir}/${f}" ] && continue
+        install -m 0644 "${HERE}/${f}" "${dir}/${f}"
     done
-    chmod 0755 "${DEPLOY_COPY}/install.sh" "${DEPLOY_COPY}/perceptronics-doctor" "${DEPLOY_COPY}/50-perceptronics-cell" \
-        "${DEPLOY_COPY}/perceptronics-admin"
+    chmod 0755 "${dir}/install.sh" "${dir}/perceptronics-doctor" "${dir}/50-perceptronics-cell" "${dir}/perceptronics-admin"
 }
 
 # ---- rollback / uninstall -------------------------------------------------------------
 rollback() {
     [ -L "$PREVIOUS" ] || die "no previous release to roll back to"
-    local cur prev
+    local cur prev wheel=""
     cur="$(readlink -f "$CURRENT")"
     prev="$(readlink -f "$PREVIOUS")"
     [ -x "${prev}/bin/perceptronics" ] || die "previous release ${prev} is incomplete"
+    [ -f "${prev}/.wheel" ] && wheel="${prev}/$(cat "${prev}/.wheel")"
+    if [ -x "${prev}/deploy/install.sh" ] && [ -f "$wheel" ]; then
+        # Everything that release's bundle installed comes back with it — firewall, units, the
+        # helper, the deploy copy — by re-running its own installer (which also swaps the links).
+        log "rolling back to $(basename "$prev") with its own installer"
+        bash "${prev}/deploy/install.sh" --wheel "$wheel" || die "the installer of $(basename "$prev") failed"
+        log "rolled back: current -> $(basename "$prev") (previous -> $(basename "$cur"))"
+        return
+    fi
     ln -sfn "$prev" "$CURRENT"
     ln -sfn "$cur" "$PREVIOUS"
     systemctl restart "$UNIT"
-    log "rolled back: current -> $(basename "$prev") (previous -> $(basename "$cur"))"
+    log "rolled back: current -> $(basename "$prev") (previous -> $(basename "$cur")); its deploy files were not kept (installed before 2026-10-06), the current firewall and units stay"
 }
 
 uninstall() {
@@ -819,7 +846,7 @@ uninstall() {
 
 # ---- main ------------------------------------------------------------------------------
 main() {
-    local wheel="" cell="ur3" robot_host="" allow_from="" reconfigure=0 action=install purge=0
+    local wheel="" cell="ur3" robot_host="" allow_from="" allow_from_given=0 reconfigure=0 action=install purge=0
     local cell_if="eth0" cell_address="192.168.3.20/24" gateway="" dns="" cell_dhcp="auto"
     local saved_cell_if saved_cell_address saved_gateway saved_dns saved_cell_dhcp saved_allow_from
     # what an earlier run (or the setup portal) chose is the default; a flag below overrides it
@@ -835,7 +862,7 @@ main() {
             --wheel) wheel="${2:?--wheel needs a path}"; shift 2 ;;
             --cell) cell="${2:?--cell needs a name}"; shift 2 ;;
             --robot-host) robot_host="${2:?--robot-host needs an address}"; shift 2 ;;
-            --allow-from) allow_from="${2:?--allow-from needs a CIDR}"; shift 2 ;;
+            --allow-from) allow_from="${2:?--allow-from needs a CIDR}"; allow_from_given=1; shift 2 ;;
             --cell-if) cell_if="${2:?--cell-if needs an interface or none}"; shift 2 ;;
             --cell-address) cell_address="${2:?--cell-address needs a CIDR}"; shift 2 ;;
             --gateway) gateway="${2:?--gateway needs an address or none}"; shift 2 ;;
@@ -866,6 +893,9 @@ main() {
     [ "$(id -u)" -eq 0 ] || die "run as root (sudo $0 ...)"
     case "$action" in
         network)
+            # The saved ALLOW_FROM is an update's default, not a network change's: moving to a new
+            # network computes the list for that network (else the subnets the PC left stay open).
+            [ "$allow_from_given" = 1 ] || allow_from=""
             apply_network "$cell_if" "$cell_address" "$robot_host" "$gateway" "$dns" "$cell_dhcp" "$allow_from"
             return
             ;;
