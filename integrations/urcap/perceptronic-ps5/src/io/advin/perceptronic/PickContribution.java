@@ -147,7 +147,7 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
         s.shape = model.get(KEY_SHAPE, "box");
         s.gripCheck = model.get(KEY_GRIP_CHECK, true);
         s.gripLongSide = model.get(KEY_GRIP_LONG, false);
-        s.closeLook = model.get(KEY_CLOSE_LOOK, true);
+        s.closeLook = model.get(KEY_CLOSE_LOOK, false); // off by default since 0.10.0
         s.popupOnFail = model.get(KEY_POPUP, true);
         s.polyscope = polyscopeVersion();
         // the arm by name: the pick server asks its kinematics which parts are in reach
@@ -292,7 +292,7 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
     private void teachPosition(final int i, final boolean adding) {
         TeachPosition.teacher(robotType()).teach(api.getUserInterfaceAPI().getUserInteraction(), new TeachPosition.Done() {
             @Override
-            public void taught(final JointPositions joints, double[] flange) {
+            public void taught(final JointPositions joints, double[] tcp, double[] flange) {
                 change(() -> {
                     model.set("point." + i + ".q", joints);
                     if (adding) {
@@ -319,6 +319,99 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
                 done("picture " + (i + 1)));
         change(() -> model.set(KEY_SELECTED, i));
         refresh();
+    }
+
+    /**
+     * Look down (Nick, 2026-10-08: a view "looking straight down and slightly outreached ... unique
+     * for this robot"): the camera computer — it owns the hand-eye and asks the controller's own
+     * IK — works out the flange pose that puts the camera straight above the centre of the pick
+     * area this view looks at (or straight below the camera now), pushed out past this arm's base
+     * keep-out radius, and gives it in PolyScope's active TCP with the controller's joint solution.
+     * PolyScope's move screen takes the arm there; once it arrives the view is that solution.
+     */
+    @Override
+    public void lookDown(final int i) {
+        final Cockpit c = cockpit();
+        final PilotContribution inst = installation();
+        final double[] plane = inst == null ? null : inst.areaPlane(areaOf(i));
+        final String arm = robotType().matches("[A-Za-z0-9]{1,8}") ? robotType() : null;
+        view.screen().setStatus("asking the camera computer for a straight-down view…", Ui.Kind.INFO);
+        actions.submit(() -> {
+            try {
+                Map<String, Object> body = new java.util.LinkedHashMap<String, Object>();
+                if (plane != null) {
+                    double[] centre = PoseMath.trans(java.util.Arrays.copyOf(plane, 6),
+                            new double[] {plane[6] / 2, plane[7] / 2, 0, 0, 0, 0});
+                    body.put("point_m", java.util.Arrays.asList(centre[0], centre[1], centre[2]));
+                }
+                if (arm != null) body.put("arm", arm);
+                Map<String, Object> res = c.post("/api/robot/view", body, 15000);
+                if (!Boolean.TRUE.equals(res.get("ok"))) {
+                    Object why = res.get("error");
+                    view.screen().setStatus("no view: " + (why == null ? "the camera computer has no robot link" : why),
+                            Ui.Kind.WARN);
+                    return;
+                }
+                if (Boolean.FALSE.equals(res.get("reachable"))) {
+                    view.screen().setStatus("the controller has no joint solution for a straight-down view there:"
+                            + " move the parts in, or lower the camera", Ui.Kind.WARN);
+                    return;
+                }
+                final double[] p = Cockpit.six(res.get("polyscope_pose"));
+                final double[] q = Cockpit.six(res.get("joint_target"));
+                if (p == null) {
+                    view.screen().setStatus("the camera computer has no TCP for this robot (is its robot link up?)",
+                            Ui.Kind.ERR);
+                    return;
+                }
+                Object notes = res.get("notes");
+                final String note = notes instanceof List && !((List<?>) notes).isEmpty()
+                        ? " (" + ((List<?>) notes).get(0) + ")" : "";
+                SwingUtilities.invokeLater(() -> {
+                    Pose pose = api.getProgramAPI().getValueFactoryProvider().getPoseFactory()
+                            .createPose(p[0], p[1], p[2], p[3], p[4], p[5], Length.Unit.M, Angle.Unit.RAD);
+                    view.screen().setStatus("PolyScope's move screen: hold Move for the straight-down view" + note,
+                            Ui.Kind.OK);
+                    api.getUserInterfaceAPI().getUserInteraction().getRobotMovement().requestUserToMoveRobot(pose,
+                            new RobotMovementCallback() {
+                                @Override
+                                public void onComplete(MovementCompleteEvent event) {
+                                    if (q != null) {
+                                        JointPositions joints = api.getProgramAPI().getValueFactoryProvider()
+                                                .getJointPositionFactory()
+                                                .createJointPositions(q[0], q[1], q[2], q[3], q[4], q[5], Angle.Unit.RAD);
+                                        change(() -> {
+                                            model.set("point." + i + ".q", joints);
+                                            model.set(KEY_SELECTED, i);
+                                        });
+                                        refresh();
+                                        view.screen().setStatus("picture " + (i + 1) + " is now the straight-down view",
+                                                Ui.Kind.OK);
+                                    } else {
+                                        view.screen().setStatus("at the straight-down view — tap Retake to keep it",
+                                                Ui.Kind.OK);
+                                    }
+                                    sceneAt = 0;
+                                }
+
+                                @Override
+                                public void onCancel(MovementCancelEvent event) {
+                                    view.screen().setStatus("move to the straight-down view cancelled", Ui.Kind.WARN);
+                                }
+
+                                @Override
+                                public void onError(MovementErrorEvent event) {
+                                    view.screen().setStatus("move to the straight-down view: " + event.getErrorType(),
+                                            Ui.Kind.ERR);
+                                }
+                            });
+                });
+            } catch (IOException e) {
+                view.screen().setStatus(Cockpit.explain(e, c.base), Ui.Kind.ERR);
+            } catch (RuntimeException e) {
+                view.screen().setStatus("look down: " + e.getMessage(), Ui.Kind.ERR);
+            }
+        });
     }
 
     @Override
@@ -449,7 +542,7 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
             model.set(KEY_SHAPE, "box");
             model.set(KEY_GRIP_CHECK, true);
             model.set(KEY_GRIP_LONG, false);
-            model.set(KEY_CLOSE_LOOK, true);
+            model.set(KEY_CLOSE_LOOK, false);
         });
         refresh();
         view.screen().setStatus("every option back at its default (the picture points and the order are kept)",
@@ -608,7 +701,14 @@ public class PickContribution implements ProgramNodeContribution, PickScreen.Act
                     scene = Scene.parse(res);
                     view.screen().setScene(scene);
                     view.screen().setBanner(scene.banner(PickScreen.sizeWords(s)));
-                    if (!Boolean.TRUE.equals(res.get("ok")) && res.get("error") != null) {
+                    if (scene.quiet) {
+                        // the program is running (0.10.1): the picture shows what it measured last;
+                        // nothing is judged in between, so nothing is shouted either
+                        if (!scene.summary().equals(told)) {
+                            told = scene.summary();
+                            view.screen().setStatus(told, Ui.Kind.INFO);
+                        }
+                    } else if (!Boolean.TRUE.equals(res.get("ok")) && res.get("error") != null) {
                         view.screen().setStatus("the camera computer: " + res.get("error"), Ui.Kind.WARN);
                         announced = false;
                     } else if (announced && !scene.summary().equals(told)) {

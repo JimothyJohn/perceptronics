@@ -22,7 +22,7 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
 | Robot | UR3e, PolyScope 5.25.1, static `192.168.3.3` (checked 2026-09-27) | pendant, Settings → System → Network |
 | Pi pick PC | `192.168.3.20/24` on eth0, no gateway; cockpit :7621 (+ :80), pick server :7622; cell DHCP armed (hands a robot on DHCP `192.168.3.3`) | `deploy/pi/install.sh` |
 | Mac Studio | `192.168.3.10` on `en0` (manual), the dev shell | `networksetup -setmanual "Ethernet" 192.168.3.10 255.255.255.0` |
-| Tool | Hand-E through the bracket's 6 mm adapter: fingertips 0.163 m past the flange (`PERCEPTRONICS_TIP_M`); the controller's active TCP is a 223 mm training offset the cockpit never uses | `perceptronics/cells/ur3.env` → `/etc/perceptronics/cell.env` on the Pi |
+| Tool | Hand-E through the bracket's 6 mm adapter: fingertips 0.163 m past the flange — set as the pendant's **active TCP** (since 2026-10-08 the robot's TCP is the only tool offset; the 223 mm training offset must not be active) | the pendant (Installation → General → TCP); `perceptronics doctor`'s `approach` line |
 | Camera | D435 on the `eseries` bracket print, clocked 180° (camera opposite the tool connector), on a **blue** USB 3 port of the Pi, short cable, no hub | `hardware/d435-tool-bracket/` |
 | Hand-eye | the 2026-09-27 solve (RMS 2.5 mm) in `/var/lib/perceptronics/captures/calibration/handeye.json` on the Pi | `install.sh handeye_out_of_env` |
 | Picture pose | 0.37 m up, looking down in front of the stand (`PERCEPTRONICS_HOME_POSE`) | Nick, 2026-09-27 |
@@ -37,8 +37,8 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
    `cockpit ~30 fps`, `network: this machine is 192.168.3.20 on 192.168.3.0/24` ok; `robot.*`
    fail (unplugged) — expected.
 2. **The stick**: `scripts/urcap5-usb.sh` ("URE MODELS"). It writes
-   `perceptronic-ps5-0.9.0.urcap` + `urmagic_perceptronic.sh` and ejects. Keep the magic file
-   for phase 2B; the by-hand install comes first.
+   `perceptronic-ps5-0.9.0.urcap` (and deletes any `urmagic_perceptronic.sh` an earlier run
+   left on it) and ejects.
 3. **Fresh frames of the real scene are the arbiter** (`CLAUDE.md` §Detection): clear
    `captures/` on the Mac of root-owned leftovers (`sudo chown -R nick captures` from a local
    Terminal) so snapshots can be written.
@@ -69,7 +69,7 @@ robot** — note what happens either way.
 
 ## Phase 2 — the URCap on the pendant (Nick, 20 min)
 
-**2A, by hand (always works):** ☰ → Settings → System → URCaps: select **RealSense Pilot**, **–**,
+**On the pendant:** ☰ → Settings → System → URCaps: select **RealSense Pilot**, **–**,
 restart. Then **+** → the stick → `perceptronic-ps5-0.9.0.urcap` → Open → Restart.
 (Pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)
 
@@ -82,10 +82,9 @@ The **P** button in the header drops the live picture over any screen. Note:
   too small?
 - the watermark bottom-right of the picture.
 
-**2B, the magic file (own test, after 2A works):** Settings → Security → General → **Run magic
-files** on, arm powered off, stick in: the robot installs 0.9.0 by itself and restarts. Its
-log is `urmagic_perceptronic.log` on the stick. Never run on a robot; a failure here is a
-finding, not a blocker (2A is the fallback).
+(The stick's auto-install file was removed on 2026-10-08 — it restarted the controller the
+moment the stick went in. **Run magic files** stays off.)
+
 
 If the picture never comes: the URCap names the cause first (*No answer from the camera
 computer at 192.168.3.20* → cable/power/robot subnet; *A computer answers … but not the camera
@@ -106,8 +105,8 @@ Nothing in phases 0–2 moves the arm. Before the first move:
        python3 -m urctl --host 192.168.3.3 bring-up
        python3 -m urctl --host 192.168.3.3 state          # RUNNING / NORMAL, control_mode REMOTE
 
-5. **First motion, joint space, small:** the picture pose, via the cockpit so the TCP is the
-   fingertips (`RobotLink.reference_tcp`):
+5. **First motion, joint space, small:** the picture pose, via the cockpit (it moves the
+   robot's active TCP as the pendant has it):
 
        curl -s -X POST http://192.168.3.20/api/robot/home     # or the cockpit's Pilot panel: Home
 
@@ -140,6 +139,13 @@ Protective stop at any point: `python3 -m urctl --host 192.168.3.3 bring-up` cle
 after a `movel`: `movej` to a bent-elbow pose first; the cockpit's programs do.
 
 ## Phase 4 — hand-eye (Claude, 10 min; only if needed)
+
+**Two traps (2026-10-08, both in TODO.md):** `calibrate --dry-run` plans from a made-up flange pose
+(`Robot(dry_run=True)` answers `[0.5, 0, 0.5, …]`), so its plan says nothing about the real arm — read
+only the "Mark:" line, from a *live* run; and the orbit's own reach gate (`max_reach − 0.05`) refuses
+every view when the block is ~0.5 m out on this table while the controller's IK would have answered
+— run with `UR_MAX_REACH_M=0.70` and let the IK refuse what it must. The 0.21 m range returns no
+depth (the D435's floor is ~0.28 m): `--range-m 0.30 0.40 0.50` keeps far more views.
 
 Re-solve if anything on the wrist moved since 2026-09-27, if LEVEL > 0.5°, or if phase 5's
 first approach lands visibly off. One block under the camera, arm at the picture pose, Remote:
@@ -236,13 +242,13 @@ booted on the cell, `http://192.168.3.20/setup` with no SSH at all.
 
 | Phase | Date | Result |
 | --- | --- | --- |
-| 1 cables | | |
-| 2 URCap | | |
-| 3 first move + detector verdict | | |
-| 4 hand-eye | | |
-| 5A cockpit pick | | |
-| 5B pendant program | | |
-| 6 drills | | |
+| 1 cables | 2026-10-08 | The Pi reached the UR3e the first time (Dashboard, Primary, RTDE); the robot was already static 192.168.3.3, the lease path untested. The Air drove it from 192.168.3.10 (Claude on the Air, not the Studio). |
+| 2 URCap | 2026-10-08 | 0.9.1 installed from the stick by hand, feed up within seconds, Cockpit field empty. Notes: picture bounces after a tap; no highlight on the Installation tab; "Go" / "Here" read as one phrase; picture letterboxed to a third of its frame. |
+| 3 first move + detector verdict | 2026-10-08 | Home from the cockpit fine. The table is at base height now (no pedestal). Detector: foam block tops return 10-60 % depth (holes) → 1-2 of 4 found until the colour fusion (below). |
+| 4 hand-eye | 2026-10-08 | Orbit from the Air, three solves (RMS 3.1-3.9 mm); applied the first (10 views); LEVEL 1.2-2.3° depending on the side of the base — not the 0.5° target. The 0.21 m range returns no depth; views 0.5 m out are refused by the UR3e's IK. |
+| 5A cockpit pick | 2026-10-08 | Flange hovers over the detector's block centres: 65 mm for 60 commanded (first solve), "very close" in X/Y by eye. No gripper fitted. |
+| 5B pendant program | 2026-10-08 | Ran on hardware: FIND → REFINE → approach → grip, centred over each block, NEXT serves the queue, no protective stop. The 163 mm phantom tool put the flange 140 mm up (TIP_M → 50 mm on the Pi: 34 mm over the top). The closer look only rotated from a 0.31 m picture point (floor 0.30 m) and REFINE failed on foam holes; the look now goes straight above the part. With the colour + depth fusion deployed, four green from the picture point and picks from the queue. |
+| 6 drills | — | not run |
 
 ## Rules for the day
 
@@ -250,7 +256,7 @@ booted on the cell, `http://192.168.3.20/setup` with no SSH at all.
   URScript (`urctl move-*`, `run-script`, a cockpit APPROACH). A new program on :30001 replaces
   the running one silently.
 - **Moves go through the cockpit or the program**, never hand-rolled `movel` from a shell: the
-  cockpit sets the TCP to the fingertips and asks the controller's IK first.
+  cockpit moves the pendant's active TCP and asks the controller's IK first.
 - **Don't touch the pendant's installation, safety or network from the network** — there is no
   such path, and there shouldn't be.
 - **Two failed attempts at a phase → stop and write.** The list of "never seen on hardware"

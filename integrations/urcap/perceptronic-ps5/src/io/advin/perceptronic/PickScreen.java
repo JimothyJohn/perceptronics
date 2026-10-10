@@ -55,6 +55,9 @@ final class PickScreen extends JPanel {
 
         void retake(int i);
 
+        /** A straight-down view over the pick area for this arm, through PolyScope's move screen; the point is retaken there. */
+        void lookDown(int i);
+
         void remove(int i);
 
         void select(int i);
@@ -239,13 +242,15 @@ final class PickScreen extends JPanel {
         });
         buttons.add(opts);
         buttons.add(next);
-        // the column packs to the top at any screen height; the two buttons stay at the bottom
+        // the column packs to the top at any screen height; the two buttons stay at the bottom.
+        // Controls on the left, the picture filling the rest — where PolyScope's own nodes keep
+        // their settings and their 3D view (Nick, 2026-10-08)
         JPanel sidebar = new JPanel(new BorderLayout(0, 8));
         sidebar.setOpaque(false);
         sidebar.setPreferredSize(new Dimension(SIDE, 10));
         sidebar.add(side, BorderLayout.NORTH);
         sidebar.add(buttons, BorderLayout.SOUTH);
-        p.add(sidebar, BorderLayout.EAST);
+        p.add(sidebar, BorderLayout.WEST);
         return p;
     }
 
@@ -259,8 +264,9 @@ final class PickScreen extends JPanel {
     }
 
     private JComponent lookStep() {
-        JPanel c = stepCard("Look", "Put the arm where the camera sees the parts");
-        useView.setToolTipText("PolyScope's move screen: put the arm there, then OK — 0.3 m or more above the parts");
+        JPanel c = stepCard("Look", "Where the camera sees the parts");
+        useView.setToolTipText("PolyScope's move screen: put the arm there, then OK — 0.3 m or more above the parts;"
+                + " Look down then straightens it over the pick area");
         useView.addActionListener(e -> actions.addPoint());
         JPanel one = new JPanel(new BorderLayout());
         one.setOpaque(false);
@@ -276,8 +282,10 @@ final class PickScreen extends JPanel {
         c.add(Ui.left(chips));
         c.add(Box.createVerticalStrut(6));
         selectedRow.setOpaque(false);
-        selectedRow.setMaximumSize(new Dimension(SIDE - 8, Ui.TAP));
-        selectedRow.setPreferredSize(new Dimension(SIDE - 8, Ui.TAP));
+        // the view's name and area on one line, its four buttons on the next (0.10.0: Look down
+        // joined Move / Retake / remove, and four of them beside the text clipped it)
+        selectedRow.setMaximumSize(new Dimension(SIDE - 8, 2 * Ui.TAP + 8));
+        selectedRow.setPreferredSize(new Dimension(SIDE - 8, 2 * Ui.TAP + 8));
         c.add(Ui.left(selectedRow));
         return c;
     }
@@ -372,19 +380,23 @@ final class PickScreen extends JPanel {
             }
         });
         text.add(Ui.left(area));
-        selectedRow.add(text, BorderLayout.CENTER);
-        JPanel b = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+        selectedRow.add(text, BorderLayout.NORTH);
+        JPanel b = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         b.setOpaque(false);
-        JButton go = small("Go", "move the arm there (hold to move)");
+        JButton go = small("Move", "move the arm there (hold to move)");
         go.addActionListener(e -> actions.goTo(i));
-        JButton here = small("Here", "retake this view where the arm is now");
+        JButton here = small("Retake", "retake this view where the arm is now");
         here.addActionListener(e -> actions.retake(i));
+        JButton down = small("Look down", "a straight-down view over the pick area, a little out from the base, for this"
+                + " arm — PolyScope's move screen takes the arm there and the view is retaken");
+        down.addActionListener(e -> actions.lookDown(i));
         JButton del = small("✕", "remove this view");
         del.addActionListener(e -> actions.remove(i));
         b.add(go);
         b.add(here);
+        b.add(down);
         b.add(del);
-        selectedRow.add(b, BorderLayout.EAST);
+        selectedRow.add(b, BorderLayout.SOUTH);
     }
 
     private static JButton small(String text, String tip) {
@@ -485,8 +497,8 @@ final class PickScreen extends JPanel {
         gripLong = new Ui.Check("Grip across the long side", "off: the fingers close across the short side",
                 false, on -> actions.setFlag(FLAG_GRIP_LONG, on));
         fields.add(gripLong);
-        closeLook = new Ui.Check("Closer look", "a second, nearer measurement before the approach",
-                true, on -> actions.setFlag(FLAG_CLOSE_LOOK, on));
+        closeLook = new Ui.Check("Closer look", "a second, nearer measurement before the approach (off: not needed)",
+                false, on -> actions.setFlag(FLAG_CLOSE_LOOK, on));
         fields.add(closeLook);
         fields.add(Box.createVerticalStrut(4));
         // the order: parts that free others go first anyway; this only breaks ties (Nick, 2026-10-02)
@@ -571,7 +583,7 @@ final class PickScreen extends JPanel {
             if (points.size() < PickScript.MAX_POINTS) chips.add(chip(-1, false));
             for (int i = points.size() + 1; i < PickScript.MAX_POINTS; i++) chips.add(Box.createGlue());
             fillSelectedRow(selected, selected >= 0 && selected < points.size() ? points.get(selected) : null);
-            useView.setText(points.isEmpty() ? "Use this view" : "Add a view");
+            useView.setText(points.isEmpty() ? "Use this view" : "Choose a view position");
             done = new boolean[] {!points.isEmpty(), partTaught, false};
             if (!stepChosen) { // opening: the first step not done
                 showStep(points.isEmpty() ? LOOK : !partTaught ? PART : GRIP);

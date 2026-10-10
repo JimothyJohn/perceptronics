@@ -178,22 +178,16 @@ class CockpitFrames:
     def handeye(self) -> list[float] | None:
         return (self.robot_info().get("handeye") or {}).get("flange_to_color_pose")
 
-    def tip_m(self) -> float | None:
-        tip = (self.robot_info().get("approach") or {}).get("tip_m")
-        return float(tip) if isinstance(tip, (int, float)) else None
-
 
 class Sidecar:
     """The pieces the HTTP handler calls: planner, detect, preview."""
 
-    def __init__(self, frames: CockpitFrames, flange_reader, *, tip_m: float, pick_port: int | None = None):
+    def __init__(self, frames: CockpitFrames, flange_reader, *, pick_port: int | None = None):
         self.frames, self.flange_reader, self.pick_port = frames, flange_reader, pick_port
-        self.tip_m = frames.tip_m() or tip_m
         self.planner = PickPlanner(
             frames.frame,
             frames.latest_seq,
             frames.handeye,
-            tip_m=self.tip_m,
             log=lambda text, ok: _say(text),
         )
 
@@ -205,7 +199,6 @@ class Sidecar:
             frame,
             pick_port=self.pick_port,
             handeye=self.frames.handeye() is not None,
-            tip_m=self.tip_m,
             part=part,
         )
 
@@ -369,8 +362,6 @@ def add_pick_server_args(ap) -> None:
 def run_pick_server(args) -> int:
     from urctl import Robot, RobotConfig
 
-    from .handeye import tip_m_from_env
-
     robot = Robot(RobotConfig.from_env(host=args.host), dry_run=args.dry_run)
     LOG.path = writable_log(args.log)
     if LOG.path != args.log:
@@ -388,7 +379,7 @@ def run_pick_server(args) -> int:
         _say(f"WARNING: no answer from the cockpit at {frames.base} yet — requests will fail until it is up")
     elif not probe.get("handeye"):
         _say("WARNING: the cockpit has no robot link, so no hand-eye — FIND answers -3")
-    sidecar = Sidecar(frames, flange, tip_m=tip_m_from_env())
+    sidecar = Sidecar(frames, flange)
     pick = PickServer(args.bind, args.pick_port, sidecar.planner)
     sidecar.pick_port = pick.server_address[1]
     http = SidecarServer(args.bind, args.port, sidecar)
@@ -396,7 +387,7 @@ def run_pick_server(args) -> int:
     _say(
         f"http://{args.bind}:{http.server_address[1]} (the node's cockpit URL) + pick socket "
         f"{args.bind}:{sidecar.pick_port}, over {frames.base}; robot {robot.config.host}"
-        f"{' (dry-run)' if args.dry_run else ''}; tip {sidecar.tip_m:.3f} m; log {LOG.path}. Ctrl-C to stop."
+        f"{' (dry-run)' if args.dry_run else ''}; tool = the robot's TCP; log {LOG.path}. Ctrl-C to stop."
     )
     if args.bind not in ("127.0.0.1", "localhost", "::1"):
         _say(f"WARNING: bound to {args.bind} with no authentication — only on a trusted cell network.")

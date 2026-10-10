@@ -17,7 +17,7 @@ board: `PI.md`. What the installer does, line by line: `deploy/pi/README.md`.
 | Cockpit + pick server | start at boot (:7621, :7622), restart on failure, re-open a camera that drops out | `perceptronics-cockpit.service` |
 | Robot link | read over RTDE in **Local** mode; reconnects by itself when the robot comes up after the Pi | the cockpit |
 | Firewall | the robot's network may reach :7621/:7622; SSH from anywhere; nothing else | `/etc/nftables.conf` |
-| Tool | Hand-E fingertips 0.163 m past the flange; picture pose 0.37 m up | `ur3.env` |
+| Tool | the pendant's active TCP (set the Hand-E's 0.163 m there; the Pi carries no tool length since 0.10.0); picture pose 0.37 m up | the pendant; `ur3.env` for the picture pose |
 | Hand-eye | the 2026-09-27 solve, in `/var/lib/perceptronics/captures/calibration/handeye.json` — a calibration made on the Pi replaces it and **survives reboots and redeploys** | `install.sh` (`handeye_out_of_env`) |
 
 ## 1. At the desk (once)
@@ -52,11 +52,8 @@ Power-up order doesn't matter. Give the Pi a minute after power-on.
 
 1. **URCap.** If ☰ → Settings → System → URCaps lists **RealSense Pilot**, select it, tap
    **–** and restart. It's a different bundle; its node data doesn't carry over. Then plug
-   in the stick:
-   - **automatic:** Settings → Security → General → **Run magic files** on, arm powered
-     **off**, plug the stick in, and the robot installs and restarts by itself;
-   - **by hand:** ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.1.urcap`
-     → Open → Restart.
+   in the stick: ☰ → Settings → System → URCaps → **+** → `perceptronic-ps5-0.9.1.urcap`
+   → Open → Restart.
 
    (Step by step with pictures: `integrations/urcap/perceptronic-ps5/README.md` §Install on the robot.)
 2. **Network: leave it.** The UR3e is already `192.168.3.3`. Check under ☰ → Settings →
@@ -96,7 +93,7 @@ What READY looks like on this cell:
 | `robot.reach` / `robot.primary` / `robot.rtde` | dashboard, 30001 and 30004 at 192.168.3.3 open |
 | `camera` | the D435, held by the cockpit, ~30 fps, USB 3.x |
 | `handeye` | `file:/var/lib/perceptronics/captures/calibration/handeye.json` |
-| `approach` | fingertip, 0.163 m |
+| `approach` | the pendant's active TCP — the offset it reads; a warning when it is the flange |
 | `robot.control` | `LOCAL` gates the **cockpit's** moves and `calibrate` only (the verdict says STATE ONLY); the 3D Pick node doesn't care |
 
 The cockpit's own page is at http://192.168.3.20:7621 from the Mac's cell interface (`.10`),

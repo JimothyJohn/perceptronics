@@ -1018,7 +1018,10 @@ def test_the_installer_never_restarts_the_helper_that_runs_it():
 
 
 def test_the_image_stages_every_file_the_installer_keeps():
-    m = re.search(r"for f in ([^;]+); do", INSTALL.read_text(encoding="utf-8"))
+    # The loop that copies the deploy files into DEPLOY_COPY — anchored on its first name, since
+    # install.sh has other `for f in` loops (the vision wheels) above it.
+    m = re.search(r"for f in (install\.sh [^;]+); do", INSTALL.read_text(encoding="utf-8"))
+    assert m, "install.sh's kept-files loop (for f in install.sh …) not found"
     kept = [n for n in m.group(1).split() if n != "\\"]
     staged = _code(BUILD.read_text(encoding="utf-8"))
     for name in kept:

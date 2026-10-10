@@ -31,16 +31,14 @@ from urctl.tools import ToolError, call_tool
 
 from .calibrate import CalibrationSession
 from .handeye import (
-    APPROACH_REFERENCES,
     DEFAULT_APPROACH_REFERENCE,
     DEFAULT_STANDOFF_M,
-    ENV_APPROACH_REFERENCE,
     ENV_STANDOFF_M,
+    VIEW_HEIGHT_M,
     HandEye,
     default_handeye_path,
-    fingertip_tcp,
     locate,
-    tip_m_from_env,
+    view_pose,
 )
 
 DEFAULT_APPROACH_VELOCITY = 0.1  # m/s — slow; this move follows a single click
@@ -89,25 +87,20 @@ class RobotLink:
         self.handeye = handeye or HandEye.from_env()
         self.calibration = CalibrationSession(seed=self.handeye)
         self._extrinsics: Mapping | None = None
-        # Cell-level approach defaults (the cell file sets them): what the
-        # standoff is measured from and how big it is when a call doesn't say.
-        self.approach_reference = (
-            os.environ.get(ENV_APPROACH_REFERENCE) or DEFAULT_APPROACH_REFERENCE
-        ).lower()
-        if self.approach_reference not in APPROACH_REFERENCES:
-            raise ValueError(f"{ENV_APPROACH_REFERENCE} must be one of {APPROACH_REFERENCES}")
+        # The standoff is measured from the controller's active TCP — the tool as the
+        # pendant has it; the cockpit owns no tool length (Nick, 2026-10-08). The cell
+        # file sets how big the standoff is when a call doesn't say.
+        self.approach_reference = DEFAULT_APPROACH_REFERENCE
         raw = os.environ.get(ENV_STANDOFF_M, "").strip()
         self.standoff_m = float(raw) if raw else DEFAULT_STANDOFF_M
         if not (0.0 <= self.standoff_m <= 1.0):
             raise ValueError(f"{ENV_STANDOFF_M} must be within 0..1 m")
-        self.tip_m = tip_m_from_env()
 
     def reference_tcp(self, reference: str | None = None) -> list[float] | None:
-        """The TCP every move of this approach reference runs with: the fingertips,
-        the flange, or ``None`` (the controller's active TCP, ``"tcp"`` only)."""
+        """The TCP a move of this approach reference runs with: ``None`` — the
+        controller's active TCP, the default — or the flange (``"flange"``: the
+        calibration's and the flange-referenced tools' explicit choice)."""
         ref = (reference or self.approach_reference).lower()
-        if ref == "fingertip":
-            return fingertip_tcp(self.tip_m)
         if ref == "flange":
             return list(FLANGE_TCP)
         return None
@@ -128,7 +121,6 @@ class RobotLink:
             "approach": {
                 "standoff_m": self.standoff_m,
                 "reference": self.approach_reference,
-                "tip_m": self.tip_m,
                 "tcp": self.reference_tcp(),
                 "velocity": DEFAULT_APPROACH_VELOCITY,
                 "acceleration": DEFAULT_APPROACH_ACCELERATION,
@@ -163,7 +155,6 @@ class RobotLink:
             max_reach_m=self.robot.max_reach(),
             reference=(reference or self.approach_reference).lower(),
             tcp_offset=fp.get("tcp_offset"),
-            tip_m=self.tip_m,
         )
         result["ok"] = True
         result["tcp"] = self.reference_tcp(result["reference"])
@@ -220,9 +211,9 @@ class RobotLink:
     ) -> dict:
         """``movel`` to an absolute base-frame pose (safety-validated, audited).
         ``tcp`` overrides the active TCP for the move (``[0]*6`` = the flange);
-        without one the cell's approach reference decides — the fingertip TCP by
-        default — so a pose from :meth:`locate` lands where it was computed for.
-        Only the ``"tcp"`` reference moves the controller's active TCP."""
+        without one the move runs with the controller's active TCP — the tool as
+        the pendant has it — so a pose from :meth:`locate` lands where it was
+        computed for."""
         vals = [float(v) for v in pose]
         if len(vals) != 6 or not all(math.isfinite(v) for v in vals):
             raise ValueError("pose must be 6 finite numbers [x, y, z, rx, ry, rz]")
@@ -268,6 +259,65 @@ class RobotLink:
         off = fp.get("tcp_offset") if fp.get("ok") else None
         return [float(v) for v in off] if off else None
 
+    def view(
+        self,
+        point_m: Sequence[float] | None = None,
+        *,
+        height_m: float | None = None,
+        arm: str | None = None,
+    ) -> dict:
+        """The straight-down picture pose for the 3D Pick node (Nick, 2026-10-08: a view
+        "looking straight down and slightly outreached", unique to the arm): the camera
+        ``height_m`` (default :data:`VIEW_HEIGHT_M`) straight above ``point_m`` — the pick
+        area's centre, or, when None, straight below the camera now at the same height —
+        pushed out past the base's keep-out radius of ``arm`` (``Reach.for_model``) when
+        it is inside it. Reach is the controller's own IK for the flange, as for
+        :meth:`locate`; ``polyscope_pose`` is the same target in the active TCP, what
+        PolyScope's move screen takes. Moves nothing."""
+        from .volume import Reach
+
+        fp = self.flange_pose()
+        if not fp.get("ok") or not fp.get("flange"):
+            return {"ok": False, "error": fp.get("error") or "could not read the flange pose", "robot": fp}
+        flange_now = [float(v) for v in fp["flange"]]
+        cam_now = pose_trans(flange_now, self.handeye.as_dict()["flange_to_color_pose"])
+        if point_m is None:
+            h = VIEW_HEIGHT_M if height_m is None else float(height_m)
+            point = [cam_now[0], cam_now[1], cam_now[2] - h]
+        else:
+            point = [float(v) for v in point_m]
+            h = VIEW_HEIGHT_M if height_m is None else float(height_m)
+        ring = Reach.for_model(arm) if arm else None
+        keep_out = ring.min_m if ring is not None else None
+        got = view_pose(self.handeye, flange_now, point, height_m=h, keep_out_m=keep_out)
+        result: dict = {
+            "ok": True,
+            "reference": "flange",
+            "flange_pose": flange_now,
+            "camera_pose": cam_now,
+            "arm": arm or None,
+            "keep_out_m": keep_out,
+            **got,
+        }
+        offset = fp.get("tcp_offset")
+        if offset is not None and fp.get("tcp_offset_consistent") is not False:
+            result["tcp_offset"] = [float(v) for v in offset]
+            result["polyscope_pose"] = pose_trans(got["flange_target_pose"], offset)
+        else:
+            result["tcp_offset"] = None
+            result["polyscope_pose"] = None
+            result["polyscope_pose_note"] = "the controller's active TCP offset is unknown or inconsistent"
+        self._controller_reach(result)
+        if result.get("reachable") is None:
+            result["reachable"] = None
+        notes = []
+        if got["pushed_out_m"]:
+            notes.append(f"pushed {got['pushed_out_m'] * 1000:.0f} mm out from the base's keep-out radius")
+        if result.get("reachable") is False:
+            notes.append("the controller has no joint solution for this view: move the parts in, or lower it")
+        result["notes"] = notes
+        return result
+
     def approach_cycle(
         self,
         point_cam: Sequence[float],
@@ -301,10 +351,7 @@ class RobotLink:
                 "error": "out of reach: " + reach_note(loc),
                 "locate": loc,
             }
-        if loc["reference"] == "fingertip":
-            tcp = self.reference_tcp("fingertip")
-            capture, target = pose_trans(loc["flange_pose"], tcp), loc["approach_pose"]
-        elif loc["reference"] == "flange":
+        if loc["reference"] == "flange":
             tcp, capture, target = FLANGE_TCP, loc["flange_pose"], loc["flange_target_pose"]
         else:
             tcp, capture, target = None, loc["tcp_pose"], loc["approach_pose"]
@@ -367,11 +414,17 @@ class RobotLink:
     def cal_solve(self) -> dict:
         return self.calibration.solve()
 
-    def cal_apply(self, *, save: bool = True, path: str | None = None, force: bool = False) -> dict:
+    def cal_apply(
+        self, *, save: bool = True, path: str | None = None, force: bool = False, method: str | None = None
+    ) -> dict:
         """Use the solved transform from now on (and write it so the next start
         picks it up: env > file > bracket seed). A solve that carries warnings
-        (poor rotation diversity, high residual) is refused unless ``force``."""
+        (poor rotation diversity, high residual) is refused unless ``force``.
+        ``method`` names what made the views (``orbit`` for ``perceptronics calibrate``;
+        the default is the panel's ``touch-and-click``) — it labels the hand-eye and the file."""
         result = self.calibration.result
+        if method:
+            self.calibration.method = str(method)
         if result and result.get("warnings") and not force:
             return {
                 "ok": False,

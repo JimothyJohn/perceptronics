@@ -272,6 +272,9 @@ class Part:
     margin_m: float = field(
         default=FOOTPRINT_MARGIN_M, repr=False
     )  # its edge's blur: cells this near are its
+    source: str = field(default="depth", repr=False)  # "colour" (fusion): the outline is the picture's
+    depth_valid: float = field(default=1.0, repr=False)  # the fraction of its top with depth (fusion)
+    rect_fill: float = field(default=0.0, repr=False)  # the colour blob's share of its rectangle (fusion)
 
     # the names pickcycle / picknode already use for a block
     @property
@@ -367,9 +370,14 @@ def find_parts(
     order: tuple[str, str] = ("LR", "FB"),
     fingers: dict | None = None,
     stride: int | None = None,
+    colour: bytes | None = None,
+    colour_channels: int = 3,
 ) -> Scene:
     """The parts in one aligned depth frame (uint16 LE, ``depth_scale_m`` per unit, colour
-    intrinsics ``K``). ``T_bc``: the colour camera's pose in the base frame at the frame's
+    intrinsics ``K``). ``colour``: the aligned colour picture (``colour_channels`` bytes a
+    pixel) — with it, and the ``vision`` extra installed, :mod:`.fusion` adds the parts whose
+    tops the depth can't see (foam, metal: holes) from their colour outline; without it
+    the depth alone is used, as before. ``T_bc``: the colour camera's pose in the base frame at the frame's
     instant (flange pose ∘ hand-eye); None for a camera-only preview (no reach, no base
     heading — the camera frame stands in for the base). ``fingers``: keyword arguments for
     :func:`perceptronics.pickplan.clearance` (``stroke_m``, ``grasp_below_m``, …) — the open
@@ -466,6 +474,39 @@ def find_parts(
             part.near = _near(part, spec)
             (parts if part.why is None else rejected).append(part)
             blobs[id(part)] = own
+    if colour is not None:
+        from . import fusion
+
+        for cpart in fusion.colour_parts(
+            w, h, colour_channels, colour, depth, depth_scale_m, K, T, surf, spec, stride
+        ):
+            cuv = surf.local(cpart.centre)
+            # a depth part that passed and holds the colour's centre: the depth's measurement stays
+            # — unless the colour's outline is the part's size and either the depth under it is
+            # mostly holes (the half-height footprint of a holey top is its rim, not its edge) or
+            # the blob is a clean rectangle (a foam top with some depth still read 40 x 31 for
+            # 50 x 30 by depth, 49 x 30 by colour): then the colour's measurement replaces it
+            holders = [p for p in parts if _in_footprint(p, cuv)]
+            if holders:
+                slack = RANGE_SLACK * cpart.range_m
+                wrong_size = spec is not None and (
+                    spec.why_not(cpart.length_m, cpart.width_m, cpart.height_m, slack) is not None
+                )
+                clean = cpart.depth_valid < fusion.HOLE_FRAC or cpart.rect_fill >= fusion.RECT_FILL
+                if wrong_size or not clean:
+                    continue
+                for p in holders:
+                    parts.remove(p)
+                    blobs.pop(id(p), None)
+            # the depth's fragments inside the colour's outline were the rims round its holes
+            for p in list(rejected):
+                if _in_footprint(cpart, surf.local(p.centre), 0.0):
+                    rejected.remove(p)
+                    blobs.pop(id(p), None)
+            cpart.why = cpart.why or _why_not(cpart, spec, surf, reach, level_ok)  # fusion's own reason first
+            cpart.near = True if cpart.why and cpart.why.startswith("too close") else _near(cpart, spec)
+            (parts if cpart.why is None else rejected).append(cpart)
+            blobs[id(cpart)] = fusion.grid_cells(w, h, colour_channels, colour, cpart, stride)
     if order:
         order_parts(parts, T, surf, order)
     if fingers is not None and parts:

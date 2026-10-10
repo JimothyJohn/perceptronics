@@ -231,13 +231,13 @@
         <div class="head" style="padding:7px 0 0;border:0"><h2>Robot</h2><div class="right"><span id="robotMeta">–</span></div></div>
         <div class="row">
           <label>standoff <input id="standoff" type="number" value="0.10" step="0.005" min="0" max="1" style="width:5.5em"> m</label>
-          <label>from <select id="reference"><option value="fingertip">fingertips</option><option value="flange">flange</option><option value="tcp">active TCP</option></select></label>
+          <label>from <select id="reference"><option value="tcp">active TCP (the robot's tool)</option><option value="flange">flange</option></select></label>
           <button id="locateBtn">Locate in base</button>
           <button id="moveBtn" disabled>Move TCP to approach</button>
           <button id="cycleBtn" class="primary" disabled title="over the object → down to the standoff → hold 1 s → back up → back here">Approach</button>
         </div>
         <table id="robotTable"><tbody><tr><td colspan="2" class="hint">Segment an object with depth, then Locate.</td></tr></tbody></table>
-        <div class="hint">Locate reads the live flange pose and maps the segment's camera point into the base frame through the hand-eye transform (bracket nominal unless <code>PERCEPTRONICS_T_FLANGE_CAMERA</code> is set). Move sends one safety-validated <code>movel</code> to the approach pose, tool orientation unchanged. <em>from</em> picks what the standoff is measured to: the gripper's <em>fingertips</em> (the default — <code>PERCEPTRONICS_TIP_M</code> along the flange axis, approached along the tool axis, and the move runs with that TCP; the controller's active TCP is not used), the tool <em>flange</em>, or the controller's <em>active TCP</em> (both along the camera ray). The cell file sets the defaults (<code>PERCEPTRONICS_STANDOFF_M</code>, <code>PERCEPTRONICS_APPROACH_REFERENCE</code>, <code>PERCEPTRONICS_TIP_M</code>). <b>Approach</b> is the test loop: click an object (depth region-growing, no model), then Approach — the arm goes over it, down to the standoff, holds a second, comes back up and returns to where the picture was taken, all as one program. Move the object, click, Approach again.</div>
+        <div class="hint">Locate reads the live flange pose and maps the segment's camera point into the base frame through the hand-eye transform (bracket nominal unless <code>PERCEPTRONICS_T_FLANGE_CAMERA</code> is set). Move sends one safety-validated <code>movel</code> to the approach pose, tool orientation unchanged. <em>from</em> picks what the standoff is measured to: the controller's <em>active TCP</em> (the default — the tool as the pendant has it; the cockpit carries no tool length) or the tool <em>flange</em>, both along the camera ray. The cell file sets the default standoff (<code>PERCEPTRONICS_STANDOFF_M</code>). <b>Approach</b> is the test loop: click an object (depth region-growing, no model), then Approach — the arm goes over it, down to the standoff, holds a second, comes back up and returns to where the picture was taken, all as one program. Move the object, click, Approach again.</div>
         <details class="cal" id="calSec">
           <summary>Calibrate hand-eye <span id="calMeta" style="font-weight:400;letter-spacing:0;text-transform:none">–</span></summary>
           <div class="hint">1. Freedrive the tool tip onto a mark → <b>Record mark</b>. 2. From 4–6 varied poses (rotate + tilt the wrist), click the mark in the colour view → <b>Add view</b>. 3. <b>Solve</b>, check the residuals, <b>Apply</b>.</div>
@@ -492,7 +492,7 @@
       ['view ray (base)', vec(j.view_ray_base, 2)],
       ['flange pose', vec(j.flange_pose)],
       ['tcp offset', vec((j.robot || {}).tcp_offset)],
-      ['approach pose', `<b>${vec(j.approach_pose)}</b> (standoff ${fmt(j.standoff_m)} m from the ${j.reference === 'fingertip' ? `fingertips, TCP ${vec(j.tcp)}` : (j.reference || 'tcp')})`],
+      ['approach pose', `<b>${vec(j.approach_pose)}</b> (standoff ${fmt(j.standoff_m)} m from the ${j.reference === 'flange' ? 'flange' : "robot's active TCP"})`],
       ['flange at approach', vec(j.flange_target_pose)],
       ['reach', j.reachable === false ? `<b style="color:var(--bad,#c33)">OUT OF REACH</b> — approach ${fmt(j.commanded_distance_m)} m from base, ${j.model || 'arm'} reaches ${fmt(j.max_reach_m)} m` : (j.reachable === true ? `ok (${fmt(j.commanded_distance_m)} m of ${fmt(j.max_reach_m)} m)` : 'unknown model')],
       ['hand-eye', `${j.handeye.source} · flange→depth ${vec(j.handeye.flange_to_depth_pose)}`],
@@ -715,7 +715,7 @@
       $('chipSeg').textContent = `seg ${j.segmenter}`;
       robotInfo = j.robot; $('robotSec').hidden = !robotInfo;
       if (robotInfo && robotInfo.approach && !$('standoff').dataset.touched) {
-        $('standoff').value = robotInfo.approach.standoff_m; $('reference').value = robotInfo.approach.reference || 'fingertip';
+        $('standoff').value = robotInfo.approach.standoff_m; $('reference').value = robotInfo.approach.reference || 'tcp';
       }
       if (robotInfo) $('robotMeta').textContent = `${robotInfo.host}${robotInfo.dry_run ? ' · dry-run' : ''} · ${robotInfo.handeye.source}`;
       const cell = j.cell || {};

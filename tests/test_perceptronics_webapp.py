@@ -485,8 +485,8 @@ def test_robot_locate_then_move_round_trip(robot_server):
     assert code == 200 and mv["ok"] and mv["action"] == "move_tcp" and mv["safety"]["ok"], mv
     movel = [s for s in fake.primary_sends if "movel(" in s]
     assert len(movel) == 1 and "pose_add" not in movel[0] and "v=0.1" in movel[0]
-    # a client that sends only the pose still moves the fingertips there (the default reference)
-    assert "set_tcp(p[0.0, 0.0, 0.163, 0.0, 0.0, 0.0])" in movel[0]
+    # a client that sends only the pose moves the robot's own TCP there: no set_tcp of the cockpit's
+    assert "set_tcp(" not in movel[0]
     code, mv2 = post(base, "/api/robot/move", {"pose": loc["approach_pose"], "velocity": 0.05})
     assert code == 200 and "v=0.05" in [s for s in fake.primary_sends if "movel(" in s][-1]
     # state passes through the registry too
@@ -747,7 +747,7 @@ def test_robot_locate_accepts_a_reference(robot_server):
     assert code == 200 and loc["ok"] and loc["reference"] == "flange", loc
     assert loc["flange_target_pose"] and loc["tcp_offset"] == pytest.approx(fake.tcp_offset, abs=1e-6)
     code, loc2 = post(base, "/api/robot/locate", {"point_m": [0.0, 0.0, 0.3]})
-    assert code == 200 and loc2["reference"] == "fingertip" and loc2["tcp"][2] == pytest.approx(0.163)
+    assert code == 200 and loc2["reference"] == "tcp" and loc2["tcp"] is None  # the robot's own TCP
     code, bad = post(base, "/api/robot/locate", {"point_m": [0.0, 0.0, 0.3], "reference": "wrist"})
     assert code == 400, bad
     code, bad = post(base, "/api/robot/locate", {"point_m": [0.0, 0.0, 0.3], "reference": 7})
@@ -812,3 +812,20 @@ def test_a_live_camera_is_not_stalled(server):
         time.sleep(0.01)
     info = json.loads(get(base, "/api/info")[2])
     assert info["stalled"] is False and info["frame_age_s"] < 2.0 and info["fps"] > 0
+
+
+def test_the_pick_trace_is_served_as_text_by_the_cockpit_itself(server):
+    # TODO 2026-10-08: `/api/pick/log` existed only on the sidecar; the cockpit's own pick-server
+    # lines were buried in /api/events as kind: pick. The cockpit now answers the same route.
+    base, app, _ = server
+    status, ctype, body = get(base, "/api/pick/log")
+    assert status == 200 and ctype.startswith("text/plain") and body == b""
+    app.events.add("calibration", "not a pick line", ok=True)
+    app.events.add("pick", "FIND part=60x40x30 tol=25: 2 parts", ok=True)
+    app.events.add("pick", "NEXT: queue empty", ok=None)
+    app.events.add("pick", "FIND: no fresh camera frame", ok=False)
+    status, _, body = get(base, "/api/pick/log")
+    lines = body.decode().splitlines()
+    assert status == 200 and len(lines) == 3 and "not a pick line" not in body.decode()
+    assert lines[0].endswith(" ok FIND part=60x40x30 tol=25: 2 parts")
+    assert lines[1].endswith("    NEXT: queue empty") and lines[2].endswith(" !! FIND: no fresh camera frame")

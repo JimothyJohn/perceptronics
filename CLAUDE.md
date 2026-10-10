@@ -144,12 +144,11 @@ vertical path, and skips a block no lean solves.
 streams RTDE `actual_TCP_pose` + `tcp_offset` at 30 Hz; flange = tcp ∘ offset⁻¹ (identical
 to the `get_flange_pose` script on the UR3e, no Primary program, works in Local). Each
 `/api/rgbd` header carries `flange_pose`, `pose_age_s`, `flange_to_color_pose`; `GET
-/api/robot/pose`; `POST /api/objects` lists every white block with its top-face points.
-The page (`webui/index.html`) is a scan-first ship's-computer UI: the depth as a point
-cloud in the base frame (drag/wheel/WASD/Space/click-to-centre), light columns over
-objects, the feed's target box re-projected through the live pose; `/classic` is the
-old page (calibration lives there). Needs a cockpit restart to pick up server changes;
-the page itself is read from disk per request.
+/api/robot/pose`. The page (`webui/index.html`) is a ship's-computer UI around the wrist
+feed (hover to measure, click or drag to segment, the log and the prompt beside it); the
+RANGE SCAN point cloud, its object cards and `POST /api/objects` were removed 2026-10-08
+(Nick: "never made sense"). `/classic` is the old page (calibration lives there). Needs a
+cockpit restart to pick up server changes; the page itself is read from disk per request.
 
 **A lost link is named on the page (2026-09-30, Nick: "obvious to the user", "hotswapped without a
 reboot or refresh").** The cockpit page (`webui/index.html`, `health()`) raises one alarm strip under
@@ -180,17 +179,35 @@ against the controller's flange; other models guarded by the same check).
 view-dependently (the tilted survey and a vertical look disagreed by 26–28 mm; both
 grasps missed). Re-run `perceptronics calibrate` before trusting a pick again.
 
-**Approach by the fingertips, always (Nick, 2026-09-27: "the tool offset is
-critical").** The cockpit's default approach reference is `fingertip`: the gripper's
-fingertips (`PERCEPTRONICS_TIP_M` along flange +Z — 0.163 m = Hand-E 157 mm + 6 mm adapter,
-the same length pick-cycle uses) sit `PERCEPTRONICS_STANDOFF_M` short of the object along the
-**tool axis**, and every cockpit move, approach cycle and controller-IK reach check runs
-with the TCP set to those fingertips (`RobotLink.reference_tcp`; `RobotLink.move` applies
-it when a client sends only a pose, an explicit `tcp` still wins). The controller's active
-TCP is never trusted for this — on the UR3e it is a 220 mm training offset the Hand-E
-doesn't match. `flange` / `tcp` references remain for a cell with no tool; `perceptronics
-doctor`'s `approach` line names the tool length and whether the active TCP differs. A new
-cell with a different tool must set `PERCEPTRONICS_TIP_M` (the `ur20.env` stub says so).
+**The tool offset is the robot's, only (Nick, 2026-10-08: "You must only use tool offsets
+inside of the robot not your own"; this supersedes the 2026-09-27 "approach by the fingertips"
+rule).** The cockpit, the pick server and both URCaps carry **no tool length**: the tool is the
+controller's **active TCP** as the operator set it on the pendant (Installation → General → TCP).
+A cockpit approach puts that TCP `PERCEPTRONICS_STANDOFF_M` short of the clicked point along the
+camera's ray (`locate(reference="tcp")`, the default; `flange` stays for the calibration and
+explicit callers), every cockpit move and reach check runs with the active TCP as it is
+(`RobotLink.reference_tcp` → `None`), and the 3D Pick node's script never calls `set_tcp`: it
+sends its pose under the active TCP plus the offset (`tcp=p[…]`, pick-server **protocol 3**,
+`PROTOCOL = 3`) and the server answers poses of that TCP frame — the TCP on the part, Z straight
+down, fingers along the frame's Y — which the node reaches with `movej(get_inverse_kin(pose))`.
+A node before 0.10.0 (it zeroed the TCP and expected flange poses for a 163 mm tool) is answered
+**-14** "update the Perceptronic URCap"; a cockpit before 0.10.0 answers the new node -9. The
+retired `PERCEPTRONICS_TIP_M` / `PERCEPTRONICS_APPROACH_REFERENCE` are ignored and named by the
+cell loader and `perceptronics doctor`'s `approach` line, which now says what the active TCP is
+and warns when it is the flange (right with nothing fitted, a crash with a gripper on). On the
+UR3e the pendant must therefore hold the Hand-E's 0.163 m as the active TCP, not the old 223 mm
+training offset. `pick-cycle` (the legacy routine) takes its tip length from the active offset's
+Z. A pick-area touch records the active TCP's pose (`RobotPositionCallback2`'s pose on
+PolyScope 5, `convertJointPositionsToTcpPose` on PolyScope X).
+
+**Quiet while the program runs (0.10.1 / 0.8.1, Nick 2026-10-08: "disable errors while it's not
+actually in a measurement feedback state").** As the arm comes down the camera is inside its own
+range and every frame judged in between is wrong. `PickPlanner` tracks the program's run (its first
+request or `LOG start` → `LOG at the grip` / `LOG no pick`, or `RUN_TTL_S` = 90 s of silence) and
+remembers what the program measured last (`last_measurement`, from `_find2` / `_refine2`); while it
+runs, `scene_report` answers `{quiet: true, last: …}` and judges no frame, both nodes draw the last
+measurement with no banner and say *program running*. The cockpit keeps **one** `PickPlanner`
+(`pick_planner()` is cached) so the socket and the teach-screen routes share that state.
 Cell files also note where the work surface is relative to the base (UR3e: parts ~0.27 m
 below it) — that height, not the datasheet radius, is what decides reach.
 
@@ -260,9 +277,10 @@ weird RealSense Pilot thing"), owned by Nick personally, namespaced by his domai
 PolyScope X 0.3.0 was released under that id):** PolyScope 5 bundle
 `io.advin.perceptronic` (Java package the same, `Bundle-Vendor: Nick Armenta`,
 `Bundle-Copyright: Copyright (c) 2026 Nick Armenta`, jar
-`integrations/urcap/dist/perceptronic-ps5-<ver>.urcap`, and beside it `urmagic_perceptronic.sh` — the
-stick's auto-install file filled in for that jar, written by `make urcap5-package`, held equal by
-a test), PolyScope X `advin/perceptronic` from 0.4.0
+`integrations/urcap/dist/perceptronic-ps5-<ver>.urcap`; the `urmagic_perceptronic.sh` auto-install
+file that sat beside it was **removed 2026-10-08** (Nick: it rebooted the controller the instant
+the stick went in — install only through the pendant's URCaps screen; `urcap5-usb.sh` deletes any
+copy left on a stick)), PolyScope X `advin/perceptronic` from 0.4.0
 (`integrations/urcap/perceptronic/`, element `advin-perceptronic`). A different bundle identity is a
 different URCap to PolyScope: the old one must be removed on a robot that had it, and its
 saved node data (cockpit address, pick areas) and programs' RealSense Pick nodes don't carry
@@ -312,7 +330,8 @@ line; a failed pick raises a blocking popup naming the reason. The cockpit serve
 itself; a cockpit already running older code gets it from **`perceptronics pick-server`** — a sidecar
 on `:7631` (point the node's cockpit URL there) that answers from the cockpit's frames, forwards
 every other route, and writes the whole trace to `captures/pick-server.log` or, when that's
-root-owned, `~/Library/Logs/perceptronics/` (also `GET /api/pick/log`). **Kill the sidecar before
+root-owned, `~/Library/Logs/perceptronics/` (also `GET /api/pick/log`; the cockpit answers the same
+route from its `kind: pick` events since 2026-10-08). **Kill the sidecar before
 relaunching the cockpit** (`pkill -f "pick-server --bind"`): both bind `:7622`, and the cockpit
 just warns and runs without its pick server. The 0.3.0 script has not yet run on a controller.
 **Part size (0.4.0, `perceptronics/partspec.py`):** the node's Length × Width [× Height] ± tolerance
@@ -384,6 +403,13 @@ diameter, wrist not turned; `gripcheck=0` drops the stroke and finger-room check
 the same URScript — `test_the_script_is_the_polyscope_5_nodes_line_for_line` (apart from `global x =`).
 `preview5.py --screens DIR` re-renders the README's pictures. **Not run on a robot**; the PolyScope X
 dialog was clicked through in the 10.13 sim (`integrations/urcap/e2e.py`: depth view, both option tabs fit).
+**The picture is the thing (Nick, 2026-10-08: "the stream ... should take up much more of the page").**
+On both platforms and both nodes the controls are one column on the **left** — where PolyScope's own
+screens keep their settings — and the picture fills everything right of it: PolyScope 5's Installation
+camera tab (`PilotView.CONTROLS` = 300 px, the feed centred in the rest, no size cap) and the 3D Pick
+screen (`PickScreen` sidebar `WEST`); PolyScope X's `.rsp .cam` / `.pk .cols` (the `.side`/`.ctl` first,
+the stage `flex: 1`, no `max-width`). The Installation camera tab has no off-pendant render (`PilotView`
+needs the UR API); the 3D Pick pictures in `screens/` are the layout.
 
 **3D Pick drives no gripper (URCap 0.8.0 / PolyScope X 0.6.0; Nick 2026-10-01 — this corrects the
 paragraph above where it says the node clamps).** "The node should not control the gripper
@@ -493,6 +519,14 @@ to process past them:
   carpet view). Fit locally.
 - **Positions inherit calibration.** The detector tolerates a hand-eye tilted 2.5° for *finding*
   parts, but every 1° of hand-eye error is ~9 mm of grip error at 0.5 m.
+- **Translucent tops are holes** (UR3e cell, 2026-10-08): white polyethylene foam returns 10-60 % depth
+  on its top (the grey table beside it 100 %, white paper and blue felt 100 %) at any laser power, and
+  the few pixels it does return are *biased*, not noisy (a consistent 62 mm on a 30 mm block) — never
+  take a sparse median as a height. Bare metal will be worse. The depth alone found 1-2 of 4 such
+  blocks; `perceptronics/fusion.py` (colour outline + depth, the `vision` extra) finds them when the
+  part differs from the table in colour, and is the detector on a cell with numpy/OpenCV.
+- **Matte black surfaces drop out entirely**: parts on a black rubber mat read 42-62 mm tall and
+  fragmented from 0.30 m (the floor under them is unknown). A datasheet caveat, not a tuning problem.
 - **Rest pose is ambiguous for near-cubes**: a box with two equal sides has no long axis (heading
   undefined), and faces of similar size can't be told apart by the camera.
 Known gaps: one harsh-bench false pick in 351 (a tall box's fragment fitting another face); the
@@ -536,6 +570,15 @@ SDK times out on it too); only_check_type 2 plans from a stale intermediate stat
 first check after a move can say 24 (Speed Exceeds Limit) at rest; SET_TCP_OFFSET drops to state 5 until
 `set_state(0)`; joint-teaching mode is refused. When the sim disagrees with us, run UFACTORY's own SDK
 (`xArm-Python-SDK`) against it before deciding whose bug it is. Not yet seen on a real 850.
+
+**The door for a person, and the servers for a customer's agent (2026-10-06 night, Nick: "de-agentify
+this thing", "the customer said an MCP would be super useful").** `perceptronics init` (`perceptronics/wizard.py`:
+questions with defaults → an ordinary cell file; `--yes` for the test cell) and `perceptronics up` (`gui` with
+no flags; `up_bind` listens on every interface when the cell names a robot). `urctl-mcp --no-motion` and
+`perceptronics-vision-mcp` (= `perceptronics-mcp --vision-only`) are the customer servers: `MOTION_TOOLS` /
+`VISION_MOTION_TOOLS` are hidden from `tools/list` and refused by `tools/call` with the reason; `MCP.md` is the
+customer's page and `tests/test_mcp_doc.py` holds its tool tables to the registries (`tool_rows()`), so a new
+tool changes the page or fails the test. Add a tool that moves the arm to the right set.
 
 **Monocular scan** (`perceptronics scan`, `docs/mono-scan.md`) was removed on
 2026-09-25 (branch refactor/prune-2026-09-25); it lives in git history before
@@ -1077,7 +1120,7 @@ runs and one that pops "cannot reach the required pose" mid-cycle.
 | `make sim-up` fails with `port 5900 … address already in use` on a Mac | macOS **Screen Sharing** serves VNC on 5900 (`nc localhost 5900` answers `RFB …`) | Use noVNC on 6080 instead; publish the container's 5900 elsewhere (`15900:5900`) or turn Screen Sharing off. Compose < 2.24 has no `!override` for `ports:`, so edit the mapping or `docker run` the service |
 | URSim container is `Up` but 29999 refuses / resets and `docker logs` shows `Trace/breakpoint trap   Xvfb` | Docker Desktop is emulating amd64 with **Rosetta**; Xvfb crashes under it, PolyScope (which serves the Dashboard) never starts, and URControl stops listening within minutes. Seen 2026-09-04 on the Mac Studio; the `Exited (101)` containers from weeks earlier were the same | **Docker Desktop's emulators can't run the e-Series sim on the Mac Studio**: with Rosetta off (QEMU user-mode) Xvfb survives but URControl dies (TODO.md, 2026-09-04; re-confirmed 2026-09-27). The image is amd64-only (every tag). `scripts/ursim-e-vm.sh up` runs it in a full x86_64 QEMU VM instead: URControl, Dashboard, Primary/RTDE and the URCap loader work (8 min to Dashboard), but PolyScope's JVM crashes in JIT code there (SIGILL/SIGSEGV, `hs_err_pid*.log`) — fine for "does the URCap load", not for clicking through PolyScope. For that: an amd64 host, CI, or the real UR3e |
 | Every cockpit click on the UR3e cell reads **OUT OF REACH** although the arm reaches the parts | The reach check was the datasheet radius (0.5 m) from the base **origin**; the parts sit 0.27 m below the base | Fixed 2026-09-27: `locate` and every absolute move ask the controller's IK (`reach_check: controller_ik`); the sphere is only the no-answer fallback. If you still see `reach_check: sphere`, Primary isn't answering (PolyScope X in Local, Primary disabled) |
-| A cockpit Move with the Hand-E on drives the fingers into the part | The standoff was measured from the **flange** (`PERCEPTRONICS_APPROACH_REFERENCE=flange`, 75 mm) — the fingertips are 163 mm past it | Fixed 2026-09-27: approach by the fingertips (the default); check `perceptronics doctor`'s `approach` line shows the tool length you measured |
+| A cockpit Move with the Hand-E on drives the fingers into the part | The standoff was measured from the **flange** (75 mm) — the fingertips are 163 mm past it | 2026-09-27 to 2026-10-08 the cockpit forced its own 163 mm fingertip TCP; since 0.10.0 the tool is the **pendant's active TCP** — set the gripper's TCP there; `perceptronics doctor`'s `approach` line shows the active offset and warns when it is the flange |
 | The Perceptronic Pick node (or any FIND) seems **hung**: nothing moves, the pick-server log shows `FIND: no fresh camera frame` (status −4) over and over | The D435 dropped out of the cockpit: its frames freeze at one `seq` (`/api/info` now says `stalled: true`, `fps` 0 — before 2026-09-30 `fps` kept reading ~30), and `/api/info`'s `last_error` says `Frame didn't arrive within 5000` (the macOS USB-claim race). Each FIND waits for a frame newer than the request, gets none, answers −4, and a looping program asks again | Re-plug the camera; the lean open re-opens it by itself. The sidecar's log now says `cockpit frames stalled at seq N` with the camera's error, and 0.3.0 pops up the reason instead of looping silently |
 | The cockpit runs the **old hand-eye** although `perceptronics/cells/ur3.env` has the new solve (`/api/info` → `robot.handeye.flange_to_depth_pose` ≠ the cell file's value; seen 2026-09-27) | `apply_cell` only fills keys the environment doesn't already have, so a `PERCEPTRONICS_T_FLANGE_CAMERA` already in the cockpit's environment wins. `handeye.source` reads `env:…` either way, so it can't tell you which one won | Launch with `sudo env -u PERCEPTRONICS_T_FLANGE_CAMERA python3 -m perceptronics --cell ur3 gui …`; after every launch compare `flange_to_depth_pose` in `/api/info` with the cell file |
 | RealSense colour panel black, depth fine, RGB options at factory | depth and colour streaming at **different sizes** on the D435 | keep both at 848×480 (the default); `perceptronics/README.md` §Depth quality |

@@ -3,18 +3,17 @@
 # AppleDouble files (PolyScope's URCap picker would list "._perceptronic-….urcap" and
 # fail on it), checksum-verified, then ejected. On the stick afterwards:
 #
-#   perceptronic-ps5-<ver>.urcap      the PolyScope 5 URCap
-#   urmagic_perceptronic.sh        installs it by itself when the stick goes into a
-#                                     PolyScope 5 robot with "Run magic files" enabled
-#                                     (scripts/urmagic_perceptronic.sh, filled in)
+#   perceptronic-ps5-<ver>.urcap      the PolyScope 5 URCap, for Settings → System → URCaps → +
 #   perceptronic-<ver>.urcapx         the PolyScope X URCap, for System Manager (PolyScope X
 #                                     runs nothing from a stick)
 #
 #   scripts/urcap5-usb.sh                 # the stick named "URE MODELS"
 #   scripts/urcap5-usb.sh "MY STICK"      # another FAT32 stick
-#   URCAP5_USB_MAGIC=0 scripts/urcap5-usb.sh   # no magic file: install by hand
 #
-# By hand on the pendant: ☰ → Settings → System → URCaps → + → the file → Open → Restart.
+# On the pendant: ☰ → Settings → System → URCaps → + → the file → Open → Restart. Nothing on
+# the stick runs by itself: the urmagic_*.sh auto-install file was dropped on 2026-10-08
+# (it restarted the controller the moment the stick went in), and any copy of it left on
+# the stick from an earlier build is deleted below so no robot ever runs it again.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,11 +23,9 @@ urcap="$(find integrations/urcap/dist -maxdepth 1 -name 'perceptronic-ps5-*.urca
 [[ -f "$urcap" ]] || { echo "no $urcap — make urcap5-package"; exit 1; }
 
 urcapx="$(find integrations/urcap/dist -maxdepth 1 -name 'perceptronic-*.urcapx' | sort | tail -1)"
-magic_src="scripts/urmagic_perceptronic.sh"
-symbolic="$(sed -n 's/^Bundle-SymbolicName=//p' integrations/urcap/perceptronic-ps5/bundle.properties)"
-[[ -n "$symbolic" ]] || { echo "no Bundle-SymbolicName in integrations/urcap/perceptronic-ps5/bundle.properties"; exit 1; }
 
-# replace any earlier build of the URCaps (and the magic file + its log) on the stick
+# replace any earlier build of the URCaps on the stick, and remove the retired auto-install
+# file (+ its log) an older run of this script may have left there
 find "$volume" -maxdepth 1 \( -name 'perceptronic-ps5-*.urcap' -o -name '._perceptronic-ps5-*' \
   -o -name 'perceptronic-*.urcapx' -o -name '._perceptronic-*.urcapx' \
   -o -name 'urmagic_perceptronic.*' -o -name '._urmagic_perceptronic.*' \) -delete
@@ -45,14 +42,5 @@ if find "$volume" -maxdepth 1 -name '._*' | grep -q .; then
 fi
 echo "copied $(basename "$urcap") (sha256 ${want:0:12}…) to $volume"
 [[ -f "$urcapx" ]] && echo "copied $(basename "$urcapx") (PolyScope X: install it through System Manager)"
-
-if [[ "${URCAP5_USB_MAGIC:-1}" == 1 ]]; then
-  # the magic file, with this build's name, sha256 and bundle id filled in
-  sed -e "s|@URCAP_FILE@|$(basename "$urcap")|" -e "s|@URCAP_SHA256@|$want|" \
-    -e "s|@SYMBOLIC_NAME@|$symbolic|" "$magic_src" > "$volume/urmagic_perceptronic.sh"
-  dot_clean -m "$volume" 2>/dev/null || true
-  sync
-  echo "wrote urmagic_perceptronic.sh: a PolyScope 5 robot with Settings → Security → General →"
-  echo "  'Run magic files' on installs the URCap by itself when the stick goes in (log on the stick)"
-fi
+echo "on the pendant: ☰ → Settings → System → URCaps → + → $(basename "$urcap") → Open → Restart"
 diskutil eject "$volume" >/dev/null && echo "ejected — take it to the pendant"

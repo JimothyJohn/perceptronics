@@ -43,7 +43,7 @@ to do.
 | USB 3 link? | `ssh <pc> 'for d in /sys/bus/usb/devices/*; do [ "$(cat $d/idVendor 2>/dev/null)$(cat $d/idProduct 2>/dev/null)" = 80860b07 ] && echo "$d $(cat $d/speed) Mb/s"; done'` | `5000` is USB 3. `480` is USB 2: the cockpit still works (it negotiates 640×480 @ 15), but tell Nick to move it to a blue port with a short cable and no hub. |
 | Robot IP? | The request, else the cell's value: `python3 -m perceptronics cells --export ur3` (`UR_HOST`), else `/etc/perceptronics/cell.env` on an already deployed PC (`ssh <pc> sudo grep UR_HOST /etc/perceptronics/cell.env`) | No address anywhere: ask for it. It is on the pendant under Settings → System → Network. |
 | Is it an e-Series on PolyScope 5, and which model? | From the PC: `ssh <pc> 'exec 3<>/dev/tcp/<robot>/29999; head -1 <&3; printf "PolyscopeVersion\nget robot model\nquit\n" >&3; head -2 <&3'` | No Dashboard banner means the address is wrong, or it is PolyScope X (no Dashboard). The URCap for this path is the PolyScope 5 one. |
-| Cell name? | `python3 -m perceptronics cells`. `ur3` is the only shipped e-Series cell (UR3e, `eseries` bracket, Hand-E `PERCEPTRONICS_TIP_M=0.163`). | Another model: deploy with `--cell ur3 --robot-host <ip>`, then edit `UR_ROBOT_MODEL`, `PERCEPTRONICS_TIP_M`, `PERCEPTRONICS_BRACKET` and `PERCEPTRONICS_HOME_POSE` in `/etc/perceptronics/cell.env`, and tell Nick which values are guesses. |
+| Cell name? | `python3 -m perceptronics cells`. `ur3` is the only shipped e-Series cell (UR3e, `eseries` bracket; the Hand-E's TCP lives on the pendant). | Another model: deploy with `--cell ur3 --robot-host <ip>`, then edit `UR_ROBOT_MODEL`, `PERCEPTRONICS_BRACKET` and `PERCEPTRONICS_HOME_POSE` in `/etc/perceptronics/cell.env`, and tell Nick which values are guesses. |
 | Cell subnet for the firewall? | The installer defaults to `UR_HOST`'s /24 | Only if the PC and robot sit on different subnets: pass `--allow-from <CIDR>`. |
 | Internet on the PC? (the first build fetches from GitHub/sqlite.org) | `ssh <pc> 'python3 -c "import urllib.request as u; u.urlopen(\"https://github.com\", timeout=10); print(\"ok\")"'` | No internet: apt and the librealsense build can't run. Say so; the README's *Open items* has the copy-a-built-tree path. |
 | Enough room? | `ssh <pc> 'df -h /var/tmp; free -m'` | The build wants ≥ 5 GiB free. Low RAM is handled (temporary swapfile). |
@@ -79,7 +79,7 @@ scripts/deploy-pi.sh <user@pc> --cell ur3 --robot-host <robot-ip>
   ports. `robot.control` fails in **Local** mode: state reads work, but Primary motion
   doesn't on a real e-Series until the pendant is set to Remote. That is expected, not a
   deploy fault.
-- `approach`: must name the tool length Nick measured (`PERCEPTRONICS_TIP_M`).
+- `approach`: must name the pendant's active TCP (0.163 m along Z on the UR3e with the Hand-E) — the Pi carries no tool length since 0.10.0; a `PERCEPTRONICS_TIP_M` still in `cell.env` is reported as ignored.
 - `handeye`: should read `file:/var/lib/perceptronics/captures/calibration/handeye.json`
   (`install.sh` moves the profile's pose there; `calibrate --apply` replaces it and it
   survives restarts). `env:` means a `PERCEPTRONICS_T_FLANGE_CAMERA` line came back into

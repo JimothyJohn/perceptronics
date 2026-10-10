@@ -130,11 +130,11 @@ without Nick.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S1 | Change lands | Claude + CI | PR into `dev` | `gate` + `URCap5 gate` required; auto-merge on green | Merged | A | — |
 | S2 | URCap matrix | CI | URCap paths touched; weekly cron | 5.4–5.26 in URSim; 10.8–10.14 in the PSX sim | All green | A | — |
-| S3 | Release a URCap | Nick | Version bump in `bundle.properties` / `manifest.yaml` | `make urcap5-package` or `make urcap-package`, commit `dist/`, tag `urcap5-v<ver>` / `urcapx-v<ver>`; `release-urcap5.yml` checks the committed jar is the tag's build and publishes | GitHub Release with the file, sha256 and `urmagic_perceptronic.sh` | A after the tag | A routine that tags when `dist/` changes on `main` (Nick: tags today are `urcap5-v0.5.0` and `urcapx-v0.3.0`; dist is 0.9.0 / 0.7.0 — the public releases are four versions behind) |
+| S3 | Release a URCap | Nick | Version bump in `bundle.properties` / `manifest.yaml` | `make urcap5-package` or `make urcap-package`, commit `dist/`, tag `urcap5-v<ver>` / `urcapx-v<ver>`; `release-urcap5.yml` checks the committed jar is the tag's build and publishes | GitHub Release with the file and its sha256 | A after the tag | A routine that tags when `dist/` changes on `main` (Nick: tags today are `urcap5-v0.5.0` and `urcapx-v0.3.0`; dist is 0.9.0 / 0.7.0 — the public releases are four versions behind) |
 | S4 | Promote `dev` → `main` | Nick | When Nick says | PR, hand-merged (#61 tonight) | `main` = `dev` | M | Stays manual by rule |
 | S5 | Publish the site | Nick | `main` moved | `site/site.sh sync` from the laptop with `site/.env` | Live page shows the `dist/` versions and sha256 | M | A `deploy-site.yml` on push to `main` with an OIDC role scoped to the one bucket + distribution (deploy-chain PR, draft, Nick merges) |
 | S6 | Datasheet / Quickstart PDFs | Claude | Page or version change | Local headless Chrome via `site/build.py --pdf`; a sha256 stamp fails CI until reprinted | One page; stamps match | M | A Playwright step in CI prints and commits the PDFs on `dev` (the stamp test then only guards drift) |
-| S7 | USB install stick | Builder | Kit ships | `scripts/urcap5-usb.sh` makes the FAT32 stick with the `.urcap` + magic file | Stick in the box, labelled with the version | M | Part of H3 |
+| S7 | USB install stick | Builder | Kit ships | `scripts/urcap5-usb.sh` makes the FAT32 stick with the `.urcap` | Stick in the box, labelled with the version | M | Part of H3 |
 
 ### 4.4 Install at the customer
 
@@ -143,7 +143,7 @@ without Nick.
 | I1 | Pre-call | Nick | Order | Email: robot model, PolyScope version, gripper, machine, part sizes | `kits/<serial>.json` has the cell profile | N | A form on the site that writes the profile; the Quickstart PDF goes out with the kit |
 | I2 | Mount + cable | Customer | Kit arrives | UR Quickstart PDF (`site/public/quickstart-ur.html`, PR #55) | Camera on the wrist, Pi on the DIN rail, both cables in | M | — |
 | I3 | Network | Customer | I2 | Robot gets 192.168.3.3 from the Pi's DHCP; pendant's Cockpit field defaults to 192.168.3.20 | Pendant shows the picture | A (by design, untested on a real robot) | — |
-| I4 | URCap install | Customer | I3 | Stick + "Run magic files", or Settings → URCaps → + | Node appears in the Program tab | A (magic file never run on a robot) | — |
+| I4 | URCap install | Customer | I3 | Stick → Settings → System → URCaps → + → Restart (the auto-install file was removed 2026-10-08) | Node appears in the Program tab | M | — |
 | I5 | Calibrate | Customer | I4 | Installation node → hand-eye (touch-and-click, 4–6 views) | Doctor's hand-eye line green; a located point within 3 mm of the mark | M (touch-and-click verified 09-23; orbit never on the UR3e) | A one-tap "Calibrate" that runs the orbit and reports RMS, like the cockpit does |
 | I6 | Teach the part + tray | Customer | I5 | 3D Pick node: tap a part, check approach | Green parts, numbered | M (0.9.0 screens never on a pendant) | — |
 | I7 | Tend program | Us (Tend tier) | I6 | **Nothing today** — §5 | The template runs one full cycle with the machine | N | The template ships in the URCap; the install is filling six I/O fields |
@@ -170,7 +170,7 @@ where Nick decided the gripper and the place belong (`site/public/quickstart-ur.
 
 Not new code. One day on the UR3e with the Pi on the cell cable:
 
-- URCap 0.9.0 via the stick and the magic file (`TODO.md` 09-30, 10-01).
+- URCap 0.9.0 via the stick and the pendant's URCaps screen (`TODO.md` 09-30, 10-01).
 - Pi ↔ UR3e: Dashboard, RTDE, the DHCP lease, the pendant reaching :7621.
 - Calibrate, teach, pick 20 blanks in a row through the node. Record misses.
 - Measure what the datasheet estimates: part centre, heading, cycle to the grip.
@@ -283,7 +283,7 @@ Add to the portal: an SMTP relay or a webhook URL (Slack/Teams/Twilio), a test b
 6. This document reviewed by Nick → decisions in §10 made → kept at the root as the plan of record.
 
 **Week 1 — prove it (§5.1).** Plug the UR3e in. One day on the pendant with the Pi. Fix
-what breaks (expect the magic-file install, the DHCP lease and a pendant layout surprise).
+what breaks (expect the DHCP lease and a pendant layout surprise).
 Reprint the datasheet with measured numbers where the estimates were.
 
 **Weeks 2–3 — Tend on our own cell.** The template (§5.2), the I/O screen, the fault
