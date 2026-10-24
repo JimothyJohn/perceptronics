@@ -79,7 +79,7 @@ anything that moves the arm.
 - [integrations/urcap/perceptronic-ps5/README.md](integrations/urcap/perceptronic-ps5/README.md): the PolyScope 5 URCap in full: upgrading, every screen
 - [site/public/quickstart-ur.html](site/public/quickstart-ur.html): the kit, the camera computer, setting up a cell
 - [perceptronics/README.md](perceptronics/README.md): the camera, depth quality, hand-eye
-- [CLAUDE.md](CLAUDE.md): working notes, protocols, and the gotchas that cost real time
+- [CLAUDE.md](CLAUDE.md) and [.claude/rules/](.claude/rules/): working notes, protocols, and the gotchas that cost real time
 
 Working on perceptronics itself: `make install-dev`, `make test`, `make lint`; PRs go
 to `dev` ([perceptronics/ARCHITECTURE.md](perceptronics/ARCHITECTURE.md#development)).

@@ -183,7 +183,7 @@ segment — the approach keeps the current tool rotation; the segment's
 `grasp` yaw hint is there for the next step), avoid obstacles (a straight
 `movel`; move above the scene first), or verify reach before you press Move
 (the envelope's reach check is a sphere; PolyScope's IK is the final word,
-see *Cartesian moves and singularities* in CLAUDE.md).
+see *Cartesian moves and singularities* in `.claude/rules/ur-controller.md`).
 
 ## The pilot's seat: cells, doctor, Pilot panel, and the keys for an agent
 

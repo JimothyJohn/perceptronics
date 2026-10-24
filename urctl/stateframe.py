@@ -15,7 +15,7 @@ Three sub-packages of that message are enough to place the flange exactly:
 
 The flange comes from forward kinematics of the joints through the calibrated DH,
 so it does not depend on which TCP the controller thinks is active (the active
-offset has been wrong before: CLAUDE.md, "ur_flange_pose … wrong by tens of mm").
+offset has been wrong before: .claude/rules/ur-controller.md, "ur_flange_pose … wrong by tens of mm").
 The Cartesian package then gives two things the kinematics cannot: the active TCP
 offset — which a target for PolyScope's own move screen must be expressed in —
 and a self-check: ``flange ∘ offset`` must land on the reported TCP pose.

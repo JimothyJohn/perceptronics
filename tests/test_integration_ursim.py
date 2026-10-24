@@ -319,7 +319,7 @@ class TestPrimaryInterface:
 # elbow straight — an elbow singularity where a `movel` spikes joint velocities
 # and the controller trips a protective stop (error C154A0). Bending the elbow
 # (joint 3 != 0) puts the arm in a well-conditioned configuration where small
-# Cartesian nudges are safe. See CLAUDE.md "Cartesian moves and singularities".
+# Cartesian nudges are safe. See .claude/rules/ur-controller.md "Cartesian moves and singularities".
 READY_JOINTS = [0.0, -1.0, 1.2, -1.8, -1.5708, 0.0]
 
 

@@ -56,7 +56,7 @@ python3 -m perceptronics --cell sim gui # synthetic camera, simulated arm
 ```
 
 Motion on PolyScope X needs Remote mode and the Primary interface switched on in
-its UI once ([CLAUDE.md](../CLAUDE.md#polyscope-x-the-rest-robot-api-second-platform)).
+its UI once ([.claude/rules/polyscope-x.md](../.claude/rules/polyscope-x.md)).
 With the real camera and cell: `python3 -m perceptronics --cell ur3 gui`. A
 *cell* (`perceptronics/cells/*.env`) names the robot's address, platform, tool
 length and camera bracket in one word.

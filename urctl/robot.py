@@ -786,7 +786,7 @@ class Robot:
         """Run several absolute ``movel`` legs as **one** program on one Primary
         connection — an approach cycle (over → down → dwell → up → back) is one
         submission instead of four reconnects (rapid reconnects wedge URControl;
-        see CLAUDE.md "How fast can you actually drive it").
+        see .claude/rules/ur-controller.md "How fast can you actually drive it").
 
         Each leg is ``{"pose": [x,y,z,rx,ry,rz], "velocity"?, "acceleration"?,
         "dwell_s"?, "blend_m"?, "gripper"?}`` — the robot ``sleep``s ``dwell_s``
