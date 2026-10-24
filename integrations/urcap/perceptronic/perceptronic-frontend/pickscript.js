@@ -1,4 +1,4 @@
-// 3D Pick — the program node's settings, the URScript it contributes and the pose math
+// Pounce — the program node's settings, the URScript it contributes and the pose math
 // both its presenter and its behavior worker need. One file for both: the worker
 // `importScripts` it, the page loads it with a <script> tag, tests run it under node. It is
 // the PolyScope X port of the PolyScope 5 node's PickScript.java
@@ -20,7 +20,8 @@
 
   const APP_TYPE = "advin-perceptronic";
   const PICK_TYPE = "advin-perceptronic-pick";
-  const VERSION = "0.7.1";
+  const VERSION = "0.9.0";
+  const PROTOCOL = 3; // the pick server's: the TCP offset rides every request
   const DEFAULT_PICK_PORT = 7622;
   const DEFAULT_COCKPIT_PORT = 7621;
   // The pick PC's factory address on its cell port (perceptronics.cellnet.PICK_PC_ADDRESS,
@@ -30,7 +31,6 @@
   const ROBOT_DEFAULT_HOST = "192.168.3.3";
   const CHECK_ROBOT_NETWORK = "Robot network: Settings → Connection → Network → DHCP → Apply (the pick PC gives the robot "
     + ROBOT_DEFAULT_HOST + "), or a static address 192.168.3.x, mask 255.255.255.0. A pick PC given another address: type it in the Cockpit field";
-  const DEFAULT_TIP_MM = 163; // Hand-E 157 mm + 6 mm adapter
   const SOCKET = "rs_pick";
   const MAX_POINTS = 12;
   const MAX_AREAS = 8;
@@ -40,7 +40,6 @@
     ["FB", "LR"], ["FB", "RL"], ["BF", "LR"], ["BF", "RL"],
   ];
   const SHAPES = ["box", "cyl"];
-  const SPEED = 0.6; // of the node's own joint / linear limits
   const SETTLE_S = 0.2; // before each picture
   const MAX_ATTEMPTS = 3; // grasps per run
   const LOOK_STROKE_MM = 50; // how wide the open fingers are taken to be when the closer look keeps the part clear of them
@@ -63,6 +62,7 @@
     [-11, "no room for the open fingers beside any part"],
     [-12, "the parts in view are outside the pick area"],
     [-13, "the only part in view is cut off by the edge of the picture"],
+    [-14, "this node is older than the camera computer - update the Perceptronic URCap"],
   ];
 
   // One number the operator can set: key, section, label, unit, default, min, max, step, help.
@@ -179,8 +179,8 @@
     });
     return T;
   }
-  /** Where the fingertips are for a flange pose: tipMm along the flange's +Z. */
-  const fingertip = (flange, tipMm) => poseTrans(flange, [0, 0, tipMm / 1000, 0, 0, 0]).slice(0, 3);
+  /** The centre of a pick area's plane ([pose(6), sizeX, sizeY], m): base frame, for the straight-down view. */
+  const planeCentre = (plane) => poseTrans(plane.slice(0, 6), [plane[6] / 2, plane[7] / 2, 0, 0, 0, 0]).slice(0, 3);
 
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -289,7 +289,7 @@
       shape: p.shape === "cyl" ? "cyl" : "box",
       gripCheck: p.gripCheck !== false,
       gripLongSide: p.gripLongSide === true,
-      closeLook: p.closeLook !== false,
+      closeLook: p.closeLook === true, // off by default since 0.8.0 (Nick, 2026-10-08)
       arm: /^[A-Za-z0-9]{1,8}$/.test(arm) ? arm : "",
       popupOnFail: p.popupOnFail !== false,
       foundVariable: (p.foundVariable && p.foundVariable.name) || FOUND_VARIABLE,
@@ -320,7 +320,7 @@
 
   /** Why the node cannot generate a program yet, or null when it can. */
   function problem(s) {
-    if (!s.cockpitSet || !s.host) return "set the camera computer's address in Application → Perceptronic";
+    if (!s.cockpitSet || !s.host) return "set the camera computer's address in Application → Perceive";
     if (!/^[A-Za-z0-9.:\-]+$/.test(s.host)) return `the camera computer's host "${s.host}" is not an address`;
     if (!(s.port >= 1 && s.port <= 65535)) return "the pick port must be 1..65535";
     if (!/^[0-9a-f]{1,12}$/.test(s.nodeId)) return "the node has no identity yet - open it once";
@@ -329,9 +329,9 @@
     for (let i = 0; i < s.points.length; i++) {
       const p = s.points[i];
       if (!finite(p.joints, 6)) return `picture point ${i + 1} is not a joint position`;
-      if (p.area >= 0 && !p.plane) return `picture point ${i + 1}'s pick area is not taught - teach it in Application → Perceptronic`;
+      if (p.area >= 0 && !p.plane) return `picture point ${i + 1}'s pick area is not taught - teach it in Application → Perceive`;
       if (p.plane && (!finite(p.plane, 6) || !(Math.abs(p.areaXmm) >= 5 && Math.abs(p.areaYmm) >= 5))) {
-        return `picture point ${i + 1}'s pick area is broken - re-teach it in Application → Perceptronic`;
+        return `picture point ${i + 1}'s pick area is broken - re-teach it in Application → Perceive`;
       }
     }
     for (const k of NUMBERS) {
@@ -373,7 +373,7 @@
     if (p && p.plane) b += ` plane=${pose(p.plane)} area=${num(p.areaXmm)}x${num(p.areaYmm)}`;
     b += ` node=${s.nodeId}`;
     if (i >= 0) b += ` loc=${i + 1}`;
-    b += ` locs=${Math.max(1, s.points.length)} proto=2`;
+    b += ` locs=${Math.max(1, s.points.length)} proto=${PROTOCOL}`;
     return b;
   }
 
@@ -382,7 +382,7 @@
   /** One stage report: textmsg for the Log tab and a LOG line to the pick server. */
   function say(s, indent, text, value) {
     const v = value == null ? '""' : value;
-    s.push(`${indent}textmsg("3D Pick: ${text}", ${v})`);
+    s.push(`${indent}textmsg("Pounce: ${text}", ${v})`);
     const line = value == null ? `"LOG ${text}"` : `str_cat("LOG ${text}", to_str(${value}))`;
     s.push(`${indent}socket_send_line(${line}, "${SOCKET}")`);
   }
@@ -405,15 +405,15 @@
     s.push(`${indent}end`);
   }
   /** The survey: to picture point rs_loc, settle, FIND. */
-  function survey(st, s, ind, ja, jv) {
+  function survey(st, s, ind) {
     st.points.forEach((p, i) => {
       s.push(`${ind}${i === 0 ? "if" : "elif"} rs_loc == ${i + 1}:`);
-      s.push(`${ind}  movej(${joints(p.joints)}, a=${ja}, v=${jv})`);
+      s.push(`${ind}  movej(${joints(p.joints)})`);
     });
     s.push(`${ind}end`);
     s.push(`${ind}sleep(${f2(SETTLE_S)})`);
     say(s, ind, "survey at point ", "rs_loc");
-    s.push(`${ind}socket_send_line(str_cat("FIND ", str_cat(to_str(get_actual_tcp_pose()), rs_tok)), "${SOCKET}")`);
+    s.push(`${ind}socket_send_line(str_cat("FIND ", str_cat(to_str(get_actual_tcp_pose()), str_cat(rs_tok, rs_tcp))), "${SOCKET}")`);
     read16(s, ind);
     say(s, ind, "FIND status ", "rs_st");
     s.push(`${ind}if rs_st != 1:`);
@@ -428,24 +428,22 @@
     const s = [];
     const np = st.points.length;
     const budget = np + MAX_ATTEMPTS + 1;
-    const jv = f2(1.05 * SPEED), ja = f2(1.4 * SPEED), lv = f2(0.25 * SPEED), la = f2(0.6 * SPEED);
     const found = st.foundVariable, loc = st.locVariable;
-    s.push(`# 3D Pick ${VERSION} - camera computer ${st.host}:${st.port} - part ${partText(st)} - ${orderText(st.orderFirst, st.orderRows)} - ${np} picture point${np === 1 ? "" : "s"}${st.closeLook ? "" : " - no closer look"}${st.gripCheck ? ` - finger room ${num(n(st, "fingerRoomMm"))} mm` : " - no grip check"}${st.gripLongSide && !round(st) ? " - across the long side" : ""}`);
+    s.push(`# Pounce ${VERSION} - camera computer ${st.host}:${st.port} - part ${partText(st)} - ${orderText(st.orderFirst, st.orderRows)} - ${np} picture point${np === 1 ? "" : "s"}${st.closeLook ? " - closer look" : ""}${st.gripCheck ? ` - finger room ${num(n(st, "fingerRoomMm"))} mm` : " - no grip check"}${st.gripLongSide && !round(st) ? " - across the long side" : ""}`);
     s.push(`global ${found} = False`);
     s.push(`global ${loc} = 0`);
-    s.push("rs_tcp0 = get_tcp_offset()");
-    s.push("set_tcp(p[0, 0, 0, 0, 0, 0])");
+    s.push('rs_tcp = str_cat(" tcp=", to_str(get_tcp_offset()))');
     s.push('rs_why = "no answer from the camera computer within 10 s"');
     s.push("rs_try = 0");
     s.push("rs_ok = True");
     s.push("rs_loc = 1");
     s.push('rs_tok = ""');
     s.push(`if socket_open("${st.host}", ${st.port}, "${SOCKET}"):`);
-    say(s, "  ", "start, flange ", "get_actual_tcp_pose()");
+    say(s, "  ", "start, tool ", "get_actual_tcp_pose()");
     say(s, "  ", `looking for ${partText(st)}`, null);
     s.push(`  while (rs_ok) and (rs_try < ${budget}) and (${found} == False):`);
     s.push("    rs_try = rs_try + 1");
-    s.push(`    socket_send_line(str_cat("NEXT ", str_cat(to_str(get_actual_tcp_pose()), " node=${st.nodeId} locs=${np} proto=2")), "${SOCKET}")`);
+    s.push(`    socket_send_line(str_cat("NEXT ", str_cat(to_str(get_actual_tcp_pose()), str_cat(" node=${st.nodeId} locs=${np} proto=${PROTOCOL}", rs_tcp))), "${SOCKET}")`);
     read16(s, "    ");
     s.push("    if rs_r[0] == 16:");
     s.push("      rs_loc = floor(rs_r[11] + 0.5)");
@@ -462,18 +460,18 @@
       s.push("    if rs_st == 1:");
       say(s, "      ", "next part already seen, #", "rs_r[12]");
       s.push("    else:");
-      survey(st, s, "      ", ja, jv);
+      survey(st, s, "      ");
       s.push("    end");
     } else {
       // every part is measured from its picture point: the parts queued at the last one were
       // seen from there too, but the arm is no longer where it could look again
-      survey(st, s, "    ", ja, jv);
+      survey(st, s, "    ");
     }
     s.push("    if rs_st == 1:");
     s.push("      rs_c = p[rs_r[2], rs_r[3], rs_r[4], 0, 0, 0]");
     s.push("      rs_top = p[rs_r[5], rs_r[6], rs_r[7], rs_r[8], rs_r[9], rs_r[10]]");
     if (st.closeLook) {
-      s.push(`      socket_send_line(str_cat("LOOK ", str_cat(to_str(get_actual_tcp_pose()), str_cat(" ", str_cat(to_str(rs_c), " stroke=${num(LOOK_STROKE_MM)}")))), "${SOCKET}")`);
+      s.push(`      socket_send_line(str_cat("LOOK ", str_cat(to_str(get_actual_tcp_pose()), str_cat(" ", str_cat(to_str(rs_c), str_cat(" stroke=${num(LOOK_STROKE_MM)} proto=${PROTOCOL}", rs_tcp))))), "${SOCKET}")`);
       s.push(`      rs_lk = socket_read_ascii_float(10, "${SOCKET}", 10)`);
       s.push("      rs_see = False");
       s.push("      rs_look = rs_top");
@@ -487,7 +485,7 @@
       s.push("        rs_see = get_inverse_kin_has_solution(rs_look, get_actual_joint_positions())");
       s.push("      end");
       s.push("      if rs_see:");
-      s.push(`        movej(get_inverse_kin(rs_look, get_actual_joint_positions()), a=${ja}, v=${jv})`);
+      s.push("        movej(get_inverse_kin(rs_look, get_actual_joint_positions()))");
       s.push(`        sleep(${f2(SETTLE_S)})`);
       say(s, "        ", "closer look ", "rs_look");
       s.push("      else:");
@@ -499,7 +497,7 @@
     s.push("      rs_go = False");
     s.push("      rs_rs = -8");
     s.push("      while (rs_lean < 3) and (rs_go == False):");
-    s.push(`        socket_send_line(str_cat("REFINE ", str_cat(to_str(get_actual_tcp_pose()), str_cat(" ", str_cat(to_str(rs_c), str_cat(rs_tok, str_cat(" lean=", to_str(rs_leans[rs_lean]))))))), "${SOCKET}")`);
+    s.push(`        socket_send_line(str_cat("REFINE ", str_cat(to_str(get_actual_tcp_pose()), str_cat(" ", str_cat(to_str(rs_c), str_cat(rs_tok, str_cat(rs_tcp, str_cat(" lean=", to_str(rs_leans[rs_lean])))))))), "${SOCKET}")`);
     s.push(`        rs_r = socket_read_ascii_float(16, "${SOCKET}", 10)`);
     s.push("        rs_rs = -8");
     s.push("        if rs_r[0] == 16:");
@@ -524,9 +522,9 @@
     s.push("      end");
     s.push("      if rs_go:");
     say(s, "        ", "approach ", "rs_hover");
-    s.push(`        movel(rs_hover, a=${la}, v=${lv})`);
+    s.push("        movej(get_inverse_kin(rs_hover, get_actual_joint_positions()))");
     say(s, "        ", "down to the grip ", "rs_grip");
-    s.push("        movel(rs_grip, a=0.3, v=0.05)");
+    s.push("        movej(get_inverse_kin(rs_grip, get_actual_joint_positions()))");
     s.push(`        global ${found} = True`);
     s.push(`        global ${loc} = rs_loc`);
     say(s, "        ", "at the grip, part from point ", "rs_loc");
@@ -539,18 +537,17 @@
     s.push("    end");
     s.push("  end");
     s.push(`  if ${found} == False:`);
-    s.push('    textmsg("3D Pick: no pick - ", rs_why)');
+    s.push('    textmsg("Pounce: no pick - ", rs_why)');
     s.push(`    socket_send_line(str_cat("LOG no pick - ", rs_why), "${SOCKET}")`);
     s.push("  end");
     s.push(`  socket_close("${SOCKET}")`);
     s.push("else:");
     s.push(`  rs_why = "no camera computer at ${st.host}:${st.port} - is it on, and is the address in Application > Perceptronic right?"`);
-    s.push('  textmsg("3D Pick: ", rs_why)');
+    s.push('  textmsg("Pounce: ", rs_why)');
     s.push("end");
-    s.push("set_tcp(rs_tcp0)");
     if (st.popupOnFail) {
       s.push(`if ${found} == False:`);
-      s.push('  popup(str_cat("3D Pick: no pick - ", rs_why), "3D Pick", False, True, blocking=True)');
+      s.push('  popup(str_cat("Pounce: no pick - ", rs_why), "Pounce", False, True, blocking=True)');
       s.push("end");
     }
     return s;
@@ -766,9 +763,21 @@
   /** One line for the status: how many parts will be picked, how many nearly. */
   function sceneSummary(scene) {
     const parts = ((scene && scene.parts) || []).length, near = nearMisses(scene).length;
+    if (scene && scene.quiet) {
+      // the program is running: the picture shows its own last measurement, nothing is judged in between
+      return parts || near ? `program running · last measured: ${parts} part${parts === 1 ? "" : "s"} to pick`
+        : "program running · the picture is measured only where the program asks";
+    }
     if (!parts && !near) return "no part in view";
     const s = `${parts} part${parts === 1 ? "" : "s"} to pick`;
     return near ? `${s} · ${near} not (yellow, with why)` : s;
+  }
+  /** A camera computer's answer while the program runs (0.8.1): the scene to show is what the
+   *  program measured last (or nothing), flagged quiet so no banner and no judgement is drawn. */
+  function quietScene(res) {
+    if (!res || !res.quiet) return null;
+    const last = res.last && res.last.ok ? res.last : { parts: [], rejected: [], notes: [] };
+    return { ...last, ok: true, quiet: true, notes: [] };
   }
   /** Across the top of the picture when nothing will be picked (Nick, 2026-10-06: a node left at
    *  its default 110 × 50 × 30 saw 110 × 70 × 30 boxes and said "2 parts touching?"): the size to
@@ -776,7 +785,7 @@
    *  null when a part is found, or when nothing at all is in view and there is no note. `part`:
    *  partWords(settings). The PolyScope 5 node's Scene.banner says the same words. */
   function sceneBanner(scene, part) {
-    if (!scene || !scene.ok) return null;
+    if (!scene || !scene.ok || scene.quiet) return null;
     const notes = (Array.isArray(scene.notes) ? scene.notes : []).filter((n) => typeof n === "string" && n);
     if ((scene.parts || []).length) return null;
     const near = nearMisses(scene);
@@ -799,14 +808,13 @@
   root.PerceptronicPick = {
     orderGrid, svgOrderTile, svgPart, svgApproach, areaCorners, farthest, svgReachMap,
     APP_TYPE, PICK_TYPE, VERSION, DEFAULT_PICK_PORT, DEFAULT_COCKPIT_PORT, DEFAULT_COCKPIT_HOST, ROBOT_DEFAULT_HOST,
-    DEFAULT_TIP_MM,
     SOCKET, MAX_POINTS, MAX_AREAS, ORDERS, ORDER_TILES, SHAPES, REASONS,
-    SPEED, SETTLE_S, MAX_ATTEMPTS, LOOK_STROKE_MM, KEEP_OUT_M,
+    PROTOCOL, SETTLE_S, MAX_ATTEMPTS, LOOK_STROKE_MM, KEEP_OUT_M,
     NUMBERS, BY_KEY, FOUND_VARIABLE, LOC_VARIABLE,
     num, clamp, defaults, values, modelReach,
-    poseToMat, matToPose, matMul, matInv, poseTrans, poseInv, flangeMat, fingertip, plane, tiltDeg,
+    poseToMat, matToPose, matMul, matInv, poseTrans, poseInv, flangeMat, planeCentre, plane, tiltDeg,
     cockpitBase, hostOf, areasOf, newNodeId, settings, isOrder, horizontal, words, orderText, partText, partWords,
     round, longSide, shortSide, problem, tokens, lines, script, render,
-    advise, nearMisses, sceneSummary, sceneBanner,
+    advise, nearMisses, sceneSummary, sceneBanner, quietScene,
   };
 })(typeof self !== "undefined" ? self : globalThis);

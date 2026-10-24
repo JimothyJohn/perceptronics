@@ -69,7 +69,7 @@ DOCKER = os.environ.get("DOCKER", "docker").split()
 # the host (7622, the cockpit's) → 22. PolyScope 5.26: 22699 / 22601 / 22604 / 22680 / 22622.
 # Blocks never overlap; minors 0..98 stay in 20000..29899 — clear of the default sims
 # (docker-compose.yml: 29999, 30000-30004, 30020, 502, 6080, 15900, 8000, 31001, 31004), the
-# cockpit's 7621/7622/7623/7631, and the Linux (32768+) and macOS (49152+) ephemeral ranges.
+# cockpit's 7621/7622/7623, and the Linux (32768+) and macOS (49152+) ephemeral ranges.
 
 PORT_BASE = 20000
 SLOTS = {"dashboard": 99, "primary": 1, "rtde": 4, "novnc": 80, "pick": 22}
@@ -174,7 +174,7 @@ EXCLUDED: dict[str, str] = {}
 # Every host port docker-compose.yml (the default dev sims) and the cockpit bind.
 DEFAULT_PORTS = frozenset(
     {15900, 6080, 29999, 30000, 30001, 30002, 30003, 30004, 30020, 502, 8000, 31001, 31004}
-    | {7621, 7622, 7623, 7631}  # cockpit, its pick server, pick5_e2e's default, the sidecar
+    | {7621, 7622, 7623}  # cockpit, its pick server, pick5_e2e's default
 )
 
 
@@ -209,7 +209,7 @@ COMPOSE_HEAD = """\
 # -> 99, Primary 30001 -> 01, RTDE 30004 -> 04, noVNC 6080 -> 80; the e2e's pick server on
 # the host, 7622 -> 22). Minors 0..98 stay inside 20000..29899, clear of the default sims
 # (docker-compose.yml: 29999, 30000-30004, 30020, 502, 6080, 15900, 8000, 31001, 31004),
-# the cockpit (7621/7622/7623/7631) and the Linux/macOS ephemeral ranges.
+# the cockpit (7621/7622/7623) and the Linux/macOS ephemeral ranges.
 #
 {table}
 #

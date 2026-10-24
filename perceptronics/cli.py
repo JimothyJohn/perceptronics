@@ -1,19 +1,13 @@
 """perceive command-line interface — a human/scripting entry point.
 
-    perceive synthetic                     # run the pipeline on a synthetic frame
-    perceive capture                       # grab one webcam frame + detect blobs
-    perceive --depth-backend depth_anything capture
-    perceive tools                         # dump the agent tool schemas (JSON)
-    perceive call perceive_synthetic --json '{"width":320,"height":240}'
     perceive --cell ur20 doctor            # pre-flight: SDK, camera, robot reachability + state
     perceive cells                         # the shipped cell profiles (sim / ur3 / ur20)
     perceive rs-info                       # RealSense devices + SDK (needs librealsense2)
     perceive gui --fake                    # the RGB-D cockpit (synthetic scene; drop --fake for the camera)
 
 Camera + backend selection come from ``--device`` / ``--width`` / ``--height``
-/ ``--fps`` / ``--depth-backend`` / ``--blob-backend`` or the matching
-``PERCEPTRONICS_*`` env vars, so the same commands run against a laptop webcam, a
-camera-less CI box (``synthetic``), or a GPU host (the real depth model).
+/ ``--fps`` / ``--segment-backend`` or the matching ``PERCEPTRONICS_*`` env vars, and
+a cell (``--cell``) sets the robot side.
 
 Every command prints its structured result as JSON and exits non-zero if the
 result reported ``ok=false``.
@@ -30,9 +24,6 @@ from .cell import ENV_CELL, apply_cell, list_cells
 from .config import PerceptionConfig
 from .orbitcal import add_calibrate_args, run_calibrate
 from .pickcycle import add_pick_cycle_args, run_pick_cycle
-from .picksidecar import add_pick_server_args, run_pick_server
-from .pipeline import PerceptionPipeline
-from .tools import ToolError, call_tool, get_tool_schemas
 from .webapp import (
     DEFAULT_PORT,
     add_camera_args,
@@ -42,7 +33,6 @@ from .webapp import (
     camera_from_args,
     cors_from_args,
     robot_from_args,
-    views_from_args,
 )
 
 
@@ -68,17 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--height", type=int, default=None)
     ap.add_argument("--fps", type=int, default=None)
     ap.add_argument(
-        "--depth-backend",
-        default=None,
-        help="stub | depth_anything (default: $PERCEPTRONICS_DEPTH_BACKEND or stub)",
-    )
-    ap.add_argument(
-        "--blob-backend",
-        default=None,
-        help="stub | blob_cv (default: $PERCEPTRONICS_BLOB_BACKEND or stub)",
-    )
-    ap.add_argument("--min-blob-area", type=int, default=None, help="drop blobs smaller than this (px)")
-    ap.add_argument(
         "--segment-backend",
         default=None,
         help="stub | sam (default: $PERCEPTRONICS_SEGMENT_BACKEND or stub) — click-to-segment in the gui",
@@ -90,23 +69,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="SAM checkpoint id for the sam backend (default: $PERCEPTRONICS_SAM_MODEL)",
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
-
-    sy = sub.add_parser("synthetic", help="process a deterministic synthetic frame (no camera)")
-    sy.add_argument("--width", type=int, default=None, dest="syn_width")
-    sy.add_argument("--height", type=int, default=None, dest="syn_height")
-
-    sub.add_parser("capture", help="grab one webcam frame and detect blobs")
-
-    im = sub.add_parser("image", help="run the pipeline on a PNG file")
-    im.add_argument("path", help="path to an 8-bit RGB/RGBA PNG")
-    im.add_argument(
-        "--max-width",
-        type=int,
-        default=480,
-        help="downsample so width <= this before the pure-Python pipeline (default: 480)",
-    )
-
-    sub.add_parser("tools", help="print the agent tool schemas as JSON")
 
     ce = sub.add_parser("cells", help="list the shipped cell profiles and what each sets")
     ce.add_argument(
@@ -128,10 +90,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=f"http://127.0.0.1:{DEFAULT_PORT}",
         help="report on a running cockpit at this URL (default: the local one)",
     )
-
-    ct = sub.add_parser("call", help="dispatch a perceptronics tool by name")
-    ct.add_argument("name")
-    ct.add_argument("--json", dest="json_args", default="{}", help="tool args as a JSON object")
 
     ri = sub.add_parser("rs-info", help="list attached RealSense cameras + SDK version (no streaming)")
     ri.add_argument("--library", default=None, help="path to librealsense2 (default: $REALSENSE_LIB / auto)")
@@ -187,13 +145,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_pick_cycle_args(pc)
 
-    ps = sub.add_parser(
-        "pick-server",
-        help="the PolyScope Perceptronic Pick node's server beside an already-running cockpit "
-        "(its pick socket + teach routes; everything else forwarded to the cockpit)",
-    )
-    add_pick_server_args(ps)
-
     cb = sub.add_parser(
         "calibrate",
         help="mark-less hand-eye calibration on a running cockpit: orbit the block under the camera, "
@@ -214,12 +165,6 @@ def _config_from_args(args) -> PerceptionConfig:
         overrides["height"] = args.height
     if args.fps is not None:
         overrides["fps"] = args.fps
-    if args.depth_backend is not None:
-        overrides["depth_backend"] = args.depth_backend
-    if args.blob_backend is not None:
-        overrides["blob_backend"] = args.blob_backend
-    if args.min_blob_area is not None:
-        overrides["min_blob_area"] = args.min_blob_area
     if getattr(args, "segment_backend", None) is not None:
         overrides["segment_backend"] = args.segment_backend
     if getattr(args, "sam_model", None) is not None:
@@ -263,7 +208,6 @@ def _realsense_command(args) -> int:
             open_browser=not args.no_browser,
             robot=robot_from_args(args),
             demo=args.demo,
-            views=views_from_args(args, config),
             cors=cors_from_args(args),
             pick_port=args.pick_port,
         )
@@ -283,10 +227,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"--cell: {exc}", file=sys.stderr)
         return 2
 
-    # `tools` / `cells` need no pipeline construction — print and exit.
-    if args.cmd == "tools":
-        print(json.dumps(get_tool_schemas(), indent=2))
-        return 0
     if args.cmd == "cells":
         from .cell import load_cell
 
@@ -321,8 +261,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report.ok else 1
     if args.cmd == "pick-cycle":
         return run_pick_cycle(args)
-    if args.cmd == "pick-server":
-        return run_pick_server(args)
     if args.cmd == "calibrate":
         return run_calibrate(args)
     if args.cmd == "init":
@@ -338,31 +276,6 @@ def main(argv: list[str] | None = None) -> int:
         return _realsense_command(args)
     if args.cmd in ("rs-info", "gui"):
         return _realsense_command(args)
-    pipe = PerceptionPipeline(_config_from_args(args))
-
-    if args.cmd == "synthetic":
-        params: dict[str, int] = {}
-        if args.syn_width is not None:
-            params["width"] = args.syn_width
-        if args.syn_height is not None:
-            params["height"] = args.syn_height
-        return _emit(call_tool(pipe, "perceive_synthetic", params))
-    if args.cmd == "capture":
-        return _emit(call_tool(pipe, "perceive_frame", {}))
-    if args.cmd == "image":
-        return _emit(call_tool(pipe, "perceive_image", {"path": args.path, "max_width": args.max_width}))
-    if args.cmd == "call":
-        try:
-            params = json.loads(args.json_args)
-        except json.JSONDecodeError as exc:
-            print(f"--json is not valid JSON: {exc}", file=sys.stderr)
-            return 2
-        try:
-            return _emit(call_tool(pipe, args.name, params))
-        except ToolError as exc:
-            print(f"tool error: {exc}", file=sys.stderr)
-            return 2
-
     return 2
 
 

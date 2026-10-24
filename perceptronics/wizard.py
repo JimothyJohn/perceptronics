@@ -71,8 +71,9 @@ def _number(text: str, default: float, lo: float, hi: float, what: str, out: Tex
 
 
 def cell_text(name: str, a: Mapping[str, str]) -> str:
-    """The cell file for a set of answers (``robot``, ``host``, ``model``, ``tip_mm``,
-    ``bracket``, ``camera``, ``standoff_mm``), as ``perceptronics init`` writes it."""
+    """The cell file for a set of answers (``robot``, ``host``, ``model``, ``bracket``,
+    ``camera``, ``standoff_mm``), as ``perceptronics init`` writes it. The tool itself is
+    the robot's active TCP (set on the pendant), so no tool length is asked for."""
     lines = [
         f"# Cell profile '{name}' — written by `perceptronics init`. Edit by hand; `perceptronics cells`",
         "# shows the shipped ones for comparison. Loaded by `--cell ./<this file>` / `UR_CELL=<path>`;",
@@ -109,13 +110,11 @@ def cell_text(name: str, a: Mapping[str, str]) -> str:
                 "UR_RTDE_PORT=31004",
             ]
         lines.append(f"UR_ROBOT_MODEL={a['model']}")
-    tip = float(a["tip_mm"]) / 1000.0
     standoff = float(a["standoff_mm"]) / 1000.0
     lines += [
-        "# The tool: the fingertips sit this far past the flange along its Z axis (Hand-E + 6 mm",
-        "# adapter = 0.163); every approach is measured from them.",
-        f"PERCEPTRONICS_TIP_M={tip:.3f}",
-        "PERCEPTRONICS_APPROACH_REFERENCE=fingertip",
+        "# The tool is the robot's active TCP (set it on the pendant: Installation -> General -> TCP);",
+        "# the camera computer owns no tool length. A cockpit approach stops the TCP this far short",
+        "# of the point along the camera's ray.",
         f"PERCEPTRONICS_STANDOFF_M={standoff:.3f}",
     ]
     if a["bracket"] != "none":
@@ -161,11 +160,13 @@ def run_init(
         host = q.ask("The robot's address (pendant: Settings -> System -> Network)", DEFAULT_ROBOT_HOST)
     model = q.ask("Arm", "UR3e", MODELS) if robot != "none" else "UR3e"
     model = next((m for m in MODELS if m.lower() == model.lower()), "UR3e")
-    tip = _number(
-        q.ask("Fingertips past the flange, mm (Hand-E + 6 mm adapter = 163)", "163"), 163, 0, 600, "tool", out
-    )
     standoff = _number(
-        q.ask("Approach: fingertips this far above the part, mm", "75"), 75, 10, 300, "approach", out
+        q.ask("Approach: the tool (the robot's TCP) stops this far above the part, mm", "75"),
+        75,
+        10,
+        300,
+        "approach",
+        out,
     )
     bracket = q.ask("Camera bracket print", "eseries", BRACKETS)
     camera = q.ask("Camera", "realsense", CAMERAS)
@@ -173,7 +174,6 @@ def run_init(
         "robot": robot,
         "host": host,
         "model": model,
-        "tip_mm": f"{tip:g}",
         "standoff_mm": f"{standoff:g}",
         "bracket": bracket,
         "camera": camera,

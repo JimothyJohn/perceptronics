@@ -9,10 +9,8 @@ Pixels are stored row-major, RGB, one ``int`` (0..255) per channel::
 
     idx = (y * width + x) * channels
 
-The :func:`synthetic_frame` factory paints colored disks on a flat background.
-It is not a shipped "frame source" (the device webcam is — see
-:mod:`perceptronics.sources`); it exists so tests and the ``--synthetic`` demo path
-can exercise the full depth + blob pipeline on a box with no camera.
+The :func:`synthetic_frame` factory paints colored disks on a flat background so tests
+and the ``--fake`` cockpit can run on a box with no camera.
 """
 
 from __future__ import annotations

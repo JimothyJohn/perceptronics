@@ -43,7 +43,7 @@ import javax.swing.SwingUtilities;
  * screens keep theirs (Nick, 2026-10-08).
  * "Open cockpit" is gone — the pendant has no browser to open it in. The feed has the
  * Picture / Depth toggle in its top right corner; with no camera its place says what to check
- * (cables, the IP address, the firewall). A second tab holds the pick areas the 3D Pick node
+ * (cables, the IP address, the firewall). A second tab holds the pick areas the Pounce node
  * looks at, on a map of the arm's reach ({@link LocationsScreen}).
  */
 // Swing components are never serialized here; javac's serial lint does not apply to them
@@ -115,6 +115,7 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         deck.add(camera, "camera");
         areas = new LocationsScreen(contribution);
         deck.add(areas, "areas");
+        deck.add(logCard(), "log");
         outer.add(deck, BorderLayout.CENTER);
 
         JPanel top = new JPanel(new BorderLayout());
@@ -123,7 +124,7 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         title.setOpaque(false);
         dot.setForeground(IDLE);
         dot.setFont(dot.getFont().deriveFont(16f));
-        JLabel name = new JLabel("Perceptronic");
+        JLabel name = new JLabel("Perceive");
         name.setFont(name.getFont().deriveFont(Font.BOLD, 20f));
         name.setForeground(INK);
         fps.setForeground(MUTED);
@@ -132,9 +133,14 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
         title.add(dot);
         title.add(fps);
         top.add(title, BorderLayout.WEST);
-        Ui.Segmented tabs = new Ui.Segmented(new String[] {"Camera", "Pick areas"}, 0,
-                i -> cards.show(deck, i == 0 ? "camera" : "areas"));
-        tabs.setPreferredSize(new Dimension(340, 40));
+        Ui.Segmented tabs = new Ui.Segmented(new String[] {"Camera", "Pick areas", "Log"}, 0, new Ui.Pick() {
+            @Override
+            public void picked(int i) {
+                cards.show(deck, i == 0 ? "camera" : i == 1 ? "areas" : "log");
+                if (i == 2) refreshLog();
+            }
+        });
+        tabs.setPreferredSize(new Dimension(420, 40));
         top.add(tabs, BorderLayout.EAST);
         outer.add(top, BorderLayout.NORTH);
 
@@ -238,6 +244,51 @@ public class PilotView implements SwingInstallationNodeView<PilotContribution> {
 
     LocationsScreen areas() {
         return areas;
+    }
+
+    // -- the Log tab: what the node logged, for a pendant with no console (Nick, 2026-10-04) ----
+
+    private final JTextArea logArea = new JTextArea();
+
+    private JPanel logCard() {
+        JPanel card = new JPanel(new BorderLayout(0, 6));
+        card.setOpaque(false);
+        JPanel head = row();
+        head.setOpaque(false);
+        JLabel title = new JLabel("The last " + Log.KEEP + " lines this node logged, newest first");
+        title.setForeground(MUTED);
+        JButton refresh = button("Refresh", null, null);
+        refresh.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                refreshLog();
+            }
+        });
+        head.add(title);
+        head.add(refresh);
+        card.add(head, BorderLayout.NORTH);
+        logArea.setEditable(false);
+        logArea.setLineWrap(true);
+        logArea.setWrapStyleWord(true);
+        logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        logArea.setForeground(INK);
+        logArea.setBackground(STATUS_BG);
+        logArea.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        card.add(logArea, BorderLayout.CENTER);
+        return card;
+    }
+
+    /** Newest first; the area shows what fits, no scroll pane (the pendant rule). */
+    void refreshLog() {
+        java.util.List<String> lines = Log.recent();
+        if (lines.isEmpty()) {
+            logArea.setText("nothing logged yet");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = lines.size() - 1; i >= 0; i--) sb.append(lines.get(i)).append('\n');
+        logArea.setText(sb.toString());
+        logArea.setCaretPosition(0);
     }
 
     // -- setters the contribution calls from any thread ------------------------------------------

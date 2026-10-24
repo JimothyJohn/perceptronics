@@ -220,19 +220,24 @@ def test_model_check_reports_the_reach_cap_and_catches_a_mismatch(listener, monk
     assert rep["motion_ok"] is False
 
 
-def test_approach_check_names_the_tool_offset_every_move_runs_with():
+def test_approach_check_names_the_pendants_tcp_as_the_tool():
+    """2026-10-08: the tool offset is the robot's active TCP, nothing of the cockpit's."""
     from perceptronics.doctor import approach_check
 
-    ok = approach_check([0, 0, 0.163, 0, 0, 0], {})  # default: fingertips, Hand-E length
-    assert ok.ok is True and "163 mm" in ok.detail and ok.data["matches_active_tcp"] is True
-    ur3e = approach_check(
-        [0.000256, -0.0352, 0.2204, 0.2572, -0.4104, 1.4319], {"PERCEPTRONICS_TIP_M": "0.163"}
-    )
-    assert ur3e.ok is True and "differs and is overridden" in ur3e.detail
-    flange = approach_check([0] * 6, {"PERCEPTRONICS_APPROACH_REFERENCE": "flange"})
-    assert flange.ok is None and flange.severity == "warn" and "fingertip" in flange.fix
-    bad = approach_check([0] * 6, {"PERCEPTRONICS_TIP_M": "-1"})
-    assert bad.ok is False and bad.severity == "critical"
+    ok = approach_check([0, 0, 0.163, 0, 0, 0], {})
+    assert ok.ok is True and "163 mm" in ok.detail and ok.data["reference"] == "tcp"
+    assert ok.data["active_tcp_offset"] == [0, 0, 0.163, 0, 0, 0] and ok.data["retired_set"] == []
+    ur3e = approach_check([0.000256, -0.0352, 0.2204, 0.2572, -0.4104, 1.4319], {})
+    assert ur3e.ok is True and "220 mm along" in ur3e.detail and "223 mm from" in ur3e.detail
+    # the flange as the TCP: right with nothing fitted, a crash with a gripper — say so
+    bare = approach_check([0] * 6, {})
+    assert bare.ok is None and bare.severity == "warn" and "pendant" in bare.fix
+    # a cell still carrying the retired Pi-side length is told it is ignored
+    stale = approach_check([0, 0, 0.163, 0, 0, 0], {"PERCEPTRONICS_TIP_M": "0.163"})
+    assert stale.ok is True and "PERCEPTRONICS_TIP_M" in stale.detail and "ignored" in stale.detail
+    assert stale.data["retired_set"] == ["PERCEPTRONICS_TIP_M"]
+    unknown = approach_check(None, {})
+    assert unknown.ok is None and "unknown" in unknown.detail
 
 
 # ----- the camera a running cockpit owns (first Pi deploy, 2026-10-02) ----------------

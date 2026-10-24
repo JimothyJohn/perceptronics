@@ -1,4 +1,4 @@
-// 3D Pick — Program Node behavior (the web worker PolyScope X loads for the
+// Pounce — Program Node behavior (the web worker PolyScope X loads for the
 // program node declared in contribution.json). Same hand-written threads.js protocol as
 // perceptronic-node.worker.js (`registerProgramBehavior(b)` is `expose(b)`); the shape
 // of every answer is what PolyScope's own serializers read back (web-app main.js,
@@ -15,7 +15,7 @@ importScripts("pickscript.js");
 
 const P = self.PerceptronicPick;
 const NODE_TYPE = P.PICK_TYPE;
-const NODE_VERSION = "1.0.0";
+const NODE_VERSION = "1.1.0";
 
 function appNodeOf(applicationContext) {
   const list = applicationContext && applicationContext.contributions && applicationContext.contributions.contributionList;
@@ -41,7 +41,7 @@ function fresh() {
       shape: "box",
       gripCheck: true,
       gripLongSide: false,
-      closeLook: true,
+      closeLook: false, // off by default since 0.8.0 (Nick, 2026-10-08: "not helping anything")
       popupOnFail: true,
       pickPort: P.DEFAULT_PICK_PORT,
       values: P.defaults(),
@@ -58,7 +58,7 @@ const behaviors = {
     const p = (node && node.parameters) || {};
     const st = P.settings(p, null);
     const np = st.points.length;
-    // PolyScope prefixes the tree row with the node's title itself ("3D Pick: …")
+    // PolyScope prefixes the tree row with the node's title itself ("Pounce: …")
     return [
       { type: "primary", value: P.partWords(st) },
       { type: "secondary", value: `${np} picture${np === 1 ? "" : "s"} · ${P.orderText(st.orderFirst, st.orderRows)}` },

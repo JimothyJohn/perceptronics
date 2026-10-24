@@ -20,7 +20,7 @@ import javax.swing.JPanel;
 
 /**
  * The Installation screen's "Pick areas" view — no UR API. A pick area is a patch of the work
- * surface taught by touching it with the fingertips at three points (its corner, a point
+ * surface taught by touching it with the tool (the robot's TCP) at three points (its corner, a point
  * along one edge, a point on the far side): the program's detector then measures parts'
  * heights from exactly that plane and ignores anything outside it. Beside the list, the cell
  * from above: the base, how far this arm reaches, and every area in it — one past the arm's
@@ -41,9 +41,6 @@ final class LocationsScreen extends JPanel {
 
         void select(int area);
 
-        void stepTip(double byMm);
-
-        void askTip(JLabel anchor);
     }
 
     /** One pick area as the screen shows it. */
@@ -70,7 +67,6 @@ final class LocationsScreen extends JPanel {
     private final JPanel list = Ui.column();
     private final Diagrams.ReachMap map = new Diagrams.ReachMap();
     private final Ui.Note note = new Ui.Note();
-    private final Ui.Stepper tip;
     private final JLabel model = Ui.label("", 12f, false, Ui.MUTED);
 
     LocationsScreen(Actions actions) {
@@ -88,7 +84,7 @@ final class LocationsScreen extends JPanel {
         head.add(add, BorderLayout.EAST);
         head.setMaximumSize(new Dimension(Integer.MAX_VALUE, Ui.TAP));
         left.add(Ui.left(head));
-        left.add(Ui.left(Ui.label("touch the table with the fingertips at three points — the picture points look at these",
+        left.add(Ui.left(Ui.label("touch the table with the tool (its TCP, as set on the pendant) at three points",
                 11.5f, false, Ui.MUTED)));
         left.add(Box.createVerticalStrut(6));
         left.add(Ui.left(list));
@@ -104,19 +100,6 @@ final class LocationsScreen extends JPanel {
         map.setAlignmentX(Component.LEFT_ALIGNMENT);
         map.setMaximumSize(new Dimension(320, 320));
         right.add(map);
-        right.add(Box.createVerticalStrut(6));
-        tip = new Ui.Stepper("Fingertip length", "flange to fingertips", new Ui.Step() {
-            @Override
-            public void step(int direction) {
-                actions.stepTip(direction);
-            }
-
-            @Override
-            public void type(JLabel anchor) {
-                actions.askTip(anchor);
-            }
-        });
-        right.add(tip);
         add(right, BorderLayout.EAST);
     }
 
@@ -128,7 +111,7 @@ final class LocationsScreen extends JPanel {
      * {@code reachM} its rated reach; 0 when the model is unknown).
      */
     void show(final List<Area> areas, final int selected, final String modelName, final double baseM,
-            final double reachM, final double tipMm) {
+            final double reachM) {
         PickScreen.onEdt(() -> {
             list.removeAll();
             List<double[]> corners = new ArrayList<double[]>();
@@ -151,7 +134,6 @@ final class LocationsScreen extends JPanel {
             model.setText(reachM > 0
                     ? String.format(Locale.ROOT, "%s: reaches %.0f mm from its base axis", modelName, reachM * 1000)
                     : "robot model unknown — the controller decides what it reaches");
-            tip.setValue(Ui.value(tipMm, "mm"));
             String warn = null;
             for (int i = 0; i < corners.size() && reachM > 0; i++) {
                 double far = Diagrams.farthest(corners.get(i));

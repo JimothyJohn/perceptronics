@@ -13,14 +13,14 @@ Linux, any architecture) with ``pip install .`` from a checkout and nothing else
 
 Run it::
 
-    urctl-mcp --host 10.0.0.5         # serves MCP over stdio
+    python3 -m urctl.mcp_server --host 10.0.0.5   # serves MCP over stdio (perceptronics-mcp wraps this)
 
 Example Claude Desktop / Claude Code MCP config::
 
     {
       "mcpServers": {
         "ur": {
-          "command": "urctl-mcp",
+          "command": "perceptronics-mcp",
           "args": ["--host", "10.0.0.5"]
         }
       }
@@ -248,7 +248,9 @@ class McpServer:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        prog="urctl-mcp", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="python3 -m urctl.mcp_server",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--host", default=None, help="controller host/IP (default: $UR_HOST or localhost)")
     ap.add_argument(

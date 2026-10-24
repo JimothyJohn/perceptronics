@@ -6,7 +6,7 @@ throwaway container, installs a fresh build of ``integrations/urcap/perceptronic
 the System Manager endpoint (``urcapx.install``), checks nginx serves exactly the
 files that were packaged, then drives PolyScope's own UI headlessly:
 
-* Application → Perceptronic: the node's element renders with its i18n title,
+* Application → Perceive: the node's element renders with its i18n title,
   the behavior worker and presenter load without a page error from our files;
 * the node goes live against a synthetic cockpit (``perceptronics gui --fake --no-robot``,
   with none of the shell's ``UR_*`` / ``PERCEPTRONICS_*``: it never reaches a robot);
@@ -396,14 +396,14 @@ def open_toolbox(page) -> None:
 
 
 def program_node_checks(checks: Checks, page, shot) -> None:
-    """The 3D Pick program node: from the toolbox into the tree, its row, the
+    """The Pounce program node: from the toolbox into the tree, its row, the
     dialog it opens (the feed live, a picture point taught from PolyScope's joint
     positions), and the row's verdict once the node can generate a program. The
     application node's cockpit URL was set by the checks before this."""
     page.get_by_text("Program", exact=True).first.click(timeout=30_000)
     page.wait_for_timeout(2000)
     open_toolbox(page)
-    page.get_by_text("3D Pick", exact=True).first.click(timeout=30_000)
+    page.get_by_text("Pounce", exact=True).first.click(timeout=30_000)
     page.wait_for_selector(PICK_TAG, state="attached", timeout=60_000)
     row = page.locator(PICK_TAG)
     page.wait_for_function(
@@ -563,7 +563,7 @@ def browser_checks(checks: Checks, port: int, cockpit_port: int, shots: Path | N
                 if nav.is_visible():
                     break
             nav.click(timeout=30_000)
-            page.get_by_text("Perceptronic").first.click(timeout=60_000)
+            page.get_by_text("Perceive", exact=True).first.click(timeout=60_000)
             page.wait_for_selector(TAG, state="attached", timeout=60_000)
 
         def shot(name: str) -> None:
@@ -573,9 +573,7 @@ def browser_checks(checks: Checks, port: int, cockpit_port: int, shots: Path | N
         try:
             open_node()
             node = page.locator(TAG)
-            checks.expect(
-                "Perceptronic" in node.inner_text(timeout=30_000), "node renders", "i18n title shown"
-            )
+            checks.expect("Perceive" in node.inner_text(timeout=30_000), "node renders", "i18n title shown")
             url_box = node.locator('[data-rsp="url"]')
             url_box.fill(cockpit)
             node.locator('[data-rsp="save"]').click()

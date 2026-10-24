@@ -2,7 +2,7 @@
 
 Written 2026-10-04 for Nick's review. Every fact about today's state is from the repo at
 `dev` (commit of this file's PR) and is cited by path; every number that is a proposal
-says so. Decisions Nick has to make are collected in §10 and nowhere else.
+says so. Nick's decisions are in §10 (answered 2026-10-04) and folded into the sections.
 
 The one-line product: **a UR owner running a small parts shop loads a tray of blanks in the
 evening; the robot feeds the machine all night; the parts are in a bin in the morning.**
@@ -21,8 +21,8 @@ standing next to it.
 
 | Piece | State | Evidence |
 | --- | --- | --- |
-| 3D Pick URCap for PolyScope 5 (`io.advin.perceptronic` 0.9.0) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.9.1.urcap` |
-| 3D Pick URCap for PolyScope X (0.7.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.7.1.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
+| Perceive URCap for PolyScope 5 (`io.advin.perceptronic` 0.11.0; the program node is Pounce) | Built, 23 PolyScope versions 5.4–5.26 green in CI (`urcap5-matrix.yml`) | `integrations/urcap/dist/perceptronic-ps5-0.11.0.urcap` |
+| Perceive URCap for PolyScope X (0.9.0) | Built, 10.8–10.14 green in CI (`urcapx-matrix.yml`); screens still the 0.8.0 layout | `integrations/urcap/dist/perceptronic-0.9.0.urcapx`, `integrations/urcap/perceptronic-ps5/README.md` §PolyScope X |
 | Pick PC (Pi, cockpit, pick server, firewall, DHCP for the robot) | Deployed and verified on one Pi 5; flashable image boots in ~30 s | `deploy/pi/README.md` §Verified on a board, `deploy/pi/image/README.md` |
 | Setup portal + update bundles (network from a browser, upload an update, auto-rollback) | Code + 115 tests, **never on a board** | PR #59, `perceptronics/setupportal.py`, `deploy/pi/perceptronics-admin` |
 | Camera bracket | Rev B.2 printed and on the UR3e; **Rev C and the UFACTORY print are unprinted** | `hardware/d435-tool-bracket/README.md` §7 (13 unchecked boxes) |
@@ -76,22 +76,29 @@ We own: finding the part, putting it in the machine, keeping the loop honest.
 
 ---
 
-## 3. Product definition: three tiers, one hardware kit
+## 3. Product definition: one kit, one price, and the software grows (decided 2026-10-04)
 
-| Tier | What it does | Exists? | Price (proposal) |
-| --- | --- | --- | --- |
-| **Find** (today's pick kit) | Finds every blank of the taught size on a flat surface, numbers them, brings the gripper to the grip. Customer's program does everything else. | Yes (beta, unproven on a pendant) | Kit $1,950; URCap free (MIT) |
-| **Tend** | Find + the tending program template: place into the chuck/vise, machine handshake over the UR's I/O, unload to a bin, tray-empty stop, one-button resume. Installed by us or a partner in a day. | No. §5 is the build. | Kit + $2,500 install/commissioning + $150/month per cell support |
-| **Lights-out** | Tend + the unattended discipline: part-present proof at every step, machine-alarm stop, text/email alerts off the plant network, a cycle log and a morning report, remote diagnostics. | No. §5. | +$100/month per cell |
+**One price, no subscription: $2,500 for the packaged kit** (Nick: "$2.5k if you make me
+package it for you"). The software is free (MIT) and the BOM is public, so a shop can also
+build its own kit from `hardware/BOM.md`; what the $2,500 buys is a kit that arrives assembled,
+flashed, burned in and labelled, with the bracket printed, the stick made and the Quickstart
+in the box. There are no tiers: Find, Tend and Lights-out are what the same kit does as the
+URCap and the pick PC gain the features in §5, delivered as free updates through the setup
+portal. Commissioning at the customer is a job priced per visit, not a plan.
 
-Why these prices (proposal, Nick decides): BOM ≈ $785 + bracket + assembly/test ≈ 1.5 h
-→ ≈ $950 landed cost per kit; $1,950 is ~50 % gross margin and far below any integrator's
-first invoice. Tend's install fee is one day of a person on site. The monthly fee is what
-funds the thing nobody budgets for: the 2 a.m. phone call. Robotiq's and Vention's
-machine-tending bundles are $15k–45k; we are the "already own the robot" tier below them.
+**Names.** *Perceive* is the tool: the URCap, its Installation node and the P button. *Pounce*
+is the approach: the program node that brings the gripper to the part. "3D Pick" goes.
 
-**One hardware kit for all tiers.** The tiers are software and service. A Find customer
-upgrades to Tend by installing a bundle through the setup portal and booking a day.
+| Stage of the same kit | What it does | Exists? |
+| --- | --- | --- |
+| **Find** (today) | Finds every blank of the taught size on a flat surface, numbers them, Pounces the gripper to the grip. The customer's program does everything else. | Yes (beta, unproven on a pendant) |
+| **Tend** | Find + the tending program template: place into the chuck/vise, machine handshake over the UR's I/O, unload to a bin, tray-empty stop, one-button resume. A day's commissioning by us or a partner. | No. §5 is the build. |
+| **Lights-out** | Tend + the unattended discipline: part-present proof at every step, a re-pick when the grip missed, machine-alarm stop, a cycle log and a shift report on the cockpit. | No. §5. |
+
+Why $2,500 holds: BOM ≈ $820 with the Pi 5 + bracket + assembly/burn-in ≈ 1.5 h → ≈ $1,000
+landed cost per kit, so ~60 % gross margin, and still far below any integrator's first invoice.
+Robotiq's and Vention's machine-tending bundles are $15k–45k; we are the "already own the
+robot" tier below them.
 
 ---
 
@@ -108,17 +115,17 @@ without Nick.
 | # | Step | Owner | Trigger | How (today) | Done when | A/M/N | To automate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | H1 | Order parts for N kits | Nick | Stock < 2 kits | `hardware/BOM.md` by hand; D435 lead 6–8 wk + tariff; Pi 4 price moves | Parts in the bin, serials logged | N | A `hardware/stock.csv` + a weekly routine that reads it and opens an issue "order N kits" with the BOM lines and last-seen prices |
-| H2 | Print the bracket | Builder | Kit order | `bracket.py` → STL in `hardware/d435-tool-bracket/out/`; PPA-CF, settings in README §5 | README §7 checklist all ticked for this print | M | Checklist as a form on the kit's build record (H5) |
-| H3 | Assemble the kit | Builder | Printed bracket + parts | Bracket + D435 + screw + clip; Pi in DIN case + PSU + SD; cables | Photo of the kit, weight, serial label | N | A one-page `hardware/ASSEMBLY.md` with the photo sequence; label printer template |
-| H4 | Burn-in | Builder | Assembled kit | None today | Pi booted the image, D435 streamed 30 fps for 1 h on this unit's cable, `doctor` all green, thermals logged | N | `scripts/burn-in.sh <pi>`: runs the doctor + a 1 h `/api/info` fps/temperature watch, writes `burn-in-<serial>.json` |
-| H5 | Build record | Builder | Burn-in pass | None | `kits/<serial>.json`: BOM lot, bracket print, image build id, burn-in result, who | N | The burn-in script writes it; a routine posts a weekly "kits ready" summary |
+| H2 | Print the bracket | Contract shop | Kit order | `bracket.py` → STL in `hardware/d435-tool-bracket/out/`; PPA-CF, settings in README §5 | README §7 checklist all ticked for this print | M | Checklist as a form on the kit's build record (H5) |
+| H3 | Assemble the kit | Contract shop | Printed bracket + parts | Bracket + D435 + screw + clip; Pi in DIN case + PSU + SD; cables | Photo of the kit, weight, serial label | N | A one-page `hardware/ASSEMBLY.md` with the photo sequence; label printer template |
+| H4 | Burn-in | Contract shop | Assembled kit | None today | Pi booted the image, D435 streamed 30 fps for 1 h on this unit's cable, `doctor` all green, thermals logged | N | `scripts/burn-in.sh <pi>`: runs the doctor + a 1 h `/api/info` fps/temperature watch, writes `burn-in-<serial>.json` |
+| H5 | Build record | Contract shop | Burn-in pass | None | `kits/<serial>.json`: BOM lot, bracket print, image build id, burn-in result, who | N | The burn-in script writes it; a routine posts a weekly "kits ready" summary |
 
 ### 4.2 Firmware (the pick PC image)
 
 | # | Step | Owner | Trigger | How (today) | Done when | A/M/N | To automate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F1 | Build the image | Nick | A release tag `v*` | `scripts/pi-image.sh build nick@pickpc` (12 min on the Pi with the librealsense cache) | `target/pi-image/*.img.xz` + sha256 + manifest | M | A self-hosted arm64 runner (the pickpc itself, or a second Pi on the bench) runs `build.sh` on every `v*` tag and attaches the image to the GitHub Release |
-| F2 | Publish the image | Nick | F1 | Hand-upload + `imager.json` on the site (source is on a wip branch, not on dev) | perceptronics.advin.io/imager.json points at the new image, Raspberry Pi Imager lists it | M | Release workflow uploads and rewrites `imager.json`; `site.sh sync` |
+| F1 | Build the image | CI (decided 2026-10-04) | A release tag `v*` | `scripts/pi-image.sh build nick@pickpc` (12 min on the Pi with the librealsense cache) | `target/pi-image/*.img.xz` + sha256 + manifest | M → A | **Decided: automate.** A self-hosted arm64 runner (the pickpc itself, or a second Pi on the bench) runs `build.sh` on every `v*` tag and attaches the image to the GitHub Release |
+| F2 | Publish the image | CI (decided) | F1 | Hand-upload + `imager.json` on the site (source is on a wip branch, not on dev) | perceptronics.advin.io/imager.json points at the new image, Raspberry Pi Imager lists it | M | Release workflow uploads and rewrites `imager.json`; `site.sh sync` |
 | F3 | Flash + seed a kit | Builder | H3 | `scripts/pi-image.sh flash` (macOS) + `seed` (hostname, key, address, optional Wi-Fi, robot host) | Card boots, cockpit 200 on :7621, D435 30 fps | M | Flash station = Raspberry Pi Imager with the published image; seeding becomes unnecessary once the portal (F5) is the way in |
 | F4 | Image smoke test | CI | F1 | Nothing in CI; a loop-mount fsck by hand | fsck clean, units enabled, wheel version matches the tag | N | `tests/test_pi_image.py` gets a loop-mount stage on the arm64 runner |
 | F5 | Field update | Customer or us | A release | PR #59: upload `perceptronics-update-*.tar` at `http://<pc>:7621/setup`, or `scripts/pi-update.sh push`; health check + auto-rollback | `/api/info` reports the new version; previous release kept | M (unmerged, untested on a board) | The release workflow builds the bundle; the morning report (§6) says which cells are behind |
@@ -132,7 +139,7 @@ without Nick.
 | S2 | URCap matrix | CI | URCap paths touched; weekly cron | 5.4–5.26 in URSim; 10.8–10.14 in the PSX sim | All green | A | — |
 | S3 | Release a URCap | Nick | Version bump in `bundle.properties` / `manifest.yaml` | `make urcap5-package` or `make urcap-package`, commit `dist/`, tag `urcap5-v<ver>` / `urcapx-v<ver>`; `release-urcap5.yml` checks the committed jar is the tag's build and publishes | GitHub Release with the file and its sha256 | A after the tag | A routine that tags when `dist/` changes on `main` (Nick: tags today are `urcap5-v0.5.0` and `urcapx-v0.3.0`; dist is 0.9.0 / 0.7.0 — the public releases are four versions behind) |
 | S4 | Promote `dev` → `main` | Nick | When Nick says | PR, hand-merged (#61 tonight) | `main` = `dev` | M | Stays manual by rule |
-| S5 | Publish the site | Nick | `main` moved | `site/site.sh sync` from the laptop with `site/.env` | Live page shows the `dist/` versions and sha256 | M | A `deploy-site.yml` on push to `main` with an OIDC role scoped to the one bucket + distribution (deploy-chain PR, draft, Nick merges) |
+| S5 | Publish the site | CI (decided 2026-10-04) | `main` moved | `site/site.sh sync` from the laptop with `site/.env` | Live page shows the `dist/` versions and sha256 | M → A | **Decided: automate.** A `deploy-site.yml` on push to `main` with an OIDC role scoped to the one bucket + distribution (deploy-chain PR, draft, Nick merges) |
 | S6 | Datasheet / Quickstart PDFs | Claude | Page or version change | Local headless Chrome via `site/build.py --pdf`; a sha256 stamp fails CI until reprinted | One page; stamps match | M | A Playwright step in CI prints and commits the PDFs on `dev` (the stamp test then only guards drift) |
 | S7 | USB install stick | Builder | Kit ships | `scripts/urcap5-usb.sh` makes the FAT32 stick with the `.urcap` | Stick in the box, labelled with the version | M | Part of H3 |
 
@@ -145,18 +152,18 @@ without Nick.
 | I3 | Network | Customer | I2 | Robot gets 192.168.3.3 from the Pi's DHCP; pendant's Cockpit field defaults to 192.168.3.20 | Pendant shows the picture | A (by design, untested on a real robot) | — |
 | I4 | URCap install | Customer | I3 | Stick → Settings → System → URCaps → + → Restart (the auto-install file was removed 2026-10-08) | Node appears in the Program tab | M | — |
 | I5 | Calibrate | Customer | I4 | Installation node → hand-eye (touch-and-click, 4–6 views) | Doctor's hand-eye line green; a located point within 3 mm of the mark | M (touch-and-click verified 09-23; orbit never on the UR3e) | A one-tap "Calibrate" that runs the orbit and reports RMS, like the cockpit does |
-| I6 | Teach the part + tray | Customer | I5 | 3D Pick node: tap a part, check approach | Green parts, numbered | M (0.9.0 screens never on a pendant) | — |
-| I7 | Tend program | Us (Tend tier) | I6 | **Nothing today** — §5 | The template runs one full cycle with the machine | N | The template ships in the URCap; the install is filling six I/O fields |
+| I6 | Teach the part + tray | Customer | I5 | Pounce node: tap a part, check approach | Green parts, numbered | M (0.9.0 screens never on a pendant) | — |
+| I7 | Tend program | Us | I6 | **Nothing today** — §5 | The template runs one full cycle with the machine | N | The template ships in the URCap; the install is filling six I/O fields |
 | I8 | Acceptance | Us + customer | I7 | **Nothing today** | §7's acceptance test signed | N | A checklist on the pendant (the node's Test step) that writes the result to the Pi |
 
 ### 4.5 Keep it running
 
 | # | Step | Owner | Trigger | How (today) | Done when | A/M/N | To automate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| R1 | Know a cell is running | Us | Always | Nothing; the Pi has no internet by design | A morning report per cell | N | §6 — the Pi posts a daily summary + alerts to a plant-network mail/webhook the portal configures |
-| R2 | Diagnose a stop | Us | Alert | `GET /api/pick/log`, `captures/`, the audit log on the Pi; only over SSH on the same subnet | Cause named within an hour | M | The alert carries the last 20 events + the last picture; the portal has a "Send diagnostics" button that bundles them |
+| R1 | Know a cell is running | The customer | Always | Nothing | A shift report on the cockpit page, read at the machine | N | **No network beyond the robot (Nick).** The report is a page on the cockpit (`/report`): parts done, faults, longest cycle, camera health, version. Nothing leaves the cell. |
+| R2 | Diagnose a stop | Us, from what the customer sends | The customer calls | `GET /api/pick/log`, `captures/`, the audit log on the Pi; only over SSH on the same subnet | Cause named within an hour of receiving the bundle | M | A **Download diagnostics** button on the cockpit page that bundles the last 200 events, the pick log and the last pictures into one file the customer emails us. |
 | R3 | Fix and ship | Claude + Nick | Diagnosis | Normal PR flow + F5 | Cell updated | M | — |
-| R4 | Spares | Builder | Stock < 1 kit | H1 | A spare kit on the shelf for every 5 in the field | N | H1's routine |
+| R4 | Spares | Contract shop | Stock < 1 kit | H1 | A spare kit on the shelf for every 5 in the field | N | H1's routine |
 
 ---
 
@@ -164,7 +171,7 @@ without Nick.
 
 The pick stays what it is. Everything below is *around* it, in the customer's own program
 where Nick decided the gripper and the place belong (`site/public/quickstart-ur.html` §Program; decision
-2026-10-02 "3D Pick keeps its structure"). Build order is the order of risk.
+2026-10-02 "Pounce keeps its structure"). Build order is the order of risk.
 
 ### 5.1 Prove the pick on a pendant (before anything else)
 
@@ -186,7 +193,7 @@ top. It uses only what PolyScope 5.4 has, so the matrix covers it.
 ```
 Loop forever
   Open gripper                       ← customer's gripper node (Hand-E, OnRobot, pneumatic DO)
-  3D Pick (tray)                     ← ours, as today
+  Pounce (tray)                      ← ours, as today
   If rs_pick_found
     Close gripper
     Lift
@@ -224,6 +231,13 @@ Deliverables:
 - **Part-present proof.** After every close, read the gripper position (Hand-E reports it
   through the same socket `urctl gripper` uses; a pneumatic gripper gives a DI). A grip
   at full close = `part_lost`. Needs a `Gripper.status()` surface in the template.
+- **Re-pick when the grip missed** (Nick: "there will likely be a repick needed to ensure the
+  part is gripped reliably; a checkbox on the integration"). The node drives no gripper, so
+  the check is the camera's: with **Re-pick** ticked, the next Pounce first looks at the
+  last grip's spot; a part still lying there means the grip missed, and it is served again
+  (same part, fresh measurement) before the queue moves on. Pure perception, no gripper
+  feedback needed; the Hand-E's own position read (above) is the stronger check where a
+  Robotiq is fitted.
 - **Tray-empty stop** = `rs_pick_found == False` twice in a row from the picture point.
   Then halt with the popup. This is already what the node returns; the template makes it
   a clean stop instead of a loop.
@@ -234,30 +248,32 @@ Deliverables:
   part where it is and tells the operator which step it stopped in. No auto-resume into
   a machine.
 - **Resume** = Continue on the pendant from the Tray-empty popup; from any other fault,
-  the operator confirms the machine state first (a Yes/No popup per fault, the pattern
-  `urctl/guided.py` uses).
+  the operator confirms the machine state first (a Yes/No popup per fault, `Robot.confirm_on_pendant`).
 - **Cycle log** on the Pi: one JSON line per part (time, pick number, pose, grip
   position, machine cycle time, fault). `audit.jsonl` exists; it needs rotation
   (`deploy/pi/README.md` §Open items) and this record type.
 
-### 5.4 Alerts and the morning report (the only internet the Pi gets)
+### 5.4 Nothing leaves the cell (decided 2026-10-04)
 
-The Pi has no internet by design and stays that way on the cell port. The setup portal
-(PR #59) already lets the operator put the Pi's *second* interface on the plant network.
-Add to the portal: an SMTP relay or a webhook URL (Slack/Teams/Twilio), a test button.
+Nick: "No alerts, no outbound or inbound besides the robot." The pick PC's cell port is its
+only network; the setup portal is reached from that port. So:
 
-- **Alert** on every fault: cell name, fault, step, the last picture (`/api/color.png`),
-  the last 20 events. Sent by the cockpit process; nothing new listens.
-- **Morning report** at a time the operator sets: parts done, faults, longest cycle,
-  camera fps/temperature, free disk, version, "update available".
-- **Us**: the same report, if the customer opts in, to a mailbox a routine reads. That is
-  R1 and R2 without building a cloud.
+- **Faults** are the pendant popup (the fault vocabulary in §5.2) and the cockpit's events
+  and pick log. Nothing is sent anywhere.
+- **The shift report** is a page on the cockpit the operator reads at the machine in the
+  morning: parts done, faults with their step, longest cycle, camera fps/temperature, free
+  disk, version. Same numbers the alerts would have carried.
+- **Diagnostics** reach us the way the customer chooses: a **Download diagnostics** button
+  on the cockpit page bundles the last 200 events, the pick log and the last pictures into
+  one file they email. That is R1 and R2 with no cloud and no plant interface.
+- The portal keeps the plant-interface option for the customer's own network, but the
+  product never initiates a connection and nothing listens beyond :7621/:7622 on the cell.
 
 ### 5.5 Hardware for the shop floor
 
-- **Pi 4 vs Pi 5**: the BOM says Pi 4; only a Pi 5 has run. Time the detector on a Pi 4
-  (the datasheet's 0.9 s is a Pi 5 number) or change the BOM to the Pi 5 + its 5 A PSU.
-  One afternoon. (`BOM.md` §Not verified.)
+- **Pi 5, decided.** The BOM moves K1 to the Pi 5 + its 5 A PSU (the board every run so far
+  used; the datasheet's 0.9 s is its number). Industrial carriers (RevPi, CompuLab) are not
+  a worry yet (Nick).
 - **Enclosure**: the Pi in a DIN case in the customer's cabinet is fine; the D435 is not
   IP-rated. For coolant-mist cells, a printed shroud with a lens window is Rev D's job.
   Not for launch; say so on the datasheet ("dry cells").
@@ -278,9 +294,9 @@ Add to the portal: an SMTP relay or a webhook URL (Slack/Teams/Twilio), a test b
 3. `site/site.sh sync`: the any-robot page, 0.9.0 / 0.7.0 downloads, the Quickstart PDF,
    the one-page datasheet.
 4. Publish the Pi image `imager.json` from a real source on `main` (today it is on a wip branch).
-5. Beta terms on the site: free URCap, kit at the Find price, "Tend early access: install
-   dates from <month>". One email address, one form.
-6. This document reviewed by Nick → decisions in §10 made → kept at the root as the plan of record.
+5. Beta terms on the site: free URCap, the packaged kit at $2,500, "Tend early access opens
+   January 2027". One email address, one form.
+6. ~~This document reviewed by Nick → decisions in §10 made~~ ✔ 2026-10-04; it stays at the root as the plan of record.
 
 **Week 1 — prove it (§5.1).** Plug the UR3e in. One day on the pendant with the Pi. Fix
 what breaks (expect the DHCP lease and a pendant layout surprise).
@@ -290,17 +306,22 @@ Reprint the datasheet with measured numbers where the estimates were.
 vocabulary. No machine here: a "machine" is a box with a DI/DO breakout and a 20 s timer
 (a UR DO looped to a DI through a relay is enough). Fifty cycles unattended on the bench.
 
-**Weeks 4–6 — first Tend customer.** One shop, one machine, one part, a free install in
-exchange for a week of logs and a reference. Lights-out alerts (§5.4) ship to them first.
+**Weeks 4–6 — first Tend customer: OX Manufacturing.** One machine, one part, a free install
+in exchange for a week of logs and a reference. The re-pick and the shift report ship to them first.
 
-**Weeks 6–10 — Lights-out tier.** Part-present, bin-full, machine alarm, morning report.
-Second and third customers at the Tend price. The weekly routines take over H1/F1/S3.
+**Weeks 6–10 — Lights-out.** Part-present, bin-full, machine alarm, the shift report on the
+cockpit. Second and third customers. The routines take over H1/F1/S3/S5.
+
+**January 2027 — early access opens** (Nick): installs at shops beyond OX from then.
 
 **Quarter 2 — the second connector.** UFACTORY 850 on a real arm (the driver exists), then
 whichever vendor the first ten customers ask for. The template is URScript today; the
 second connector needs it expressed in that controller's language. That is when the
 `Controller` protocol grows `set_digital_output` / `wait_digital_input` (it has neither
 today, `urctl/controller.py`).
+On PolyScope X, the cockpit can also be packaged as a URCap backend container
+(`containers:` + `devices: video` + `services: urcontrol-primary`, `integrations/urcap/DEVELOPING.md`)
+so the pendant needs no external host; that is a quarter-2 packaging job, not a product tier.
 
 ---
 
@@ -328,26 +349,25 @@ today, `urctl/controller.py`).
    covers the tending program" in the Tend terms, and keep the machine-side I/O design
    with the customer's electrician, not us.
 4. **Unauthenticated :7621/:7622 and unsigned update bundles** (Nick's decision, noted).
-   Fine on an isolated cell port; the moment the plant interface goes on (§5.4), the
-   portal login is the only lock. Minimum before Lights-out ships: a forced password
-   change on first login, rate-limited; bundles stay checksum-only unless Nick says otherwise.
-5. **One person.** Every row in §4 is Nick until a Builder exists. The routines (H1, F1,
-   S3, R1) are how Nick does not become the bottleneck; the Builder is the first hire,
-   part-time, once 5 kits a month ship.
-6. **The Pi 4.** Untested; swap to the Pi 5 if the detector is > 2 s there. Cheap to decide.
-7. **PolyScope X parity.** The X node is still the 0.8.0 layout. UR20 and new e-Series
+   The cell port is the only network (§5.4), so the exposure is whoever is on the cell
+   switch. Decided 2026-10-04: a **forced password change on the portal's first login**;
+   bundles stay checksum-only.
+5. **One person.** Every row in §4 is Nick until the Builder exists; decided: it **starts
+   with a contract print/assembly shop** (H2–H5, R4), and the routines (H1, F1, S3, S5) are
+   how Nick does not become the bottleneck.
+6. **PolyScope X parity.** The X node is still the 0.8.0 layout. UR20 and new e-Series
    ship on X; a Find customer on X gets the older screen until parity (standing rule).
 
 ---
 
 ## 9. What launches tomorrow, exactly
 
-- `main` = everything in `dev` tonight (3D Pick 0.9.0, pick PC image + setup portal,
+- `main` = everything in `dev` tonight (the 0.9.0 URCap, pick PC image + setup portal,
   UFACTORY 850, bracket Rev C, any-robot site).
 - Releases `urcap5-v0.9.0`, `urcapx-v0.7.0`, the Pi image on `imager.json`.
 - perceptronics.advin.io: any-robot pitch, UR connector downloads, Quickstart PDF,
-  one-page datasheet, **a Tend / Lights-out section that says "early access, installs from
-  <date>"** and asks for robot, PolyScope version, machine, part.
+  one-page datasheet, **a Tend / Lights-out section that says "early access opens January
+  2027"** and asks for robot, PolyScope version, machine, part. The kit at $2,500.
 - This file, reviewed.
 
 Not tomorrow, and the site must not imply it: a pick verified on a pendant, a tending
@@ -355,28 +375,39 @@ program, alerts, or any cell running unattended.
 
 ---
 
-## 10. Decisions for Nick (answer in place; this is the only list)
+## 10. Decisions — answered by Nick, 2026-10-04 (verbatim; folded into the sections above)
 
 1. **Prices** (§3): Find kit $1,950? Tend install $2,500 + $150/mo? Lights-out +$100/mo?
    Or a single price and no subscription?
+Answer: Single price with no subscription, $2.5k if you make me package it for you.
 2. **Launch wording**: "beta" on the Find kit, "early access" on Tend — yes? What date
    goes on "installs from"?
+Answer: Early access opens the beginning of 2027
 3. **Pi 4 or Pi 5** for the kit (§5.5). My recommendation: Pi 5 + the 5 A PSU; the Pi 4
    saves $25 and costs a validation we have not done.
+Answer: Pi 5, not worried about industrial kits yet.
 4. **Tend lives in the customer's program** (template, §5.2) — confirmed? The alternative
    is a second node ("Place") that does the machine side; it is nicer on screen and much
    more code, and it ties us to every machine's quirks.
+Answer: Confirmed, all we do is get the part in the gripper, BUT there will likely be a repick needed to ensue the part is gripped reliably. This can be a checkbox as well on the integration.
 5. **Alerts off the plant network** (§5.4): SMTP + webhook in the portal, opt-in copy to
    us — acceptable? This is the first time the Pi talks outbound.
+Answer: No alerts no outbound or inbound besides the robot.
 6. **Forced password change on first portal login** before the plant interface is enabled
    — yes? (Bundles stay unsigned per your 2026-10-03 decision.)
+Answer: Yes force a password change
 7. **The first Tend customer**: a shop you already know, free install for logs and a
    reference. Who?
-8. **Name**: "3D Pick" vs "Perceive" (TODO 10-02) — decide before the 1.0 URCap with the
+Answer: OX Manufacturing
+8. **Name**: "Pounce" vs "Perceive" (TODO 10-02) — decide before the 1.0 URCap with the
    I/O screen, since the template and the docs will say it everywhere.
+Answer: Perceive is the name of the tool and Pounce is what we'll call the approach.
 9. **Site deploy from CI** (S5) and **image build on a self-hosted runner** (F1): both are
    deploy-chain changes; draft PRs for you to merge, or leave manual for the first ten kits?
+Answer: Automate the deployment
 10. **The Builder** (§8.5): when, and is it a person or a contract print/assembly shop?
+Answer: It will start with a contract shop.
 
-Everything else in this plan Claude can start on the morning after you answer, in the
-order of §6, one PR per row of §4 that says "to automate".
+Folded in on 2026-10-04: §3 (one price, the names), §4 (F1/F2/S5 automated, the contract shop,
+R1/R2 without a network), §5.3 (re-pick), §5.4 (nothing leaves the cell), §5.5 (Pi 5), §6
+(OX Manufacturing, January 2027), §8. The work is in TODO.md.

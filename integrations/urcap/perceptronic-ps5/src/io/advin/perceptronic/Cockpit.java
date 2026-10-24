@@ -324,10 +324,9 @@ final class Cockpit {
         StringBuilder b = new StringBuilder();
         b.append("object  base ").append(fmtVec(loc.get("point_base_m"))).append(" m  (")
                 .append(fmt(loc.get("point_distance_m"), 2)).append(" m from the base)\n");
-        if ("fingertip".equals(loc.get("reference"))) {
-            b.append("fingertips ").append(fmtVec(loc.get("approach_pose"))).append("  ")
-                    .append(fmt(loc.get("standoff_m"), 3)).append(" m above the object (tool ")
-                    .append(fmt(loc.get("tip_m"), 3)).append(" m)\n");
+        if ("tcp".equals(loc.get("reference"))) {
+            b.append("tool     ").append(fmtVec(loc.get("approach_pose"))).append("  ")
+                    .append(fmt(loc.get("standoff_m"), 3)).append(" m above the object (the robot's TCP)\n");
         } else if ("flange".equals(loc.get("reference")) && loc.get("flange_target_pose") instanceof List) {
             b.append("flange   ").append(fmtVec(loc.get("flange_target_pose"))).append("  standoff ")
                     .append(fmt(loc.get("standoff_m"), 2)).append(" m above the object\n");

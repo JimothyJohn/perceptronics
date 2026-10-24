@@ -1373,7 +1373,7 @@ class Robot:
         these ``request_*_from_primary_client`` calls are "useful in wizards").
         The controller's dialog (``RequestDialogCreatorImpl.popupYesNoCancelDialog``)
         carries three buttons. This is the human-in-the-loop gate behind
-        :class:`urctl.guided.GuidedSession`: announce intent on the robot, let
+        a guided build: announce intent on the robot, let
         the operator approve it there, then act.
 
         ``result['confirmed']`` is ``True`` (Yes), ``False`` (No), or ``None``.

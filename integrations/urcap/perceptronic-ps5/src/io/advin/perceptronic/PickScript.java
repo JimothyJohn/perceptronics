@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The URScript a 3D Pick node contributes — generated here with no UR API, so it is tested on
+ * The URScript a Pounce node contributes — generated here with no UR API, so it is tested on
  * any JDK — and the node's settings (one table, {@link #NUMBERS}: key, default, limits,
  * label; the Options screen and the data model both read it).
  *
@@ -20,7 +20,10 @@ import java.util.Map;
  * client:
  *
  * <ol>
- *   <li>force the TCP to the flange (the pick server answers in flange poses);</li>
+ *   <li>read the operator's active TCP ({@code get_tcp_offset()}): it rides every request as
+ *       {@code tcp=} and the pick server answers in that frame — the node has no tool length
+ *       of its own (0.10.0, Nick 2026-10-08: "You must only use tool offsets inside of the
+ *       robot not your own"); protocol 3;</li>
  *   <li>ask the pick server {@code NEXT}: a part it already saw at a picture point (the arm
  *       then goes straight to the closer look over it — no trip back for a picture) or the
  *       picture point to look from;</li>
@@ -28,25 +31,28 @@ import java.util.Map;
  *       server finds the parts by their volume, keeps those the arm's kinematics reach and
  *       that have the finger room asked for, numbers them in the chosen order and answers
  *       the first; an empty picture point sends the arm on to the next one;</li>
- *   <li>the closer look, unless switched off ({@code LOOK}: the camera halfway to the part,
- *       the part clear of the gripper in the picture) and {@code REFINE} — straight down,
- *       then leaned 12° and 24° while the controller's own IK can't solve approach + grip.
- *       With the closer look off every part is measured from its picture point;</li>
- *   <li>the approach — fingertips {@code approachMm} over the part's top — and down to the
- *       grip: the fingers across the part's short side, or its long one;</li>
- *   <li>the result variable is True once the tool is at the grip, the location variable says
- *       which picture point the part came from, and the operator's TCP is back. Anything
- *       that stops short says why in a popup.</li>
+ *   <li>the closer look, when switched on (off by default since 0.10.0: {@code LOOK}, the
+ *       camera halfway to the part) and {@code REFINE} — straight down, then leaned 12° and
+ *       24° while the controller's own IK can't solve approach + grip. Without the closer
+ *       look every part is measured from its picture point;</li>
+ *   <li>the approach — the TCP {@code approachMm} over the part's top — and down to the
+ *       grip: the fingers across the part's short side, or its long one. Every move is a
+ *       plain {@code movej} to an absolute target at the controller's own defaults, so the
+ *       pendant's speed slider is the speed (Nick, 2026-10-08: "inherit from a MoveJ ... the
+ *       robot will not be obstructed in its path and can take the fastest route");</li>
+ *   <li>the result variable is True once the tool is at the grip and the location variable
+ *       says which picture point the part came from. Anything that stops short says why in
+ *       a popup.</li>
  * </ol>
  */
 final class PickScript {
-    static final String VERSION = "0.9.1";
+    static final String VERSION = "0.11.0";
+    static final int PROTOCOL = 3; // the pick server's: the TCP offset rides every request
     static final int DEFAULT_PICK_PORT = 7622;
     static final String SOCKET = "rs_pick";
     static final int MAX_POINTS = 12;
     static final String[] ORDERS = {"LR", "RL", "FB", "BF"};
     static final String[] SHAPES = {"box", "cyl"};
-    static final double SPEED = 0.6; // of the node's own joint / linear limits
     static final double SETTLE_S = 0.2; // before each picture
     static final int MAX_ATTEMPTS = 3; // grasps per run
     /** How wide the open fingers are taken to be when the closer look keeps the part clear of them (mm). */
@@ -67,6 +73,7 @@ final class PickScript {
         {"-11", "no room for the open fingers beside any part"},
         {"-12", "the parts in view are outside the pick area"},
         {"-13", "the only part in view is cut off by the edge of the picture"},
+        {"-14", "this node is older than the camera computer - update the Perceptronic URCap"},
     };
 
     /** One number the operator can set: where it lives, what it is, what it may be. */
@@ -143,7 +150,7 @@ final class PickScript {
     /** A box: the fingers close across its long side instead of its short one. */
     boolean gripLongSide = false;
     /** Move in for a second, closer measurement before the approach. */
-    boolean closeLook = true;
+    boolean closeLook = false; // off by default since 0.10.0 (Nick, 2026-10-08: "not helping anything")
     /** PolyScope's name for the arm ("UR3"): the pick server asks its kinematics what is in reach. "": not sent. */
     String arm = "";
     boolean popupOnFail = true;
@@ -200,7 +207,7 @@ final class PickScript {
 
     /** Why the node cannot generate a program yet, or null when it can. */
     String problem() {
-        if (host.isEmpty()) return "set the camera computer's address in Installation → URCaps → Perceptronic";
+        if (host.isEmpty()) return "set the camera computer's address in Installation → URCaps → Perceive";
         if (!host.matches("[A-Za-z0-9.:\\-]+")) return "the camera computer's host \"" + host + "\" is not an address";
         if (port < 1 || port > 65535) return "the pick port must be 1..65535";
         if (!nodeId.matches("[0-9a-f]{1,12}")) return "the node has no identity yet - open it once";
@@ -281,7 +288,7 @@ final class PickScript {
         }
         b.append(" node=").append(nodeId);
         if (i >= 0) b.append(" loc=").append(i + 1);
-        b.append(" locs=").append(Math.max(1, points.size())).append(" proto=2");
+        b.append(" locs=").append(Math.max(1, points.size())).append(" proto=").append(PROTOCOL);
         return b.toString();
     }
 
@@ -351,14 +358,10 @@ final class PickScript {
         List<String> s = new ArrayList<String>();
         int np = points.size();
         int budget = np + MAX_ATTEMPTS + 1;
-        String jv = f2(1.05 * SPEED);
-        String ja = f2(1.4 * SPEED);
-        String lv = f2(0.25 * SPEED);
-        String la = f2(0.6 * SPEED);
         String settle = f2(SETTLE_S);
-        s.add("# 3D Pick " + VERSION + " - camera computer " + host + ":" + port + " - part " + partText()
+        s.add("# Pounce " + VERSION + " - camera computer " + host + ":" + port + " - part " + partText()
                 + " - " + orderText(orderFirst, orderRows) + " - " + np + " picture point" + (np == 1 ? "" : "s")
-                + (closeLook ? "" : " - no closer look")
+                + (closeLook ? " - closer look" : "")
                 + (gripCheck ? " - finger room " + num(n("fingerRoomMm")) + " mm" : " - no grip check")
                 + (gripLongSide && !round() ? " - across the long side" : ""));
         if (!ikCheck()) {
@@ -367,20 +370,19 @@ final class PickScript {
         }
         s.add(foundVariable + " = False");
         s.add(locVariable + " = 0");
-        s.add("rs_tcp0 = get_tcp_offset()");
-        s.add("set_tcp(p[0, 0, 0, 0, 0, 0])");
+        s.add("rs_tcp = str_cat(\" tcp=\", to_str(get_tcp_offset()))");
         s.add("rs_why = \"no answer from the camera computer within 10 s\"");
         s.add("rs_try = 0");
         s.add("rs_ok = True");
         s.add("rs_loc = 1");
         s.add("rs_tok = \"\"");
         s.add("if socket_open(\"" + host + "\", " + port + ", \"" + SOCKET + "\"):");
-        say(s, "  ", "start, flange ", "get_actual_tcp_pose()", true);
+        say(s, "  ", "start, tool ", "get_actual_tcp_pose()", true);
         say(s, "  ", "looking for " + partText(), null, true);
         s.add("  while (rs_ok) and (rs_try < " + budget + ") and (" + foundVariable + " == False):");
         s.add("    rs_try = rs_try + 1");
-        s.add("    socket_send_line(str_cat(\"NEXT \", str_cat(to_str(get_actual_tcp_pose()), \" node=" + nodeId
-                + " locs=" + np + " proto=2\")), \"" + SOCKET + "\")");
+        s.add("    socket_send_line(str_cat(\"NEXT \", str_cat(to_str(get_actual_tcp_pose()), str_cat(\" node=" + nodeId
+                + " locs=" + np + " proto=" + PROTOCOL + "\", rs_tcp))), \"" + SOCKET + "\")");
         read16(s, "    ");
         s.add("    if rs_r[0] == 16:");
         s.add("      rs_loc = floor(rs_r[11] + 0.5)");
@@ -397,19 +399,20 @@ final class PickScript {
             s.add("    if rs_st == 1:");
             say(s, "      ", "next part already seen, #", "rs_r[12]", true);
             s.add("    else:");
-            survey(s, "      ", ja, jv, settle);
+            survey(s, "      ", settle);
             s.add("    end");
         } else {
             // every part is measured from its picture point: the parts queued at the last one
             // were seen from there too, but the arm is no longer where it could look again
-            survey(s, "    ", ja, jv, settle);
+            survey(s, "    ", settle);
         }
         s.add("    if rs_st == 1:");
         s.add("      rs_c = p[rs_r[2], rs_r[3], rs_r[4], 0, 0, 0]");
         s.add("      rs_top = p[rs_r[5], rs_r[6], rs_r[7], rs_r[8], rs_r[9], rs_r[10]]");
         if (closeLook) {
             s.add("      socket_send_line(str_cat(\"LOOK \", str_cat(to_str(get_actual_tcp_pose()), str_cat(\" \","
-                    + " str_cat(to_str(rs_c), \" stroke=" + num(LOOK_STROKE_MM) + "\")))), \"" + SOCKET + "\")");
+                    + " str_cat(to_str(rs_c), str_cat(\" stroke=" + num(LOOK_STROKE_MM) + " proto=" + PROTOCOL
+                    + "\", rs_tcp))))), \"" + SOCKET + "\")");
             // its own list: up to PolyScope 5.14 a list keeps its first size ("Resizing of 'List' is
             // not supported" when rs_r took 10 numbers after 16 — URControl.log of 5.9.4 .. 5.14.6 in
             // the matrix, 2026-09-29; 5.15.2 on resize it)
@@ -428,7 +431,7 @@ final class PickScript {
                 s.add("      end");
             }
             s.add("      if rs_see:");
-            s.add("        movej(get_inverse_kin(rs_look, get_actual_joint_positions()), a=" + ja + ", v=" + jv + ")");
+            s.add("        movej(get_inverse_kin(rs_look, get_actual_joint_positions()))");
             s.add("        sleep(" + settle + ")");
             say(s, "        ", "closer look ", "rs_look", true);
             s.add("      else:");
@@ -441,8 +444,8 @@ final class PickScript {
         s.add("      rs_rs = -8");
         s.add("      while (rs_lean < 3) and (rs_go == False):");
         s.add("        socket_send_line(str_cat(\"REFINE \", str_cat(to_str(get_actual_tcp_pose()), str_cat(\" \","
-                + " str_cat(to_str(rs_c), str_cat(rs_tok, str_cat(\" lean=\", to_str(rs_leans[rs_lean]))))))), \""
-                + SOCKET + "\")");
+                + " str_cat(to_str(rs_c), str_cat(rs_tok, str_cat(rs_tcp, str_cat(\" lean=\","
+                + " to_str(rs_leans[rs_lean])))))))), \"" + SOCKET + "\")");
         s.add("        rs_r = socket_read_ascii_float(16, \"" + SOCKET + "\", 10)");
         s.add("        rs_rs = -8");
         s.add("        if rs_r[0] == 16:");
@@ -472,9 +475,9 @@ final class PickScript {
         s.add("      end");
         s.add("      if rs_go:");
         say(s, "        ", "approach ", "rs_hover", true);
-        s.add("        movel(rs_hover, a=" + la + ", v=" + lv + ")");
+        s.add("        movej(get_inverse_kin(rs_hover, get_actual_joint_positions()))");
         say(s, "        ", "down to the grip ", "rs_grip", true);
-        s.add("        movel(rs_grip, a=0.3, v=0.05)");
+        s.add("        movej(get_inverse_kin(rs_grip, get_actual_joint_positions()))");
         s.add("        " + foundVariable + " = True");
         s.add("        " + locVariable + " = rs_loc");
         say(s, "        ", "at the grip, part from point ", "rs_loc", true);
@@ -488,35 +491,34 @@ final class PickScript {
         s.add("    end");
         s.add("  end");
         s.add("  if " + foundVariable + " == False:");
-        s.add("    textmsg(\"3D Pick: no pick - \", rs_why)");
+        s.add("    textmsg(\"Pounce: no pick - \", rs_why)");
         s.add("    socket_send_line(str_cat(\"LOG no pick - \", rs_why), \"" + SOCKET + "\")");
         s.add("  end");
         s.add("  socket_close(\"" + SOCKET + "\")");
         s.add("else:");
         s.add("  rs_why = \"no camera computer at " + host + ":" + port
                 + " - is it on, and is the address in Installation > Perceptronic right?\"");
-        s.add("  textmsg(\"3D Pick: \", rs_why)");
+        s.add("  textmsg(\"Pounce: \", rs_why)");
         s.add("end");
-        s.add("set_tcp(rs_tcp0)");
         if (popupOnFail) {
             s.add("if " + foundVariable + " == False:");
-            s.add("  popup(str_cat(\"3D Pick: no pick - \", rs_why), \"3D Pick\", False, True, blocking=True)");
+            s.add("  popup(str_cat(\"Pounce: no pick - \", rs_why), \"Pounce\", False, True, blocking=True)");
             s.add("end");
         }
         return s;
     }
 
     /** The survey: to picture point {@code rs_loc}, settle, FIND. */
-    private void survey(List<String> s, String in, String ja, String jv, String settle) {
+    private void survey(List<String> s, String in, String settle) {
         for (int i = 0; i < points.size(); i++) {
             s.add(in + (i == 0 ? "if" : "elif") + " rs_loc == " + (i + 1) + ":");
-            s.add(in + "  movej(" + joints(points.get(i).joints) + ", a=" + ja + ", v=" + jv + ")");
+            s.add(in + "  movej(" + joints(points.get(i).joints) + ")");
         }
         s.add(in + "end");
         s.add(in + "sleep(" + settle + ")");
         say(s, in, "survey at point ", "rs_loc", true);
-        s.add(in + "socket_send_line(str_cat(\"FIND \", str_cat(to_str(get_actual_tcp_pose()), rs_tok)), \""
-                + SOCKET + "\")");
+        s.add(in + "socket_send_line(str_cat(\"FIND \", str_cat(to_str(get_actual_tcp_pose()), str_cat(rs_tok, rs_tcp))),"
+                + " \"" + SOCKET + "\")");
         read16(s, in);
         say(s, in, "FIND status ", "rs_st", true);
         s.add(in + "if rs_st != 1:");
@@ -562,7 +564,7 @@ final class PickScript {
      */
     private static void say(List<String> s, String indent, String text, String value, boolean socket) {
         String v = value == null ? "\"\"" : value;
-        s.add(indent + "textmsg(\"3D Pick: " + text + "\", " + v + ")");
+        s.add(indent + "textmsg(\"Pounce: " + text + "\", " + v + ")");
         if (socket) {
             String line = value == null ? "\"LOG " + text + "\"" : "str_cat(\"LOG " + text + "\", to_str(" + value + "))";
             s.add(indent + "socket_send_line(" + line + ", \"" + SOCKET + "\")");

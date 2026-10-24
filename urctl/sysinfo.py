@@ -7,8 +7,7 @@ whether the kinematic calibration still matches the installed joints, what
 programs and installations exist, how full the eMMC is, what the controller
 logged at boot. This module reads that layer.
 
-Access is through a *runner* — the same pattern as :mod:`urctl.guided`'s
-placers, in reverse:
+Access is through a *runner* — a placer in reverse:
 
   * :class:`SshRunner` — a real e-Series (sshd on :22 is the only file surface
     a real robot has; enroll a key or set ``SSHPASS``).
@@ -78,7 +77,6 @@ class SshRunner:
 
     Uses ``BatchMode`` so a missing key fails fast instead of hanging on a
     password prompt; if ``SSHPASS`` is set, ``sshpass -e`` is used instead
-    (mirroring :func:`urctl.guided.scp_placer`).
     """
 
     host: str

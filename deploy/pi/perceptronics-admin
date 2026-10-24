@@ -558,13 +558,15 @@ def _check_login(url: str, headers: dict) -> None:
     The cockpit answers a refused upload without reading its body and closes, so a client
     still sending the bundle sees a reset (Windows: WinError 10053/10054) instead of the 401."""
     try:
-        _get_status(url, headers)
+        st = _get_status(url, headers)
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
             raise AdminError(LOGIN_REFUSED) from None
         raise AdminError(f"{url}: HTTP {exc.code} from the setup portal") from None
     except OSError as exc:
         raise AdminError(f"{url}: {exc.reason if isinstance(exc, urllib.error.URLError) else exc}") from None
+    if st.get("password_required"):
+        raise AdminError(f"the setup portal still has its factory login: set a password at {url}/setup first")
 
 
 def push(bundle: Path, url: str, user: str, password: str, timeout_s: float = 1800.0) -> int:

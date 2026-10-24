@@ -3,7 +3,7 @@
 // `robotSettings` and `robotContext` on it (SDK 6.5.65 JavaScript template).
 //
 // Two tabs, so nothing scrolls: Camera (the feed and the moves) and Pick areas (the areas
-// the 3D Pick node looks at, on a map of the arm's reach).
+// the Pounce node looks at, on a map of the arm's reach).
 //
 // The page talks to the RealSense cockpit (`perceptronics gui --cors <this origin>`)
 // over its HTTP API: the colour feed is `GET /api/color.png` long-polled by
@@ -58,6 +58,7 @@
     .rsp .stage .nocam > div { max-width: 90%; padding: 12px 18px; border: 3px solid #d64545; border-radius: 14px; background: #0d131a; color: #c9d3de; font-size: 13px; white-space: pre-wrap; }
     .rsp .stage .nocam b { display: block; color: #fff; font-size: 20px; text-align: center; margin-bottom: 6px; }
     .rsp .tabs { display: inline-flex; margin-left: auto; }
+    .rsp pre.log { margin: 0; padding: 8px 10px; border-radius: 6px; background: #eef2f7; font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
     .rsp .tabs button { border-radius: 0; font-size: 14px; font-weight: 600; } .rsp .tabs button:first-child { border-radius: 6px 0 0 6px; } .rsp .tabs button:last-child { border-radius: 0 6px 6px 0; }
     .rsp .tabs button.on { background: #1f5fbf; color: #fff; border-color: #1f5fbf; }
     .rsp .two { display: flex; gap: 16px; align-items: flex-start; }
@@ -178,6 +179,8 @@
   const withTimeout = (p, ms, why) =>
     Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error(why)), ms))]);
 
+  const LOG_KEEP = 50;
+
   class Perceptronic extends HTMLElement {
     // PolyScope's IK solves for *PolyScope's* active TCP, which is not the TCP the cockpit's
     // controller reported (a different robot while testing in the sim; a stale training
@@ -205,6 +208,7 @@
       this._lib = null;
       this._modelAsked = false;
       this._tab = "camera";
+      this._log = [];  // the last LOG_KEEP lines, newest first (the Log tab; the console sees them too)
       this._depth = false; // the picture's toggle: the depth as a heatmap
       this._logged = "";
       this._colourWidth = 0;
@@ -322,8 +326,8 @@
         this.innerHTML = `
           <style>${CSS}</style>
           <div class="rsp">
-            <h2><span class="dot" data-rsp="dot"></span> Perceptronic <small data-rsp="fps"></small>
-              <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button></span>
+            <h2><span class="dot" data-rsp="dot"></span> Perceive <small data-rsp="fps"></small>
+              <span class="tabs" data-rsp="tabs"><button data-tab="camera" class="on">Camera</button><button data-tab="areas">Pick areas</button><button data-tab="log">Log</button></span>
             </h2>
             <div data-rsp="tab-camera" class="cam">
             <div class="ctl">
@@ -354,17 +358,21 @@
             </div>
             <div class="two hidden" data-rsp="tab-areas">
               <div class="card" data-rsp="areas-card">
-                <h3>Pick areas <small>for the 3D Pick node — touch the table with the fingertips at a corner, along one edge, and on the far side</small></h3>
+                <h3>Pick areas <small>for the Pounce node — touch the table with the tool (its TCP, as set on the pendant) at a corner, along one edge, and on the far side</small></h3>
                 <div data-rsp="areas"></div>
                 <div class="row"><button data-rsp="area-add">New area</button> <small data-rsp="areas-note"></small></div>
               </div>
               <div class="card reach-card" data-rsp="reach-card">
                 <h3>The arm's reach <small data-rsp="reach-model"></small></h3>
                 <div class="reach-map" data-rsp="reach-map"></div>
-                <div class="row">
-                  <label>Tool length <input type="text" inputmode="numeric" data-rsp="tipMm" /> mm</label>
-                </div>
                 <small data-rsp="reach-text"></small>
+              </div>
+            </div>
+            <div class="hidden" data-rsp="tab-log">
+              <div class="card">
+                <h3>Log <small>the last ${LOG_KEEP} lines this node logged, newest first</small></h3>
+                <pre class="log" data-rsp="log">nothing logged yet</pre>
+                <div class="row"><button data-rsp="log-refresh">Refresh</button> <button data-rsp="log-copy">Copy</button> <small data-rsp="log-note"></small></div>
               </div>
             </div>
           </div>`;
@@ -389,10 +397,14 @@
       this.$("bringup").addEventListener("click", () => this.bringUp());
       this.$("stop").addEventListener("click", () => this.stop());
       this.$("clear").addEventListener("click", () => this.clearTarget());
+      this.$("log-refresh").addEventListener("click", () => this.renderLog());
+      this.$("log-copy").addEventListener("click", () => this.copyLog());
       this.$("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
         this._tab = b.dataset.tab;
         this.$("tab-camera").classList.toggle("hidden", this._tab !== "camera");
         this.$("tab-areas").classList.toggle("hidden", this._tab !== "areas");
+        this.$("tab-log").classList.toggle("hidden", this._tab !== "log");
+        if (this._tab === "log") this.renderLog();
         this.$("tabs").querySelectorAll("button").forEach((t) => t.classList.toggle("on", t.dataset.tab === this._tab));
       }));
       // the Picture / Depth toggle, inside the picture's frame
@@ -419,7 +431,7 @@
       }
     }
 
-    // -- pick areas (what the 3D Pick program node reads from this node), on the arm's reach ---------
+    // -- pick areas (what the Pounce program node reads from this node), on the arm's reach ---------
     async startAreas() {
       try {
         this._lib = await loadLib();
@@ -428,12 +440,6 @@
         return;
       }
       this.$("area-add").addEventListener("click", () => this.areaAdd());
-      this.$("tipMm").addEventListener("change", (ev) => {
-        const v = Math.round(parseFloat(String(ev.target.value).replace(",", ".")));
-        this._node.tipMm = Number.isFinite(v) ? Math.max(0, Math.min(500, v)) : this._node.tipMm;
-        this.persist();
-        this.syncAreas();
-      });
       this.syncAreas();
       await this.askRobotModel();
     }
@@ -458,7 +464,6 @@
       if (!P || !this._built) return;
       const node = this._node;
       const areas = Array.isArray(node.areas) ? node.areas : (node.areas = []);
-      const tip = Number.isFinite(node.tipMm) ? node.tipMm : P.DEFAULT_TIP_MM;
       const box = this.$("areas");
       box.innerHTML = "";
       areas.forEach((a, i) => {
@@ -483,7 +488,7 @@
           plane.textContent = "the three touches are in a line or too close — touch a corner, along one edge, and the far side";
           plane.className = "plane warn";
         } else {
-          plane.textContent = `touch ${missing} more point${missing === 1 ? "" : "s"} with the fingertips (${tip} mm past the flange)`;
+          plane.textContent = `touch ${missing} more point${missing === 1 ? "" : "s"} with the tool (the robot's TCP)`;
         }
         row.querySelector("input").addEventListener("change", (ev) => {
           const name = String(ev.target.value).replace(/[^A-Za-z0-9 ._-]/g, "").trim().slice(0, 24);
@@ -495,7 +500,6 @@
       });
       this.$("area-add").disabled = areas.length >= P.MAX_AREAS;
       this.$("areas-note").textContent = areas.length ? "" : "no pick area yet: the Pick node finds the table live";
-      this.$("tipMm").value = String(Number.isFinite(node.tipMm) ? node.tipMm : P.DEFAULT_TIP_MM);
       const model = node.robotModel || "";
       const mr = P.modelReach(model);
       const baseR = mr ? mr[0] : 0.064;
@@ -526,7 +530,9 @@
       this.setStatus("area removed — check the picture points of any Pick node that used it", "warn");
     }
 
-    // A touch: PolyScope's joint positions → its DH table → the flange → the fingertips (tipMm along +Z).
+    // A touch: the pose of PolyScope's active TCP — the tool as the pendant has it (0.8.0, Nick
+    // 2026-10-08: the node carries no tool length). convertJointPositionsToTcpPose is 10.10+;
+    // before that the TCP is taken at the flange (joints → PolyScope's DH table).
     async touch(i, key) {
       const P = this._lib;
       const rps = this._api && this._api.robotPositionService;
@@ -538,12 +544,18 @@
         const q = await withTimeout(firstValue(rps.getJointPositions()), 5000, "no joint positions from PolyScope in 5 s");
         const dh = await withTimeout(rps.getKinematicInfo(), 5000, "no kinematic info from PolyScope in 5 s");
         const qa = Array.isArray(q) ? q.map(Number) : ["base", "shoulder", "elbow", "wrist1", "wrist2", "wrist3"].map((k) => Number(q[k]));
-        const flange = matToPose(flangeMat(dh, qa));
-        const tip = P.fingertip(flange, Number.isFinite(this._node.tipMm) ? this._node.tipMm : P.DEFAULT_TIP_MM);
+        let tip, how = "the robot's TCP";
+        if (typeof rps.convertJointPositionsToTcpPose === "function") {
+          const t = await withTimeout(rps.convertJointPositionsToTcpPose(q), 5000, "no TCP pose from PolyScope in 5 s");
+          tip = [...t.position].slice(0, 3);
+        } else {
+          tip = matToPose(flangeMat(dh, qa)).slice(0, 3);
+          how = "the flange: this PolyScope can't report its TCP";
+        }
         this._node.areas[i][key] = tip.map((v) => Math.round(v * 1e5) / 1e5);
         await this.persist();
         this.syncAreas();
-        this.setStatus(`${this._node.areas[i].name}: ${key === "p0" ? "corner" : key === "p1" ? "edge" : "far side"} at [${fmtVec(tip)}] m (fingertips)`, "ok");
+        this.setStatus(`${this._node.areas[i].name}: ${key === "p0" ? "corner" : key === "p1" ? "edge" : "far side"} at [${fmtVec(tip)}] m (${how})`, "ok");
       } catch (err) {
         this.setStatus(`touch: ${err && err.message ? err.message : err}`, "err");
       }
@@ -610,7 +622,7 @@
             // a camera computer older than 0.7.0 has no heatmap: the picture instead
             this._depth = false;
             this.$("view").querySelectorAll("button").forEach((t) => t.classList.toggle("on", t.dataset.view === "picture"));
-            console.warn(`Perceptronic: ${this.cockpitUrl()} answered 404 on /api/depth.png: it predates the depth view; update it`);
+            this.log(`${this.cockpitUrl()} answered 404 on /api/depth.png: it predates the depth view; update it`);
             continue;
           }
           if (!r.ok) {
@@ -666,7 +678,33 @@
       this.setStatus(text, level);
       if (detail !== this._logged) {
         this._logged = detail;
-        console.warn(`Perceptronic: ${detail}`);
+        this.log(detail);
+      }
+    }
+
+    // -- the Log tab (Nick, 2026-10-04: a pendant has no console) --------------------------------
+
+    /** One line of detail, newest first, the same line twice in a row written once. */
+    log(detail) {
+      if (!detail || this._log[0] === detail) return;
+      this._log.unshift(detail);
+      if (this._log.length > LOG_KEEP) this._log.length = LOG_KEEP;
+      console.warn(`Perceptronic: ${detail}`);
+      if (this._built && this._tab === "log") this.renderLog();
+    }
+
+    renderLog() {
+      const pre = this.$("log");
+      if (pre) pre.textContent = this._log.length ? this._log.join("\n") : "nothing logged yet";
+    }
+
+    async copyLog() {
+      const note = this.$("log-note");
+      try {
+        await navigator.clipboard.writeText(this._log.join("\n"));
+        if (note) note.textContent = "copied";
+      } catch (e) {
+        if (note) note.textContent = "copy is not available here: select the text instead";
       }
     }
 
@@ -729,8 +767,8 @@
         const reach = loc.reachable === false ? "OUT OF REACH" : loc.reachable === true ? "reachable" : "reach unknown";
         this.$("target").textContent =
           `object  base ${fmtVec(loc.point_base_m)} m  (${fmt(loc.point_distance_m, 2)} m from the base)\n` +
-          (loc.reference === "fingertip"
-            ? `fingertips ${fmtVec(loc.approach_pose)}  ${fmt(loc.standoff_m, 3)} m above the object (tool ${fmt(loc.tip_m, 3)} m)\n`
+          (loc.reference === "tcp"
+            ? `tool     ${fmtVec(loc.approach_pose)}  ${fmt(loc.standoff_m, 3)} m above the object (the robot's TCP)\n`
             : loc.reference === "flange" && loc.flange_target_pose
               ? `flange   ${fmtVec(loc.flange_target_pose)}  standoff ${fmt(loc.standoff_m, 2)} m above the object\n`
               : `approach ${fmtVec(loc.approach_pose)}  standoff ${fmt(loc.standoff_m, 2)} m\n`) +

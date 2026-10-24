@@ -15,7 +15,7 @@
 # -> 99, Primary 30001 -> 01, RTDE 30004 -> 04, noVNC 6080 -> 80; the e2e's pick server on
 # the host, 7622 -> 22). Minors 0..98 stay inside 20000..29899, clear of the default sims
 # (docker-compose.yml: 29999, 30000-30004, 30020, 502, 6080, 15900, 8000, 31001, 31004),
-# the cockpit (7621/7622/7623/7631) and the Linux/macOS ephemeral ranges.
+# the cockpit (7621/7622/7623) and the Linux/macOS ephemeral ranges.
 #
 #   service     image tag  Dashboard  Primary  RTDE   noVNC  pick server (host)
 #   ursim-5-4   5.4        20499      20401    20404  20480  20422

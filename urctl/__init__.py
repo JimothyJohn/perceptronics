@@ -28,7 +28,6 @@ from __future__ import annotations
 from .audit import AuditLog, AuditRecord
 from .config import RobotConfig
 from .controller import Controller, Gripper, RobotiqUrcapGripper
-from .guided import GuidedSession, LiveReloader, StepResult, docker_placer, local_dir_placer
 from .installation import parse_installation, parse_installation_file
 from .robot import Robot
 from .rtde import RtdeClient, RtdeError
@@ -53,11 +52,6 @@ __all__ = [
     "RtdeError",
     "UrpProgram",
     "Waypoint",
-    "GuidedSession",
-    "StepResult",
-    "LiveReloader",
-    "docker_placer",
-    "local_dir_placer",
     "SystemInspector",
     "SshRunner",
     "DockerRunner",

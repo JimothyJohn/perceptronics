@@ -22,7 +22,7 @@ def test_the_defaults_are_the_ur3e_test_cell(tmp_path):
     assert rc == 0
     cell = load_cell(str(tmp_path / "demo.env"))  # the loader accepts it: every key in its namespace
     assert cell["UR_HOST"] == "192.168.3.3" and cell["UR_PLATFORM"] == "e-series"
-    assert cell["UR_ROBOT_MODEL"] == "UR3e" and cell["PERCEPTRONICS_TIP_M"] == "0.163"
+    assert cell["UR_ROBOT_MODEL"] == "UR3e" and "PERCEPTRONICS_TIP_M" not in cell  # the tool: the robot's TCP
     assert cell["PERCEPTRONICS_STANDOFF_M"] == "0.075" and cell["PERCEPTRONICS_BRACKET"] == "eseries"
     assert cell["PERCEPTRONICS_RS_PRESET"] == "high_density" and "PERCEPTRONICS_FAKE" not in cell
     assert "doctor" in shown and "up" in shown and "demo.env" in shown
@@ -30,13 +30,13 @@ def test_the_defaults_are_the_ur3e_test_cell(tmp_path):
 
 
 def test_answers_from_a_pipe_make_a_polyscope_x_cell_with_no_camera(tmp_path):
-    answers = "ur-polyscopex\n10.0.0.44\nUR10e\n120\n60\nur20\nnone\n"
+    answers = "ur-polyscopex\n10.0.0.44\nUR10e\n60\nur20\nnone\n"
     rc, shown, _ = _init(tmp_path, answers)
     assert rc == 0, shown
     cell = load_cell(str(tmp_path / "demo.env"))
     assert cell["UR_PLATFORM"] == "polyscopex" and cell["UR_ROBOT_API_PORT"] == "80"
     assert cell["UR_HOST"] == "10.0.0.44" and cell["UR_ROBOT_MODEL"] == "UR10e"
-    assert cell["PERCEPTRONICS_TIP_M"] == "0.120" and cell["PERCEPTRONICS_STANDOFF_M"] == "0.060"
+    assert cell["PERCEPTRONICS_STANDOFF_M"] == "0.060" and "PERCEPTRONICS_APPROACH_REFERENCE" not in cell
     assert cell["PERCEPTRONICS_BRACKET"] == "ur20" and cell["PERCEPTRONICS_FAKE"] == "1"
 
 
@@ -46,7 +46,7 @@ def test_a_wrong_answer_falls_back_to_the_default_and_says_so(tmp_path):
     assert rc == 0, shown
     cell = load_cell(str(tmp_path / "demo.env"))
     assert cell["UR_PLATFORM"] == "e-series" and cell["UR_ROBOT_MODEL"] == "UR3e"
-    assert cell["PERCEPTRONICS_TIP_M"] == "0.163"
+    assert cell["PERCEPTRONICS_STANDOFF_M"] == "0.075"
     assert "not one of" in shown and "is not a number" in shown
 
 

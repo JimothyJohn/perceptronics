@@ -13,9 +13,7 @@
 #   config:   /etc/perceptronics/cell.env (robot host, ports, tool length, hand-eye)
 #   state:    /var/lib/perceptronics (captures/, calibration, audit.jsonl)
 #
-# A `perceptronics pick-server` sidecar also binds :7622. Kill it before (re)starting this
-# unit (`pkill -f "pick-server --bind"`) or the cockpit warns and runs without its pick
-# server (CLAUDE.md, "Perceptronic Pick program node").
+# The pick server's trace: GET /api/pick/log on the cockpit, captures/pick.log in the state dir.
 
 [Unit]
 Description=RealSense RGB-D cockpit + pick server (perceptronics gui, :7621 / :7622)
@@ -31,8 +29,8 @@ SupplementaryGroups=plugdev video
 EnvironmentFile=/etc/perceptronics/cell.env
 Environment=HOME=/var/lib/perceptronics
 Environment=PYTHONUNBUFFERED=1
-# The setup page (/setup, login admin/admin unless cell.env sets PERCEPTRONICS_ADMIN_USER /
-# PERCEPTRONICS_ADMIN_PASSWORD) queues requests here for perceptronics-admin.service (root).
+# The setup page (/setup; the factory login admin/admin may only set a password, kept hashed in
+# $PERCEPTRONICS_ADMIN_DIR/password) queues requests here for perceptronics-admin.service (root).
 Environment=PERCEPTRONICS_ADMIN_DIR=/var/lib/perceptronics/admin
 WorkingDirectory=/var/lib/perceptronics
 StateDirectory=perceptronics

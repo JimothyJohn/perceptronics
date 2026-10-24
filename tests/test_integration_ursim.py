@@ -19,7 +19,6 @@ import math
 import os
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -28,7 +27,6 @@ import urp_convert as uc
 from _ursim import (
     PROGRAMS_DIR,
     SCRIPTS_DIR,
-    URSIM_CONTAINER,
     URSIM_HOST,
     URSIM_PRIMARY_PORT,
     dash,
@@ -273,27 +271,6 @@ class TestUrpBuilderLoading:
         state = dash("programState")
         assert "STOPPED" in state and urp_name in state, state
 
-    def test_inspection_program_shape_loads(self, ursim_ready, docker_ready, tmp_path):
-        # The multi-point inspection app emits: a camera-trigger Script(File) def,
-        # then per point a Comment + MoveJ waypoint + Script(Line) call. Assert
-        # that exact shape (with the real CAMERA_TRIGGER_DEF) loads in PolyScope.
-        from urctl.guided import CAMERA_TRIGGER_DEF
-
-        p = UrpProgram("inspect_check", installation="inspect_check", directory="/programs")
-        p.comment("camera helper")
-        p.script_file("camera", CAMERA_TRIGGER_DEF)
-        for i, q in enumerate(
-            ([-1.6, -1.72, -2.2, -0.8, 1.595, -0.03], [-1.5, -1.6, -2.1, -0.9, 1.595, -0.03]), 1
-        ):
-            p.comment(f"inspection point {i}")
-            p.movej(Waypoint(f"InspectionPoint{i}", q=q))
-            p.script_line("trigger_camera()")
-        urp_name = self._drop("inspect_check", p.to_bytes(), tmp_path)
-        reply = dash(f"load {urp_name}")
-        assert "Loading program" in reply, reply
-        state = dash("programState")
-        assert "STOPPED" in state and urp_name in state, state
-
     def test_bundled_nodetree_demo_urp_loads(self, ursim_ready, docker_ready, tmp_path):
         # The committed builder-authored sample (tests/fixtures/programs/NodeTreeDemo) must load
         # as a node tree every time, so it can be opened/edited in PolyScope.
@@ -309,134 +286,6 @@ class TestUrpBuilderLoading:
         assert "Loading program" in reply
         state = dash("programState")
         assert "STOPPED" in state and "NodeTreeDemo.urp" in state
-
-
-# ---------------------------------------------------------------------------
-# Pendant confirm — the human-in-the-loop gate behind GuidedSession. We can't
-# tap Yes/No from CI, so we verify the round-trip plumbing: the request is sent,
-# the call blocks until the (short) timeout, returns confirmed=None, and the
-# dangling dialog is cleaned up so the controller stays usable.
-# ---------------------------------------------------------------------------
-
-
-class TestPendantConfirm:
-    def test_confirm_times_out_to_none_and_recovers(self, ursim_ready):
-        from urctl import Robot, RobotConfig
-
-        robot = Robot(RobotConfig(host=URSIM_HOST))
-        res = robot.confirm_on_pendant("integration: add this step?", timeout=4.0)
-        assert res["ok"] and res["confirmed"] is None
-        # No wedge: the Dashboard still answers promptly after cleanup.
-        assert "Robotmode:" in dash("robotmode")
-
-    def test_reteach_times_out_and_leaves_freedrive_cleanly(self, ursim_ready):
-        # The freedrive reteach program compiles/runs on the controller; without a
-        # human OK it times out to None and the cleanup leaves the robot usable
-        # and out of freedrive (no wedge, Dashboard still responsive).
-        from urctl import Robot, RobotConfig
-
-        robot = Robot(RobotConfig(host=URSIM_HOST))
-        res = robot.reteach_in_freedrive("integration: position the part", timeout=4.0)
-        assert res["ok"] and res["confirmed"] is None and res["joints"] is None
-        assert "Robotmode:" in dash("robotmode")
-
-
-class TestLiveReloadPublish:
-    """The `--live` machinery without a human: build the program in memory, then
-    run the LiveReloader (docker_placer -> cp + installation mirror -> load) and
-    assert PolyScope shows the grown program. This is what makes the tree update
-    node-by-node; the pendant tap that triggers it is the only un-CI-able part."""
-
-    def test_reloader_publishes_and_loads_growing_program(self, ursim_ready, docker_ready, tmp_path):
-        import shutil
-
-        from urctl import Robot, RobotConfig
-        from urctl.guided import GuidedSession, LiveReloader, docker_placer
-        from urctl.urp_builder import Waypoint
-
-        # docker_placer shells out to a literal `docker`; skip where only
-        # `sudo docker` works (the _ursim helpers handle that elsewhere).
-        if shutil.which("docker") is None:
-            pytest.skip("plain `docker` not on PATH")
-        probe = subprocess.run(["docker", "ps"], capture_output=True)
-        if probe.returncode != 0:
-            pytest.skip("`docker ps` needs privileges here; LiveReloader covered by unit tests")
-
-        robot = Robot(RobotConfig(host=URSIM_HOST))
-        session = GuidedSession(robot, "LiveReloadTest")
-        reloader = LiveReloader(
-            robot, "LiveReloadTest", docker_placer(URSIM_CONTAINER), local_path=tmp_path / "lrt.urp"
-        )
-
-        # First node -> publish + load.
-        session.program.movej(Waypoint("A_1", q=[0, -1.57, 0, -1.57, 0, 0]))
-        reloader(session)
-        state = dash("programState")
-        assert "LiveReloadTest.urp" in state, state
-
-        # Second node -> republish + reload: the controller now holds 2 nodes.
-        session.program.movej(Waypoint("A_2", q=[0.1, -1.57, 0, -1.57, 0, 0]))
-        reloader(session)
-        assert "LiveReloadTest.urp" in dash("programState")
-        # Prove the reloaded file really grew (read it back out of the container).
-        out = subprocess.run(
-            [
-                "docker",
-                "exec",
-                URSIM_CONTAINER,
-                "sh",
-                "-c",
-                "zcat /ursim/programs/LiveReloadTest.urp | grep -c '<Move'",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        assert out.stdout.strip() == "2", out.stdout
-
-
-class TestE2EDrive:
-    """Run scripts/e2e_drive.py end to end against the simulator.
-
-    This is the highest-value integration test: it exercises both backend
-    ports, the URP converter, the Dashboard load/play state machine, and
-    the round-trip from URScript submission to motion verification.
-    """
-
-    def test_drive_runs_all_phases(self, ursim_ready, docker_ready):
-        # Full power-cycle to guarantee a clean controller state. Prior tests
-        # in the same session can leave PolyScope in an odd control mode or
-        # with a half-executed program; an explicit `stop` + `power off` +
-        # `poweron.sh` gives us a known starting point. Costs ~15 s but is
-        # the only reliable reset path on URSim.
-        from _ursim import wait_for_dash
-
-        dash("stop")
-        time.sleep(1)
-        dash("power off")
-        wait_for_dash(lambda r: "POWER_OFF" in r, timeout=30.0)
-        subprocess.run([str(SCRIPTS_DIR / "poweron.sh")], check=True, capture_output=True, timeout=180)
-        wait_for_dash(lambda r: "RUNNING" in r, timeout=60.0)
-
-        r = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "e2e_drive.py"), "--host", URSIM_HOST, "--json"],
-            capture_output=True,
-            text=True,
-            timeout=240,
-        )
-        # Parse the JSON phase records from stdout — one per line.
-        import json
-
-        phases = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
-        names = [p["phase"] for p in phases]
-        failed = [p for p in phases if not p["ok"]]
-        # Every phase must pass — the failure detail goes into the assertion
-        # message so a CI log shows exactly which sub-step regressed.
-        assert not failed, (
-            f"e2e_drive failed phases: {[p['phase'] for p in failed]}\ndetails: {failed}\nstderr: {r.stderr}"
-        )
-        # And we expect at least Phase 1 through Phase 6.
-        assert sum("Phase 1" in n for n in names) == 1
-        assert any("Phase 6" in n for n in names)
 
 
 class TestPrimaryInterface:

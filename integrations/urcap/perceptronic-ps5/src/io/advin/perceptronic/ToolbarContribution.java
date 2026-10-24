@@ -50,7 +50,7 @@ public class ToolbarContribution implements SwingToolbarContribution {
         side.setPreferredSize(new Dimension(300, 10));
         JPanel head = Ui.row(8);
         head.add(new Logo.Mark(28));
-        head.add(Ui.label("Perceptronic", 20f, true, Ui.INK));
+        head.add(Ui.label("Perceive", 20f, true, Ui.INK));
         head.add(dot);
         head.add(fps);
         side.add(head);
@@ -60,7 +60,7 @@ public class ToolbarContribution implements SwingToolbarContribution {
         side.add(Box.createVerticalStrut(8));
         side.add(Ui.left(status));
         side.add(Box.createVerticalStrut(8));
-        side.add(Ui.left(Ui.label("Address, pick areas and reach: Installation → URCaps → Perceptronic.", 11.5f,
+        side.add(Ui.left(Ui.label("Address, pick areas and reach: Installation → URCaps → Perceive.", 11.5f,
                 false, Ui.FAINT)));
         outer.add(side, BorderLayout.EAST);
         status.set("opening…", Ui.Kind.INFO);
@@ -179,7 +179,7 @@ public class ToolbarContribution implements SwingToolbarContribution {
             BufferedImage img = image;
             if (img == null || !live) {
                 LiveView.paintNoCamera(g, w, h, "Check the camera computer and its USB 3 cable; the address is set"
-                        + " in Installation → URCaps → Perceptronic.");
+                        + " in Installation → URCaps → Perceive.");
                 g.dispose();
                 return;
             }
