@@ -20,8 +20,8 @@ real robot at an IP — over its native network protocols. The reusable layer is
 that all sit on the same `Robot`: the `urctl` CLI, the agent tool registry
 (`urctl.tools`), and the `perceptronics-mcp` MCP server.
 
-**Read `CLAUDE.md` for the protocol/format reference** (port map, Dashboard
-cheat sheet, `.urp` schema, URScript dialect gotchas). This skill is the
+**Read `.claude/rules/ur-controller.md` and `programs.md` for the protocol/format reference** (port map,
+Dashboard cheat sheet, `.urp` schema, URScript dialect gotchas). This skill is the
 *procedural* side: the exact sequences to get something done and how to verify
 each step.
 
@@ -59,7 +59,7 @@ waits on this, so `docker compose ps` showing `healthy` is the green light.
 
 If PolyScope shows **"No Controller"** that's the seccomp/ENOSYS issue — the
 compose file already sets `seccomp:unconfined`; if you changed compose, restore
-it. (Full symptom→cause table is in CLAUDE.md.)
+it. (Full symptom→cause table is in `.claude/rules/ur-controller.md`.)
 
 ## Cold start: power off → RUNNING
 
@@ -208,7 +208,7 @@ Tail the controller's own log — it's far more specific than Dashboard's
 sudo docker exec perceptronics-ursim-1 tail -f /ursim/polyscope.log
 ```
 
-The CLAUDE.md **Common gotchas** table maps symptom → cause → fix for the
+The **Common gotchas** table in `.claude/rules/ur-controller.md` maps symptom → cause → fix for the
 recurring ones (No Controller, Modbus won't bind, play fails in Local mode,
 load failures, never-stopping programs, post-load power-off). Check it before
 guessing.

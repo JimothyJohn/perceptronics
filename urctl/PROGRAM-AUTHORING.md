@@ -8,7 +8,7 @@ a program that ignores all of them — so they live here as discipline.
 
 Companion to the procedural how-to in
 `.claude/skills/ur-program-authoring/SKILL.md` and the URP schema notes in
-`CLAUDE.md`.
+`.claude/rules/programs.md`.
 
 ## 1. Name every waypoint by what it does
 

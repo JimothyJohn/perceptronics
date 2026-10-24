@@ -215,7 +215,7 @@ Loop forever
 Deliverables:
 
 - The template `.urp` + `.script`, built with `urctl/urp_builder.py` as script nodes (the
-  real-robot rule, `CLAUDE.md` §Build motion programs with script nodes).
+  real-robot rule, `.claude/rules/programs.md` §Build motion programs with script nodes).
 - An **I/O map screen** in the Installation node: six fields (door open, door close,
   chuck close, chuck closed, cycle start, cycle done) + a gripper choice. Generates the
   variables the template reads. Nothing else on the screen (operator-UI rule: ≤ 3 stages).

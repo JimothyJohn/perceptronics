@@ -1,6 +1,6 @@
 # SETUP.md — the hardware and network this repo runs against
 
-What exists, where it is on the network, and what is connected today. `CLAUDE.md` has
+What exists, where it is on the network, and what is connected today. `CLAUDE.md` and `.claude/rules/` have
 the protocols and gotchas; the cell files (`perceptronics/cells/*.env`) are the machine-
 readable half of this page and win where they differ. Dated lines are the field log
 (`perceptronics/cell.html` has the longer one). **Update this page when the cell
@@ -72,7 +72,7 @@ changed since 2026-09-28. Everything below that says "verified" was verified bef
 
 Cell subnet `192.168.3.0/24`: robot `.3`, the Mac Studio's cell interface `.10`, the Pi 5 pick PC `.20`. The UR10 seen earlier in
 this repo's history was `192.168.1.50` (another network). Controller ports are in
-`CLAUDE.md` § *Network surface of a UR controller*; the cockpit's are :7621 (HTTP),
+`.claude/rules/ur-controller.md` § *Network surface of a UR controller*; the cockpit's are :7621 (HTTP),
 :7622 (pick server socket the PS5 program node opens).
 
 ## 5. Removable media

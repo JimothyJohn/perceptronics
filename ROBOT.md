@@ -13,7 +13,7 @@ for a write-up, not a third try. Budget: about 2 hours for phases 0–5, the res
 
 The same arm on a PolyScope X controller: `PSX.md`. Generic version for a customer's PolyScope 5
 robot: `site/public/quickstart-ur.html`. The Pi on
-this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: `CLAUDE.md`.
+this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: `CLAUDE.md` and `.claude/rules/`.
 
 ## What is true before the day
 
@@ -39,7 +39,7 @@ this cell, cable by cable: `deploy/pi/PLUG-AND-PLAY.md`. Reference and gotchas: 
 2. **The stick**: `scripts/urcap5-usb.sh` ("URE MODELS"). It writes
    `perceptronic-ps5-0.11.0.urcap` (and deletes any `urmagic_perceptronic.sh` an earlier run
    left on it) and ejects.
-3. **Fresh frames of the real scene are the arbiter** (`CLAUDE.md` §Detection): clear
+3. **Fresh frames of the real scene are the arbiter** (`.claude/rules/detection.md`): clear
    `captures/` on the Mac of root-owned leftovers (`sudo chown -R nick captures` from a local
    Terminal) so snapshots can be written.
 4. Read `TODO.md` §*Needs the cell* once more and bring the open list below to the cell.

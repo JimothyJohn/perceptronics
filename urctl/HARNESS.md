@@ -3,8 +3,8 @@
 This document is the architecture reference for the `urctl` harness: every
 surface it reads, every action it can take, and how to build on top of it —
 specifically the planned local GUI application and the MCP integration. It
-assumes the protocol background in `CLAUDE.md` (ports table, URScript dialect,
-real-robot divergences).
+assumes the protocol background in `.claude/rules/ur-controller.md` and `programs.md` (ports table,
+URScript dialect, real-robot divergences).
 
 Everything below is **verified working** against both targets:
 

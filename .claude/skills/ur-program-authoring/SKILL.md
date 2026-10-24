@@ -16,7 +16,7 @@ description: >-
 A "program" here is a `.script` (URScript) committed under `tests/fixtures/programs/<Name>/`,
 converted to a PolyScope-loadable `.urp`, with a matching `.installation`. See
 `tests/fixtures/programs/PickPlace`, `tests/fixtures/programs/AppleStack`, `tests/fixtures/programs/ElegantDance` as worked
-references, and CLAUDE.md for the `.urp` schema. This skill is the procedure +
+references, and `.claude/rules/programs.md` for the `.urp` schema. This skill is the procedure +
 the dialect traps that cost real time. For naming/blend/Move-grouping
 conventions, follow `urctl/PROGRAM-AUTHORING.md`.
 
