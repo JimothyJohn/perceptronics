@@ -217,7 +217,8 @@ class PickOptions:
     with ``area=<x>x<y>`` (mm, along the plane's X / Y from its origin), the pick
     ``order=LR,FB``, ``reach=<min>,<max>`` (m from the base axis), the grip depth
     ``grip=<mm>`` and the gripper's ``stroke=<mm>`` (for the finger-room check), and the
-    node's identity ``node=<id> loc=<i> locs=<n> proto=2``.
+    node's identity ``node=<id> loc=<i> locs=<n> proto=<protocol>`` (2 for the 0.5.0 node;
+    current nodes send ``PROTOCOL``).
 
     The 0.7.0 node (2026-09-30) sends no ``reach=``: it names the arm (``arm=UR3``) and the
     server asks the arm's own kinematics (:mod:`perceptronics.armik`) whether the approach
