@@ -74,7 +74,7 @@ API_SURFACE: dict[str, tuple[str, ...]] = {
     "RobotInfoService": ("getRobotType",),
     "ApplicationPresenter": ("applicationNode", "applicationAPI", "robotSettings"),
     "ApplicationBehaviors": ("factory", "upgradeNode", "downgradeNode"),
-    # the 3D Pick program node (pick.js + pick-node.worker.js)
+    # the Pounce program node (pick.js + pick-node.worker.js)
     "ProgramPresenterAPI": (
         "programNodeService",
         "applicationService",

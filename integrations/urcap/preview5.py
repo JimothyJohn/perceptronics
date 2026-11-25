@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Preview the PolyScope 5 URCap's screens in action, on a desktop — no robot, no pendant.
 
-Opens the 3D Pick node's and the Installation node's real Swing screens in a
+Opens the Pounce node's and the Installation node's real Swing screens in a
 1280 x 800 window (the pendant's size) and feeds them from a camera computer:
 
 * by default a **simulated** one started here: the cockpit's HTTP API over a ray-cast box

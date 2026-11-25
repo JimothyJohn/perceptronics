@@ -1,0 +1,56 @@
+{
+ "width": 848,
+ "height": 480,
+ "depth_scale_m": 0.0010000000474974513,
+ "intrinsics": {
+  "width": 848,
+  "height": 480,
+  "fx": 617.8555908203125,
+  "fy": 618.2134399414062,
+  "ppx": 426.5736999511719,
+  "ppy": 243.31895446777344,
+  "model": "inverse_brown_conrady",
+  "coeffs": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "fov_deg": [
+   68.91929456404054,
+   42.4339616103857
+  ]
+ },
+ "flange_pose": [
+  -0.386098,
+  0.001249,
+  0.346359,
+  2.194376,
+  2.103325,
+  0.137757
+ ],
+ "flange_to_color_pose": [
+  0.03110212968927091,
+  0.054828810771721206,
+  0.0036211859146493214,
+  0.009226847783912057,
+  -0.20744486182004007,
+  3.0923137610500397
+ ],
+ "what": "UR3e cell 2026-10-09, the pick PC's D435 on the eseries bracket, laser 150 mW, High Density, grey table at base height, camera straight down 0.35 m: three 50x30x30 foam blocks side by side, staggered, turned ~60\u00b0. One 89x57 outline: three widths long, one length wide.",
+ "part_mm": [
+  50,
+  30,
+  30
+ ],
+ "count": 0,
+ "pixels": [],
+ "near": [
+  [
+   455,
+   354
+  ]
+ ],
+ "near_why": "3 parts touching?"
+}

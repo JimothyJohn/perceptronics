@@ -5,10 +5,13 @@ import com.ur.urcap.api.domain.value.Pose;
 import com.ur.urcap.api.domain.value.jointposition.JointPosition;
 import com.ur.urcap.api.domain.value.jointposition.JointPositions;
 import com.ur.urcap.api.domain.value.simple.Angle;
+import com.ur.urcap.api.domain.value.simple.Length;
 
 /**
  * PolyScope's own move screen: the operator puts the arm somewhere and taps OK; the node gets
- * the joints and the <b>flange</b> pose there — on every PolyScope 5 this URCap supports.
+ * the joints, the pose of the <b>active TCP</b> there (the tool as the pendant has it — what a
+ * table touch records since 0.10.0) and the <b>flange</b> pose — on every PolyScope 5 this URCap
+ * supports.
  *
  * <p>PolyScope 5.8+ ({@code RobotPositionCallback2}) says which TCP offset
  * its pose is under, so the flange is exact: {@link TeachPosition2}, compiled against the 5.8
@@ -21,9 +24,12 @@ final class TeachPosition {
     private TeachPosition() {
     }
 
-    /** What the operator taught. {@code flange} is null when this PolyScope can't say where it is. */
+    /**
+     * What the operator taught: the joints, the active TCP's pose ({@code tcp}, every PolyScope)
+     * and the flange ({@code flange}, null when this PolyScope can't say where it is).
+     */
     interface Done {
-        void taught(JointPositions joints, double[] flange);
+        void taught(JointPositions joints, double[] tcp, double[] flange);
     }
 
     /** One way of asking PolyScope for the position. */
@@ -83,7 +89,7 @@ final class TeachPosition {
             ui.getUserDefinedRobotPosition(new com.ur.urcap.api.domain.userinteraction.RobotPositionCallback() {
                 @Override
                 public void onOk(Pose pose, JointPositions q) {
-                    done.taught(q, PoseMath.flange(robotType, radians(q)));
+                    done.taught(q, pose.toArray(Length.Unit.M, Angle.Unit.RAD), PoseMath.flange(robotType, radians(q)));
                 }
             });
         }

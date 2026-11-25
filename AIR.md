@@ -51,10 +51,11 @@ The night of 2026-10-06 the Pi was pointed at the PolyScope X simulator for the 
 pictures. **Before anything else:**
 
 ```bash
-curl -s http://192.168.3.20/api/info | python3 -c "import json,sys;d=json.load(sys.stdin);r=d['robot'];print(r['host'],r['platform'],'tip',r['approach']['tip_m'],'handeye',r['handeye']['source'])"
+curl -s http://192.168.3.20/api/info | python3 -c "import json,sys;d=json.load(sys.stdin);r=d['robot'];print(r['host'],r['platform'],'approach',r['approach']['reference'],'handeye',r['handeye']['source'])"
 ```
 
-Want `192.168.3.3 e-series tip 0.163 handeye file:…`. Anything else (`192.168.3.10 polyscopex`):
+Want `192.168.3.3 e-series approach tcp handeye file:…` (the tool is the pendant's active TCP since
+0.10.0; `perceptronics doctor`'s `approach` line says what it is). Anything else (`192.168.3.10 polyscopex`):
 put the UR3e profile back — with SSH, from the checkout:
 
 ```bash

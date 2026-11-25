@@ -611,6 +611,71 @@ def test_flat_and_standing_boxes_are_not_a_part_of_another_size(dims):
     assert sc.parts == []
 
 
+# -- the grip hangs from the nominal height (Nick, 2026-10-04) ------------------------------------
+
+
+def test_an_accepted_part_stands_at_its_taught_height_not_the_measured_one():
+    from perceptronics.volume import Part, Surface, to_nominal_height
+
+    surf = Surface.level(TABLE)
+    part = Part(
+        centre=(0.3, 0.0, TABLE + 0.027),
+        theta=0.0,
+        length_m=0.061,
+        width_m=0.039,
+        height_m=0.027,
+        corners=[
+            (0.27, -0.02, TABLE + 0.027),
+            (0.33, -0.02, TABLE + 0.027),
+            (0.33, 0.02, TABLE + 0.027),
+            (0.27, 0.02, TABLE + 0.027),
+        ],
+        pixel=(0, 0),
+        corners_px=[(0, 0)] * 4,
+        cells=10,
+    )
+    out = to_nominal_height(part, surf, SPEC)
+    assert out is part and part.nominal_height_m == pytest.approx(0.030)
+    assert (
+        part.centre[2] == pytest.approx(TABLE + 0.030) and part.height_m == 0.027
+    )  # the record keeps what was seen
+    assert all(c[2] == pytest.approx(TABLE + 0.030) for c in part.corners)
+    assert part.as_dict()["nominal_height_mm"] == 30 and part.as_dict()["height_mm"] == 27
+    # not the part, or no taught height: left as measured
+    flat = Part(
+        centre=(0.3, 0.0, TABLE + 0.010),
+        theta=0.0,
+        length_m=0.06,
+        width_m=0.04,
+        height_m=0.010,
+        corners=[],
+        pixel=(0, 0),
+        corners_px=[],
+        cells=10,
+    )
+    assert to_nominal_height(flat, surf, SPEC).nominal_height_m is None and flat.centre[2] == pytest.approx(
+        TABLE + 0.010
+    )
+    assert to_nominal_height(part, surf, PartSpec.from_mm(60, 40)).centre[2] == pytest.approx(TABLE + 0.030)
+
+
+def test_found_parts_stand_at_the_taught_faces_height_whatever_the_sensor_read():
+    spec = PartSpec.from_mm(60, 40, 30)
+    boxes = [
+        Box(0.29, -0.06, 0.060, 0.040, 0.030),
+        Box(0.29, 0.06, 0.060, 0.030, 0.040, 0.7),
+        Box(0.41, 0.00, 0.040, 0.030, 0.060, -0.4),
+    ]
+    sc = sensed(boxes, spec=spec)
+    assert len(sc.parts) == 3, [(p.why, p.centre) for p in sc.rejected]
+    assert sorted(p.nominal_height_m for p in sc.parts) == pytest.approx([0.030, 0.040, 0.060])
+    for p in sc.parts:
+        assert abs(sc.surface.height(p.centre) - p.nominal_height_m) < 0.004, (p.centre, p.nominal_height_m)
+        assert p.as_dict()["nominal_height_mm"] in (30, 40, 60)
+    for p in sc.rejected:
+        assert p.nominal_height_m is None
+
+
 def test_a_base_frame_that_puts_the_table_off_level_still_finds_the_parts(caplog):
     # Regression (2026-10-06, Nick's failure.png): the D435 sat on the bench 19° oblique while the
     # robot's pose said it looked straight down (a simulator stood in for the robot). The level-band

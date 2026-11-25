@@ -144,17 +144,11 @@ GUI must respect:
 
 ## 3. Working as a programmer beside the operator
 
-Three authoring layers, lowest to highest:
-
-1. **`urctl.urp_builder.UrpProgram`** — programmatic native node trees
-   (MoveJ/Waypoint, If, Loop, Set, Popup, script nodes). Use script-node
-   motion when `snapshot` says `flange_tcp: false`.
-2. **`urctl guided <name> --save p.urp [--freedrive] [--live ...]`** — the
-   operator-in-the-loop builder: every step is proposed on the pendant
-   (Yes/No), executed live, and recorded at the *achieved* pose. `--live-scp
-   root@<ip>` grows the tree on the real pendant step by step.
-3. **`urctl inspect <name>`** — the multi-point inspection app (freedrive to
-   a spot, tap Yes to capture).
+The authoring layer is **`urctl.urp_builder.UrpProgram`** — programmatic native node trees
+(MoveJ/Waypoint, If, Loop, Set, Popup, script nodes). Use script-node motion when
+`snapshot` says `flange_tcp: false`. (The pendant-confirmed guided builder and the
+inspection app were removed on 2026-10-04; `Robot.confirm_on_pendant` and
+`Robot.reteach_in_freedrive` remain for programs that want a pendant Yes/No.)
 
 The cell model feeds this: named IO becomes routine vocabulary, the active
 TCP decides node style, `safe_home` seeds the retreat pose, and existing
@@ -162,11 +156,11 @@ programs on the controller (`urctl programs`) are the operator's context.
 
 ## 4. The agent/MCP surface
 
-`urctl-mcp` is **pure stdlib** — MCP's stdio transport is newline-delimited
-JSON-RPC 2.0, spoken directly (`urctl/mcp_server.py`); no SDK install needed.
+The MCP loop is **pure stdlib** — MCP's stdio transport is newline-delimited
+JSON-RPC 2.0, spoken directly (`urctl/mcp_server.py`, served by `perceptronics-mcp`); no SDK install needed.
 `urctl tools` prints all 20 tools as JSON-schema'd capabilities;
-`urctl call <tool> --json '{...}'` dispatches one; `urctl-mcp` serves the
-same registry over MCP (stdio). The three harness additions:
+`urctl call <tool> --json '{...}'` dispatches one; `perceptronics-mcp` serves the
+same registry (plus the camera's) over MCP (stdio). The three harness additions:
 
 - `ur_rtde_state` (`deep` param) — full diagnostics
 - `ur_system_snapshot` — the cell model (start here when meeting a robot)
@@ -187,7 +181,7 @@ was retired in favour of the RGB-D cockpit (`perceptronics gui`, `perceptronics/
 §The pilot's seat); it lives in git history before that commit. The cockpit's
 Pilot panel dispatches the same tools (`ur_bring_up`, jog, stop, freedrive,
 gripper) through `urctl.tools.call_tool`, so every button is still
-schema-validated, safety-checked and audit-logged, and `urctl-mcp` can run
+schema-validated, safety-checked and audit-logged, and `perceptronics-mcp` can run
 alongside it against the same robot.
 
 ## 6. File map of the harness additions

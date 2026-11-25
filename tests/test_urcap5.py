@@ -33,7 +33,7 @@ import urcap5  # noqa: E402
 
 SRC = ROOT / "integrations" / "urcap" / "perceptronic-ps5"
 JAVA = SRC / "src" / "io" / "advin" / "perceptronic"
-DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.9.1.urcap"
+DIST = ROOT / "integrations" / "urcap" / "dist" / "perceptronic-ps5-0.11.0.urcap"
 JAVAC = shutil.which("javac")
 # the screens (pure Swing): the harness lays them out off-screen
 SCREEN_JAVA = ("PickScreen.java", "LiveView.java", "LocationsScreen.java")
@@ -305,13 +305,6 @@ public class Harness {
                 for (double v : r) rr.add(v);
                 rr.add(PoseMath.tiltDeg(r));
                 out = rr;
-                break;
-            }
-            case "fingertip": {
-                double[] tcp = Cockpit.six(Json.parse(a[1]));
-                double[] off = Cockpit.six(Json.parse(a[2]));
-                double[] r = PoseMath.fingertip(tcp, off, Double.parseDouble(a[3]));
-                out = Arrays.asList(r[0], r[1], r[2]);
                 break;
             }
             case "trans": {
@@ -717,9 +710,9 @@ def test_target_text_says_which_check_judged_reach(java_client):
         "reachable": True,
         "reach_check": "controller_ik",
     }
-    tips = dict(loc, reference="fingertip", tip_m=0.163, approach_pose=[-0.2, 0.3, -0.2, 0, 3.14, 0])
-    assert java_client("target", json.dumps(tips)).splitlines()[1] == (
-        "fingertips -0.200, 0.300, -0.200, 0.000, 3.140, 0.000  0.075 m above the object (tool 0.163 m)"
+    tcp = dict(loc, reference="tcp", approach_pose=[-0.2, 0.3, -0.2, 0, 3.14, 0])
+    assert java_client("target", json.dumps(tcp)).splitlines()[1] == (
+        "tool     -0.200, 0.300, -0.200, 0.000, 3.140, 0.000  0.075 m above the object (the robot's TCP)"
     )
     text = java_client("target", json.dumps(loc))
     assert text.splitlines()[1].startswith("flange   -0.232, 0.310, -0.216")
@@ -734,7 +727,7 @@ def test_target_text_says_which_check_judged_reach(java_client):
         approach_pose=[0.1, 0.2, 0.3, 0, 3.14, 0],
     )
     text = java_client("target", json.dumps(sphere))
-    assert "approach 0.100, 0.200, 0.300" in text
+    assert "tool     0.100, 0.200, 0.300" in text
     assert text.endswith("OUT OF REACH  (0.50 m datasheet radius, UR3E — no IK answer)")
 
 
@@ -934,6 +927,15 @@ def test_feed_poller_explains_a_dead_cockpit_and_keeps_going(java_client):
     assert got["was_running"] and got["stopped"]
 
 
+def test_the_installation_screen_has_a_log_tab_fed_by_the_nodes_own_log():
+    """Nick, 2026-10-04: a Log line on the Installation node, since a pendant has no console."""
+    view = (JAVA / "PilotView.java").read_text(encoding="utf-8")
+    assert '"Camera", "Pick areas", "Log"' in view and "Log.recent()" in view and "refreshLog()" in view
+    assert "JScrollPane" not in view  # the pendant rule: nothing scrolls; the area shows what fits
+    log = (JAVA / "Log.java").read_text(encoding="utf-8")
+    assert "KEEP = 50" in log and "static synchronized List<String> recent()" in log
+
+
 def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits(java_client):
     # the same scenes and the same words as the PolyScope X node (tests/test_urcapx_pick.py)
     import importlib.util
@@ -944,3 +946,10 @@ def test_the_picture_tells_the_operator_to_check_the_part_size_when_nothing_fits
     spec.loader.exec_module(words)
     got = [java_client("scene", json.dumps(sc))["banner"] for sc in words.BANNER_SCENES]
     assert got == words.BANNERS
+    # while the program runs (0.10.1): the program's last measurement, no banner, told as such
+    quiet = java_client("scene", json.dumps(words.QUIET_SCENE))
+    assert quiet["banner"] is None and quiet["orders"] == [1] and quiet["drawn"] == []
+    assert quiet["summary"] == "program running · last measured: 1 part to pick"
+    empty = java_client("scene", json.dumps(words.QUIET_EMPTY))
+    assert empty["banner"] is None and empty["orders"] == []
+    assert empty["summary"] == "program running · the picture is measured only where the program asks"

@@ -36,6 +36,15 @@ ALLOWED_PREFIXES = ("UR_", "PERCEPTRONICS_", "REALSENSE_")
 LEGACY_PREFIX = "PERCEPTION_"
 
 
+def retired_variables(env: Mapping[str, str] | None = None) -> list[str]:
+    """Names retired on 2026-10-08 (``PERCEPTRONICS_TIP_M``, ``PERCEPTRONICS_APPROACH_REFERENCE``:
+    the tool offset is the robot's) still set in ``env`` — ignored, warned about."""
+    from .handeye import RETIRED_VARIABLES
+
+    env = os.environ if env is None else env
+    return [k for k in RETIRED_VARIABLES if (env.get(k) or "").strip()]
+
+
 def legacy_variables(env: Mapping[str, str] | None = None) -> list[str]:
     """``PERCEPTION_*`` names still set in ``env`` — ignored since the rename to
     ``PERCEPTRONICS_*``, so a stale export or ``.env`` would otherwise go silent."""
@@ -139,6 +148,13 @@ def apply_cell(
             f"warning: ignoring {', '.join(stale)} — the PERCEPTION_* variables are PERCEPTRONICS_* now",
             file=sys.stderr,
         )
+    retired = retired_variables(env)
+    if retired:
+        print(
+            f"warning: ignoring {', '.join(retired)} — the tool offset is the robot's active TCP since"
+            " 0.10.0 (set it on the pendant); drop the line from the cell",
+            file=sys.stderr,
+        )
     name = name_or_path if name_or_path else env.get(ENV_CELL, "")
     if not name:
         return {"cell": None, "path": None, "applied": {}, "kept": {}, "missing": []}
@@ -175,9 +191,7 @@ def describe_cell(env: Mapping[str, str] | None = None) -> dict:
         "PERCEPTRONICS_BRACKET",
         "PERCEPTRONICS_FAKE",
         "PERCEPTRONICS_T_FLANGE_CAMERA",
-        "PERCEPTRONICS_APPROACH_REFERENCE",
         "PERCEPTRONICS_STANDOFF_M",
-        "PERCEPTRONICS_TIP_M",
         "PERCEPTRONICS_SEGMENT_BACKEND",
         "REALSENSE_LIB",
     )

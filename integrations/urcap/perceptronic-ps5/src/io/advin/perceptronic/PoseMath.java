@@ -43,21 +43,6 @@ final class PoseMath {
         return pose(o);
     }
 
-    /**
-     * The fingertips' position when PolyScope reports the active TCP at {@code tcpPose} with
-     * {@code tcpOffset} (PositionParameters' pose and TCP offset): flange = tcp ∘ offset⁻¹,
-     * fingertips {@code tipM} along the flange's +Z.
-     */
-    static double[] fingertip(double[] tcpPose, double[] tcpOffset, double tipM) {
-        return tipOf(trans(tcpPose, inv(tcpOffset)), tipM);
-    }
-
-    /** The fingertips' position, {@code tipM} along the flange's +Z. */
-    static double[] tipOf(double[] flange, double tipM) {
-        double[] tip = trans(flange, new double[] {0, 0, tipM, 0, 0, 0});
-        return new double[] {tip[0], tip[1], tip[2]};
-    }
-
     // -- the arm's nominal geometry ----------------------------------------------------------
 
     /**

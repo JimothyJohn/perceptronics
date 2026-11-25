@@ -8,7 +8,7 @@ blocks, on a surface **level with the robot's base**. `ROBOT.md` is the full fir
 this is the subset that has to go right in front of people, in order, with the fallbacks.
 
 **Nothing in the Pi → robot path has run on hardware yet** (`deploy/pi/PLUG-AND-PLAY.md` §Not
-verified): the URCap on a pendant since 0.2.0, the Pi reaching the controller, the 3D Pick
+verified): the URCap on a pendant since 0.2.0, the Pi reaching the controller, the Pounce
 program. The rehearsal in §3 is not optional — do it before the customer is in the room, with
 the exact kit, and stop after two failed attempts at any step and read §5.
 
@@ -37,7 +37,7 @@ the exact kit, and stop after two failed attempts at any step and read §5.
 | Pi 5 in its case, **the 27 W (5.1 V / 5 A) supply** | on less, USB caps at 600 mA and the D435 browns out mid-demo |
 | D435 on the bracket, the short **USB 3** Newnex cable, no hub | a USB 2 link drops the picture to 640 × 480 @ 15 |
 | the office switch, 3 Ethernet cables, the Air's Ethernet adapter | see §0 |
-| the **"URE MODELS" USB stick** with `perceptronic-ps5-0.9.1.urcap` | `scripts/urcap5-usb.sh` on the Studio with the stick in — the stick has 0.3.0 on it now |
+| the **"URE MODELS" USB stick** with `perceptronic-ps5-0.11.0.urcap` | `scripts/urcap5-usb.sh` on the Studio with the stick in — the stick has 0.3.0 on it now |
 | the **spare microSD** (build #3 image, flashed unseeded) | a dead card is a 2-minute swap; the image has the portal |
 | the white blocks, a rule, a flat board if the table is carpet | carpet reads ±3 mm rough; a board is 5× quieter |
 | the Air with a checkout of this repo (`git clone`, `dev`), Homebrew `python3` ≥ 3.10 | the runtime is stdlib: `python3 -m perceptronics …` runs from the clone, nothing to install |
@@ -47,7 +47,7 @@ the exact kit, and stop after two failed attempts at any step and read §5.
 ## 2. The night before (done 2026-10-06, re-check in the morning)
 
 - The Pi runs the current code with the **UR3e profile** (`UR_HOST=192.168.3.3`, e-Series,
-  `PERCEPTRONICS_TIP_M=0.163`, the 09-27 hand-eye in the file, High Density) — redeployed from
+  the 09-27 hand-eye in the file, High Density; the tool is the pendant's active TCP) — redeployed from
   PR #67 rebased on dev; port 80 on. `curl -s http://192.168.3.20/api/info | head -c 200` from
   the cell says `realsense`.
 - The Pi's address on the cable is `192.168.3.20/24`; a robot on DHCP gets `192.168.3.3` from
@@ -64,7 +64,7 @@ its check — **stop at the first one that fails twice** and read §5:
    `handeye file:…`. `robot.control LOCAL` is fine. **This is the first time the Pi ever reaches
    a controller.**
 2. **The URCap goes on the pendant.** Remove RealSense Pilot (☰ → Settings → System → URCaps,
-   select, −, restart). Then + → the stick → `perceptronic-ps5-0.9.1.urcap` → Restart.
+   select, −, restart). Then + → the stick → `perceptronic-ps5-0.11.0.urcap` → Restart.
    Check: Installation → URCaps → **Perceptronic** shows the live picture, Cockpit field reads
    `192.168.3.20`. ☰ → Save Installation. The **P** button in the header drops the picture over
    any screen. Note anything clipped.
@@ -81,9 +81,9 @@ its check — **stop at the first one that fails twice** and read §5:
    `ssh nick@192.168.3.20 sudo -u perceptronics /opt/perceptronics/current/bin/perceptronics --cell /etc/perceptronics/cell.env calibrate --cockpit http://127.0.0.1:7621 --apply`
    — a few minutes; it is saved on the Pi). Without SSH: skip to step 5 and judge by where the
    fingertips land; a constant offset of a few mm is the hand-eye.
-4. **The program.** Program tab: `Gripper open` (Robotiq's node) → **3D Pick** (URCaps) →
+4. **The program.** Program tab: `Gripper open` (Robotiq's node) → **Pounce** (URCaps) →
    `Gripper close` → `If rs_pick_found` → a MoveL 100 mm up, a place, `Gripper open`.
-   In 3D Pick: **Part tab first** — Box, the rule's size, 25 %; Approach tab — Finger room
+   In Pounce: **Part tab first** — Box, the rule's size, 25 %; Approach tab — Finger room
    20 mm, Closer look on; one picture point: arm at the picture pose, **+**. The teach picture
    shows the blocks **green and numbered**; if it shows a banner, it says what to fix (size,
    or a rough surface, or the hand-eye).
@@ -100,7 +100,7 @@ its check — **stop at the first one that fails twice** and read §5:
 1. Installation → URCaps → Perceptronic: "the robot sees through a camera on its wrist; nothing
    to configure, the camera computer is on the cable." Tap a block: the base-frame point and the
    reach verdict. Press **P** on another screen: the picture follows you.
-2. Program tab, open the 3D Pick node: "tell it the part's size and where to take the picture;
+2. Program tab, open the Pounce node: "tell it the part's size and where to take the picture;
    it finds the parts by their shape, in the order you choose" — the green numbers, change the
    pick order tiles and watch the numbers change, move a block and watch it follow.
 3. ▶. Narrate the stages as they print on the pendant's log (every stage is a `textmsg`).
@@ -124,8 +124,8 @@ are all that); unplug the camera (it recovers, but it takes a few seconds and a 
 | Blocks yellow, banner says the size | the rule; Part tab |
 | Banner: *surface reads rough* | a board under the blocks; or the picture pose 0.1 m closer |
 | Banner / note: *off level in the robot's frame* | the hand-eye: §3 step 3. The demo can run (parts are found) but picks land off by the error |
-| Fingertips land a constant few mm off | the hand-eye; also check `PERCEPTRONICS_TIP_M` (0.163 = Hand-E + 6 mm adapter) |
-| *3D Pick: no pick — …* popup | it names the reason: `no room for a finger`, `out of reach`, `the second look did not find the block again` (the block moved, or the closer look is too close for a tall block: Closer look off) |
+| Fingertips land a constant few mm off | the hand-eye; also check the pendant's active TCP is the Hand-E's (0.163 m = 157 + 6 mm adapter) — `perceptronics doctor`'s `approach` line |
+| *Pounce: no pick — …* popup | it names the reason: `no room for a finger`, `out of reach`, `the second look did not find the block again` (the block moved, or the closer look is too close for a tall block: Closer look off) |
 | Protective stop | `unlock protective stop` on the pendant; the node lifts and moves on. Twice in a row: speed down, check the table height vs the grip depth (a surface level with the base is 0.27 m higher than the 09-27 cell: the controller's IK decides reach, but the approach from above needs the elbow room) |
 | The Pi is dead (no link light, no `/api/info` after 2 min) | the spare card (build #3): power off, swap, power on, 60 s; it comes up with the same address and the 09-27 hand-eye. Picture point and part size are on the pendant, not the Pi |
 

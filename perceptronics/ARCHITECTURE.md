@@ -75,7 +75,7 @@ length and camera bracket in one word.
 | `perceptronics/robotlink.py` | The cockpit's one door to the robot; every action goes through the tool registry |
 | `perceptronics/synthscene.py`, `--fake` | Synthetic RGB-D scenes, so everything runs and is tested without hardware |
 | `urctl/` | The Universal Robots adapter: library, CLI, MCP server, safety envelope, audit log |
-| `integrations/urcap/` | Pendant plug-ins for PolyScope 5 and PolyScope X: the live picture and the 3D Pick program node |
+| `integrations/urcap/` | Pendant plug-ins for PolyScope 5 and PolyScope X: the live picture and the Pounce program node |
 | `hardware/`, `deploy/` | Camera bracket (parametric CAD) and the pick-computer deployment |
 
 ## The cockpit's API
@@ -110,7 +110,7 @@ this pose*. There are two ways to answer, and a new arm can use either:
    server, sends its flange pose and reads back a target pose
    (`perceptronics/picknode.py`: one ASCII line in, one list of numbers out).
    Any controller that can open a TCP socket and parse numbers can use it. The
-   UR 3D Pick node is the reference client.
+   UR Pounce node is the reference client.
 
 The reach check takes kinematics from a DH table (`armfk.DH`). An arm that isn't
 in the table is left to its controller's own IK.

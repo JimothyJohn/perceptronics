@@ -464,7 +464,7 @@ public class Driver {
         TeachPosition.Teacher modern = TeachPosition.modern();
         out.put("modern", modern == null ? null : modern.getClass().getSimpleName());
         TeachPosition.teacher(type).teach(ui, new TeachPosition.Done() {
-            public void taught(JointPositions q, double[] flange) {
+            public void taught(JointPositions q, double[] tcp, double[] flange) {
                 out.put("q0", q.getAllJointPositions()[0].getPosition(Angle.Unit.RAD));
                 List<Object> f = null;
                 if (flange != null) { f = new ArrayList<Object>(); for (double v : flange) f.add(v); }

@@ -14,7 +14,6 @@ import com.ur.urcap.api.domain.value.jointposition.JointPositions;
 import com.ur.urcap.api.domain.value.simple.Angle;
 import com.ur.urcap.api.domain.value.simple.Length;
 import com.ur.urcap.api.domain.userinteraction.keyboard.KeyboardInputCallback;
-import com.ur.urcap.api.domain.userinteraction.keyboard.KeyboardNumberInput;
 import com.ur.urcap.api.domain.userinteraction.keyboard.KeyboardTextInput;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -373,13 +372,14 @@ public class PilotContribution implements InstallationNodeContribution, Location
         view.setStatus("cleared", PilotView.Kind.INFO);
     }
 
-    // -- pick areas: patches of the table taught with the fingertips ---------------------------
+    // -- pick areas: patches of the table taught by touching it with the tool ---------------------
+    // The touch records the pose of the robot's ACTIVE TCP — the tool as the pendant has it; the
+    // node carries no tool length of its own (0.10.0, Nick 2026-10-08). A node saved before that
+    // has a "tipMm" nothing reads any more.
 
     static final String KEY_AREAS = "areas";
     static final String KEY_AREA_SELECTED = "areaSelected";
-    static final String KEY_TIP_MM = "tipMm";
     static final int MAX_AREAS = 8;
-    static final double DEFAULT_TIP_MM = 163; // Hand-E 157 mm + the 6 mm adapter (the UR3e cell)
 
     int areaCount() {
         return Math.max(0, Math.min(MAX_AREAS, model.get(KEY_AREAS, 0)));
@@ -433,7 +433,7 @@ public class PilotContribution implements InstallationNodeContribution, Location
         }
         double[] m = robotReach();
         view.areas().show(out, model.get(KEY_AREA_SELECTED, 0), modelName(), m == null ? 0.064 : m[0],
-                m == null ? 0 : m[1], model.get(KEY_TIP_MM, DEFAULT_TIP_MM));
+                m == null ? 0 : m[1]);
     }
 
     @Override
@@ -448,19 +448,17 @@ public class PilotContribution implements InstallationNodeContribution, Location
                 PilotView.Kind.INFO);
     }
 
-    /** PolyScope's move screen: touch the table with the fingertips, then OK. */
+    /** PolyScope's move screen: touch the table with the tool (its TCP, as set on the pendant), then OK. */
     @Override
     public void teach(final int area, final int point) {
         TeachPosition.teacher(modelName()).teach(api.getUserInterfaceAPI().getUserInteraction(), new TeachPosition.Done() {
             @Override
-            public void taught(JointPositions joints, double[] flange) {
-                if (flange == null) {
-                    view.setStatus("this PolyScope (before 5.8) can't say where the " + modelName() + "'s flange is:"
-                            + " leave the area untaught (the table is found live) or teach it on PolyScope 5.8+",
-                            PilotView.Kind.ERR);
+            public void taught(JointPositions joints, double[] tcp, double[] flange) {
+                if (tcp == null || tcp.length < 3) {
+                    view.setStatus("PolyScope gave no TCP pose for the touch: try again", PilotView.Kind.ERR);
                     return;
                 }
-                double[] tip = PoseMath.tipOf(flange, model.get(KEY_TIP_MM, DEFAULT_TIP_MM) / 1000.0);
+                double[] tip = {tcp[0], tcp[1], tcp[2]};
                 model.set("area." + area + ".p" + point, tip);
                 model.set(KEY_AREA_SELECTED, area);
                 showAreas();
@@ -513,31 +511,6 @@ public class PilotContribution implements InstallationNodeContribution, Location
     public void select(int area) {
         model.set(KEY_AREA_SELECTED, area);
         showAreas();
-    }
-
-    @Override
-    public void stepTip(double byMm) {
-        model.set(KEY_TIP_MM, clampTip(model.get(KEY_TIP_MM, DEFAULT_TIP_MM) + byMm));
-        showAreas();
-    }
-
-    @Override
-    public void askTip(JLabel anchor) {
-        KeyboardNumberInput<Double> kb = api.getUserInterfaceAPI().getUserInteraction().getKeyboardInputFactory()
-                .createPositiveDoubleKeypadInput();
-        kb.setInitialValue(model.get(KEY_TIP_MM, DEFAULT_TIP_MM));
-        kb.show(anchor, new KeyboardInputCallback<Double>() {
-            @Override
-            public void onOk(Double value) {
-                if (value == null) return;
-                model.set(KEY_TIP_MM, clampTip(value));
-                showAreas();
-            }
-        });
-    }
-
-    static double clampTip(double v) {
-        return Math.max(0, Math.min(500, Math.round(v)));
     }
 
     private static String orElse(Object v, String fallback) {

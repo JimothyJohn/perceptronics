@@ -1,0 +1,54 @@
+{
+ "width": 848,
+ "height": 480,
+ "depth_scale_m": 0.0010000000474974513,
+ "intrinsics": {
+  "width": 848,
+  "height": 480,
+  "fx": 617.8555908203125,
+  "fy": 618.2134399414062,
+  "ppx": 426.5736999511719,
+  "ppy": 243.31895446777344,
+  "model": "inverse_brown_conrady",
+  "coeffs": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "fov_deg": [
+   68.91929456404054,
+   42.4339616103857
+  ]
+ },
+ "flange_pose": [
+  -0.386094,
+  0.001247,
+  0.346367,
+  2.194363,
+  2.10331,
+  0.137692
+ ],
+ "flange_to_color_pose": [
+  0.03110212968927091,
+  0.054828810771721206,
+  0.0036211859146493214,
+  0.009226847783912057,
+  -0.20744486182004007,
+  3.0923137610500397
+ ],
+ "what": "UR3e cell 2026-10-09, the pick PC's D435 on the eseries bracket, laser 150 mW, High Density: one white foam block 50x30x30 mm lying flat on a black rubber mat (a drawer organiser with two white velcro strips) on the grey table at base height; the camera straight down 0.35 m over the table. The mat returns depth; the velcro strips are holes. The block reads 2-8 mm tall over views because the floor under it is the mat, not the table the fit sees around it.",
+ "part_mm": [
+  50,
+  30,
+  30
+ ],
+ "count": 1,
+ "pixels": [
+  [
+   485,
+   270
+  ]
+ ]
+}

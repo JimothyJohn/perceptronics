@@ -88,8 +88,9 @@ def test_locate_geometry_tool_down():
     # under the π about Y, and the camera sits on flange +Y)
     assert _close(out["view_ray_base"], (0, -S5, -C5), 1e-9)
     assert out["point_base_m"][2] == pytest.approx(0.5 - SEED_ORIGIN[2] - 0.3 * C5, abs=1e-9)
-    # approach = 50 mm short of the object along the tool axis (the fingertip default), orientation kept
-    assert out["approach_pose"][2] == pytest.approx(out["point_base_m"][2] + 0.05, abs=1e-9)
+    # approach = the robot's TCP 50 mm short of the object along the camera's ray, orientation kept
+    short = [p - 0.05 * r for p, r in zip(out["point_base_m"], out["view_ray_base"], strict=True)]
+    assert _close(out["approach_pose"][:3], short, 1e-9)
     assert out["approach_pose"][3:] == tcp[3:]
     # the lateral camera offset on the bracket shows up in base xy (flange x flips under the π about Y)
     assert out["point_base_m"][0] == pytest.approx(0.5 - 0.0175, abs=1e-9)
@@ -161,17 +162,17 @@ def test_robotlink_locate_then_move_goes_through_the_tool_registry(monkeypatch):
         and len(loc["approach_pose"]) == 6
         and loc["robot"]["tcp_offset"] == pytest.approx(fake.tcp_offset, abs=1e-6)
     )
-    # the default approach is by the fingertips: the fingertip TCP keeps the flange's
-    # orientation (the same rotation as the live TCP here; compare rotations, not spellings)
-    assert loc["reference"] == "fingertip" and loc["tcp"] == [0.0, 0.0, 0.163, 0.0, 0.0, 0.0]
+    # the default approach is by the robot's own active TCP (2026-10-08: the cockpit owns no
+    # tool length): the approach keeps its orientation (compare rotations, not spellings)
+    assert loc["reference"] == "tcp" and loc["tcp"] is None
     assert _same_rotation(loc["approach_pose"][3:], fake.tcp_pose[3:])
     mv = link.move(loc["approach_pose"])
     assert mv["ok"] and mv["action"] == "move_tcp" and mv["safety"]["ok"]
     movel = [s for s in fake.primary_sends if "movel(" in s][-1]
     # absolute, slow, and gentle: a=0.1 since 2026-09-27 (Nick: "the stops thud" at 0.3)
     assert "pose_add" not in movel and "v=0.1" in movel and "a=0.1" in movel
-    # ... and the move runs with that fingertip TCP, not the controller's active one
-    assert movel.index("set_tcp(p[0.0, 0.0, 0.163, 0.0, 0.0, 0.0])") < movel.index("movel(")
+    # ... and the move runs with the controller's active TCP as it is: no set_tcp of the cockpit's
+    assert "set_tcp(" not in movel
     # audit trail: both actions logged on the same robot
     actions = [r.action for r in link.robot.audit.records] if hasattr(link.robot.audit, "records") else None
     assert actions is None or ("get_flange_pose" in actions and "move_tcp" in actions)
@@ -342,29 +343,27 @@ def test_robotlink_approach_defaults_come_from_the_cell_env(monkeypatch):
     link = RobotLink(RobotConfig(host="fake"))
     assert link.describe()["approach"] == {
         "standoff_m": 0.10,
-        "reference": "fingertip",
-        "tip_m": 0.163,
-        "tcp": [0.0, 0.0, 0.163, 0.0, 0.0, 0.0],
+        "reference": "tcp",  # the robot's active TCP: the only tool offset (Nick, 2026-10-08)
+        "tcp": None,
         "velocity": 0.1,
         "acceleration": 0.1,  # gentle since 2026-09-27 (was 0.3: the stops thudded)
     }
+    # the retired reference variable is ignored: the reference is the robot's TCP regardless
     monkeypatch.setenv("PERCEPTRONICS_APPROACH_REFERENCE", "flange")
     monkeypatch.setenv("PERCEPTRONICS_STANDOFF_M", "0.075")
     link = RobotLink(RobotConfig(host="fake"))
-    assert (
-        link.describe()["approach"]["standoff_m"] == 0.075
-        and link.describe()["approach"]["reference"] == "flange"
-    )
-    loc = link.locate((0.0, 0.0, 0.3))
+    assert link.describe()["approach"]["standoff_m"] == 0.075
+    assert link.describe()["approach"]["reference"] == "tcp"
+    # a per-call reference still works (the calibration and the flange-referenced tools ask for it)
+    loc = link.locate((0.0, 0.0, 0.3), reference="flange")
     assert loc["ok"] and loc["reference"] == "flange" and loc["standoff_m"] == 0.075
     assert loc["tcp_offset"] == pytest.approx(fake.tcp_offset, abs=1e-6)
-    # a per-call override wins
     loc = link.locate((0.0, 0.0, 0.3), standoff_m=0.2, reference="tcp")
     assert loc["reference"] == "tcp" and loc["standoff_m"] == 0.2
-    monkeypatch.setenv("PERCEPTRONICS_APPROACH_REFERENCE", "wrist")
     with pytest.raises(ValueError):
-        RobotLink(RobotConfig(host="fake"))
-    monkeypatch.setenv("PERCEPTRONICS_APPROACH_REFERENCE", "tcp")
+        link.locate((0.0, 0.0, 0.3), reference="wrist")
+    with pytest.raises(ValueError):
+        link.locate((0.0, 0.0, 0.3), reference="fingertip")  # gone with the Pi-side tool length
     monkeypatch.setenv("PERCEPTRONICS_STANDOFF_M", "5")
     with pytest.raises(ValueError):
         RobotLink(RobotConfig(host="fake"))
@@ -381,10 +380,9 @@ def test_robotlink_move_passes_the_tcp_override(monkeypatch):
 
 def test_robotlink_approach_cycle_is_one_flange_program_that_returns_home(monkeypatch):
     fake = FakeController().install(monkeypatch)
-    monkeypatch.setenv("PERCEPTRONICS_APPROACH_REFERENCE", "flange")
     monkeypatch.setenv("PERCEPTRONICS_STANDOFF_M", "0.075")
     link = RobotLink(RobotConfig(host="fake", robot_model="UR10e"))  # the fake's flange sits 0.5 m out
-    res = link.approach_cycle((0.0, 0.0, 0.3), clearance_m=0.1, hold_s=1.0, velocity=0.15)
+    res = link.approach_cycle((0.0, 0.0, 0.3), reference="flange", clearance_m=0.1, hold_s=1.0, velocity=0.15)
     assert res["ok"] and res["completed_legs"] == 4, res
     cyc = res["cycle"]
     loc = res["locate"]
@@ -457,93 +455,86 @@ def _same_rotation(a, b, tol=1e-6):
     return all(abs(ma[i][j] - mb[i][j]) < tol for i in range(3) for j in range(3))
 
 
-# -- the fingertip approach (the default: "always approach with the fingertips") -----------
+# -- the approach is by the robot's active TCP (2026-10-08: no tool length of the cockpit's) --
 
 
-def test_fingertip_approach_puts_the_tips_standoff_short_along_the_tool_axis():
-    """Tilted tool, a 220 mm active TCP the Hand-E doesn't match: the fingertips land
-    ``standoff`` short of the point along the *tool* axis, the flange ``tip_m`` behind
-    them, and the approach pose is the fingertip TCP's (not the active TCP's)."""
+def test_tcp_approach_puts_the_active_tcp_standoff_short_along_the_camera_ray():
+    """Tilted tool, whatever the pendant's active TCP: the approach pose is that TCP's,
+    ``standoff`` short of the point along the camera's ray, orientation kept; the flange
+    target is the offset behind it. ``fingertip`` is no longer a reference."""
     import random
 
     rng = random.Random(27)
     he = HandEye()
-    bogus_active = [0.000256, -0.0352, 0.2204, 0.2572, -0.4104, 1.4319]  # the UR3e's training TCP
     for _ in range(200):
         tilt = [rng.uniform(-0.6, 0.6), math.pi + rng.uniform(-0.5, 0.5), rng.uniform(-0.6, 0.6)]
         flange = [rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4), rng.uniform(0.1, 0.5), *tilt]
-        tip_m, standoff = rng.uniform(0.0, 0.3), rng.uniform(0.0, 0.2)
+        offset = [rng.uniform(-0.05, 0.05), rng.uniform(-0.05, 0.05), rng.uniform(0.0, 0.3), 0.0, 0.0, 0.0]
+        standoff = rng.uniform(0.0, 0.2)
+        tcp = pose_trans(flange, offset)
         out = locate(
             he,
             flange,
             (rng.uniform(-0.1, 0.1), rng.uniform(-0.1, 0.1), rng.uniform(0.2, 0.6)),
-            tcp_pose=pose_trans(flange, bogus_active),
-            tcp_offset=bogus_active,
+            tcp_pose=tcp,
+            tcp_offset=offset,
             standoff_m=standoff,
-            tip_m=tip_m,
         )
-        assert out["reference"] == "fingertip" and out["tool_tcp"] == [0.0, 0.0, tip_m, 0.0, 0.0, 0.0]
-        axis = Transform.from_pose(flange).rotate((0.0, 0.0, 1.0))
-        tip = [p - standoff * a for p, a in zip(out["point_base_m"], axis, strict=True)]
-        assert _close(out["approach_pose"][:3], tip, 1e-9)
-        behind = [t - tip_m * a for t, a in zip(tip, axis, strict=True)]
-        assert _close(out["flange_target_pose"][:3], behind, 1e-9)
-        assert _same_rotation(out["flange_target_pose"][3:], flange[3:])  # orientation kept
-        # the pose + fingertip TCP round-trips to the flange target; the active TCP plays no part
-        back = pose_trans(out["flange_target_pose"], out["tool_tcp"])
-        assert _close(back[:3], out["approach_pose"][:3], 1e-9)
-        assert _same_rotation(back[3:], out["approach_pose"][3:])
-        # reach is judged on the flange, the thing the datasheet radius is measured to
-        flange_dist = math.dist(out["flange_target_pose"][:3], [0, 0, 0])
-        assert out["commanded_distance_m"] == pytest.approx(flange_dist)
+        assert out["reference"] == "tcp" and "tip_m" not in out and "tool_tcp" not in out
+        short = [p - standoff * r for p, r in zip(out["point_base_m"], out["view_ray_base"], strict=True)]
+        assert _close(out["approach_pose"][:3], short, 1e-9)
+        assert _same_rotation(out["approach_pose"][3:], tcp[3:])  # orientation kept
+        # the flange target is where the active offset puts the flange for that TCP pose
+        back = pose_trans(out["approach_pose"], pose_inv(offset))
+        assert _close(out["flange_target_pose"][:3], back[:3], 1e-9)
+        assert _same_rotation(out["flange_target_pose"][3:], back[3:])
+        # reach is judged on the commanded pose: the TCP itself
+        assert out["commanded_distance_m"] == pytest.approx(math.dist(out["approach_pose"][:3], [0, 0, 0]))
     with pytest.raises(ValueError):
-        locate(he, [0.5, 0, 0.5, *TOOL_DOWN], (0, 0, 0.3), tcp_pose=[0.5, 0, 0.5, *TOOL_DOWN], tip_m=-0.01)
+        at = [0.5, 0, 0.5, *TOOL_DOWN]
+        locate(he, at, (0, 0, 0.3), tcp_pose=at, reference="fingertip")
 
 
-def test_tip_length_comes_from_the_cell():
-    from perceptronics.handeye import DEFAULT_TIP_M, tip_m_from_env
+def test_the_pi_side_tool_length_is_gone():
+    """2026-10-08: "You must only use tool offsets inside of the robot not your own"."""
+    import perceptronics.handeye as he
 
-    assert tip_m_from_env({}) == DEFAULT_TIP_M == 0.163
-    assert tip_m_from_env({"PERCEPTRONICS_TIP_M": "0.2"}) == 0.2
-    for bad in ("-0.1", "0.7", "nan", "inf"):
-        with pytest.raises(ValueError):
-            tip_m_from_env({"PERCEPTRONICS_TIP_M": bad})
+    for name in ("DEFAULT_TIP_M", "ENV_TIP_M", "tip_m_from_env", "fingertip_tcp", "ENV_APPROACH_REFERENCE"):
+        assert not hasattr(he, name), name
+    assert he.APPROACH_REFERENCES == ("tcp", "flange") and he.DEFAULT_APPROACH_REFERENCE == "tcp"
+    assert he.RETIRED_VARIABLES == ("PERCEPTRONICS_TIP_M", "PERCEPTRONICS_APPROACH_REFERENCE")
 
 
-def test_robotlink_moves_and_checks_reach_with_the_fingertip_tcp(monkeypatch):
+def test_robotlink_moves_and_checks_reach_with_the_controllers_tcp(monkeypatch):
     fake = FakeController().install(monkeypatch)
-    monkeypatch.setenv("PERCEPTRONICS_TIP_M", "0.2")
+    monkeypatch.setenv("PERCEPTRONICS_TIP_M", "0.2")  # retired: nothing reads it
     link = RobotLink(RobotConfig(host="fake", robot_model="UR3e"))
     asked = []
     fake.ik = lambda pose, tcp: asked.append(tcp) or True
     loc = link.locate((0.0, 0.0, 0.3), standoff_m=0.04)
-    assert loc["reference"] == "fingertip" and loc["tcp"] == [0.0, 0.0, 0.2, 0.0, 0.0, 0.0]
-    assert asked == [[0.0, 0.0, 0.2, 0.0, 0.0, 0.0]]  # IK on the pose that will be commanded, same TCP
+    assert loc["reference"] == "tcp" and loc["tcp"] is None
+    assert asked == [None]  # IK on the pose that will be commanded, under the active TCP
     link.move(loc["approach_pose"])
     link.move(loc["approach_pose"], tcp=[0] * 6)  # an explicit TCP (pick-cycle's flange moves) wins
     movels = [s for s in fake.primary_sends if "movel(" in s]
-    assert "set_tcp(p[0.0, 0.0, 0.2, 0.0, 0.0, 0.0])" in movels[0]
+    assert "set_tcp(" not in movels[0]
     assert "set_tcp(p[0.0, 0.0, 0.0, 0.0, 0.0, 0.0])" in movels[1]
-    # the "tcp" reference alone moves the controller's active TCP
-    monkeypatch.setenv("PERCEPTRONICS_APPROACH_REFERENCE", "tcp")
-    RobotLink(RobotConfig(host="fake", robot_model="UR3e")).move(loc["approach_pose"])
-    assert "set_tcp(" not in [s for s in fake.primary_sends if "movel(" in s][-1]
 
 
-def test_approach_cycle_runs_every_leg_on_the_fingertips(monkeypatch):
+def test_approach_cycle_runs_every_leg_on_the_active_tcp(monkeypatch):
     fake = FakeController().install(monkeypatch)
     fake.ik = lambda pose, tcp: True
     link = RobotLink(RobotConfig(host="fake", robot_model="UR3e"))
     res = link.approach_cycle((0.0, 0.0, 0.3), standoff_m=0.04, clearance_m=0.1)
     assert res["ok"], res
     (prog,) = [s for s in fake.primary_sends if "urctl/path/" in s]
-    assert prog.index("set_tcp(p[0.0, 0.0, 0.163, 0.0, 0.0, 0.0])") < prog.index("movel(")
+    assert "set_tcp(" not in prog  # the pendant's TCP, as it is
     loc = res["locate"] if "locate" in res else link.locate((0.0, 0.0, 0.3), standoff_m=0.04)
     legs = [[float(v) for v in m.split(",")] for m in __import__("re").findall(r"movel\(p\[([^\]]+)\]", prog)]
-    assert _close(legs[1][:3], loc["approach_pose"][:3], 1e-6)  # down: the fingertips at the standoff
+    assert _close(legs[1][:3], loc["approach_pose"][:3], 1e-6)  # down: the TCP at the standoff
     assert legs[0][2] == pytest.approx(legs[1][2] + 0.1)  # over: clearance above it
-    # back: where the fingertips were when the picture was taken
-    assert _close(legs[3][:3], pose_trans(loc["flange_pose"], loc["tcp"])[:3], 1e-6)
+    # back: where the TCP was when the picture was taken
+    assert _close(legs[3][:3], loc["tcp_pose"][:3], 1e-6)
 
 
 def _broadcast_flange(flange, offset, *, consistent=True):
@@ -582,9 +573,8 @@ def test_locate_in_local_mode_needs_no_script_and_targets_polyscopes_tcp(monkeyp
     # holding PolyScope's active TCP at polyscope_pose puts the flange on the target …
     back = pose_trans(loc["polyscope_pose"], pose_inv(offset))
     assert back == pytest.approx(loc["flange_target_pose"], abs=1e-9)
-    # … and so the fingertips where the cockpit computed them (the reference that matters)
-    tips = pose_trans(loc["flange_target_pose"], [0.0, 0.0, 0.163, 0.0, 0.0, 0.0])
-    assert tips[:3] == pytest.approx(loc["approach_pose"][:3], abs=1e-9)
+    # … and that TCP — the tool as the pendant has it — where the cockpit computed the approach
+    assert loc["polyscope_pose"] == pytest.approx(loc["approach_pose"], abs=1e-9)
 
 
 @pytest.mark.state_broadcast

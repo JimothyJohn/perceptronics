@@ -7,7 +7,7 @@ import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 
 /**
- * Registers the Perceptronic installation node, the 3D Pick program node and the toolbar
+ * Registers the Perceptronic installation node, the Pounce program node and the toolbar
  * button (the live picture in a popup) with PolyScope 5.
  */
 public class Activator implements BundleActivator {

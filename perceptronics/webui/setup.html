@@ -59,6 +59,17 @@
 
   <div id="banner" class="msg" role="status" aria-live="polite"></div>
 
+  <section id="pw-section">
+    <h2>Password</h2>
+    <p class="hint" id="pw-hint">This camera computer still has its factory login. Choose a password before changing anything else; it becomes the only login for this page.</p>
+    <form id="pw" autocomplete="off">
+      <label>New password <input type="password" id="pw1" name="pw1" minlength="8" maxlength="128" required autocomplete="new-password"></label>
+      <label>Again <input type="password" id="pw2" name="pw2" minlength="8" maxlength="128" required autocomplete="new-password"></label>
+      <button type="submit" id="pw-go">Set password</button>
+    </form>
+    <div id="pw-msg" class="msg" role="status" aria-live="polite"></div>
+  </section>
+
   <section>
     <h2>This camera computer</h2>
     <dl>
@@ -164,7 +175,12 @@ async function refresh() {
     $("robot_dhcp").checked = !!n.robot_dhcp;
   }
   const job = st.job;
-  $("net-go").disabled = $("up-go").disabled = st.busy;
+  const locked = !!st.password_required;
+  $("pw-section").classList.toggle("required", locked);
+  $("pw-hint").textContent = locked
+    ? "This camera computer still has its factory login. Choose a password before changing anything else; it becomes the only login for this page."
+    : "Change the password of this page. The new one applies at once.";
+  $("net-go").disabled = $("up-go").disabled = st.busy || locked;
   if (st.busy && !job) show($("banner"), "A change is waiting to start…", "busy");
   if (job) {
     const [text, kind] = describeJob(job);
@@ -185,6 +201,26 @@ function prefixToMask(p) {
   const m = p === 0 ? 0 : (0xffffffff << (32 - p)) >>> 0;
   return [24, 16, 8, 0].map((s) => (m >>> s) & 255).join(".");
 }
+
+$("pw").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const a = $("pw1").value, b = $("pw2").value;
+  if (a !== b) { show($("pw-msg"), "The two entries differ.", "bad"); return; }
+  $("pw-go").disabled = true;
+  try {
+    const r = await fetch("/api/admin/password", {
+      method: "POST", headers: { ...HDR, "Content-Type": "application/json" }, body: JSON.stringify({ password: a }),
+    });
+    const out = await r.json();
+    if (!out.ok) { show($("pw-msg"), out.error, "bad"); $("pw-go").disabled = false; return; }
+    show($("pw-msg"), "Password set. The browser will ask you to log in again with it.", "ok");
+    $("pw1").value = $("pw2").value = "";
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    show($("pw-msg"), "Couldn't send it: " + e.message, "bad");
+    $("pw-go").disabled = false;
+  }
+});
 
 $("net").addEventListener("submit", async (ev) => {
   ev.preventDefault();

@@ -3,7 +3,7 @@
 A gripper on the flange means nothing can touch a mark, so the mark is a
 block's top-face centre and the wrist orbits it (the 2026-09-25 procedure,
 ``perceptronics/README.md`` §Hand-eye without a mark, folded in from the
-``scripts/pilot/orbit_cal*.py`` scratch scripts):
+2026-09-25 session's scratch scripts, since deleted):
 
 1. **Find the mark.** From where the arm is, the white block nearest the
    image centre; its top face is fitted as a plane (:func:`pickcycle.top_face`)
@@ -18,11 +18,17 @@ block's top-face centre and the wrist orbits it (the 2026-09-25 procedure,
    (predicted through the current solve) and within reach; find the block
    again **by identity** — the top face whose 3-D centroid is nearest the
    predicted mark, gated — and click its centroid into the cockpit's
-   calibration session (``POST /api/cal/view``). After four views the
-   prediction switches from the seed to the running solve.
+   calibration session (``POST /api/cal/view``). Once :data:`TRACK_AFTER_VIEWS`
+   views are in, the prediction switches from the seed to the running solve — and
+   only if that solve lies within :data:`MAX_SEED_SHIFT_M` / :data:`MAX_SEED_TURN_DEG`
+   of the seed (2026-10-09 on the UR3e: switching after four views, two orbits in a
+   row solved on a handful of weak views, predicted the mark from that wrong solve,
+   rejected every later view against it, and applied a camera 0.2–0.7 m off the flange).
 4. **Solve and trim.** ``POST /api/cal/solve``; drop the worst view while any
    residual is above ``trim_mm`` and re-solve. ``--apply`` puts the result in
-   force in the cockpit and saves ``captures/calibration/handeye_<cell>.json``.
+   force in the cockpit and saves ``captures/calibration/handeye_<cell>.json`` —
+   refused when fewer than :data:`MIN_APPLY_VIEWS` views remain or the solve lies
+   farther from the seed than a bracket can put the camera (``--force-apply`` overrides).
 
 Motion goes straight over Primary through :class:`urctl.robot.Robot`
 (envelope-checked, ``tcp=[0]*6`` so the pose is the flange), the cockpit does
@@ -42,7 +48,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from urctl.config import RobotConfig
-from urctl.pose import Transform, matrix_to_rotvec, rotvec_to_matrix
+from urctl.pose import Transform, matrix_to_rotvec, pose_inv, pose_trans, rotvec_to_matrix
 from urctl.robot import Robot
 
 from .calibrate import MIN_VIEWS_WITHOUT_MARK, CalibrationError, CalibrationSession
@@ -50,6 +56,10 @@ from .handeye import HandEye
 from .pickcycle import DEFAULT_COCKPIT, Cockpit, CockpitError, top_face, white_blobs
 
 DEFAULT_RANGES_M = (0.21, 0.30, 0.40)
+TRACK_AFTER_VIEWS = 12  # predict the mark from the seed until this many views are in
+MIN_APPLY_VIEWS = 10  # never put a solve from fewer views in force
+MAX_SEED_SHIFT_M = 0.10  # a solve farther from the seed than this is not the camera on its bracket
+MAX_SEED_TURN_DEG = 20.0
 DEFAULT_TILT_DEG = (12.0, 15.0, 15.0)
 DEFAULT_YAW_DEG = (25.0, 30.0, 30.0)
 DEFAULT_SHIFT_M = (0.03, 0.05, 0.07)
@@ -156,6 +166,8 @@ class OrbitCalibration:
     track: Transform | None = None
     mark: list[float] | None = None
     local: CalibrationSession | None = None
+    seed_pose: list[float] = field(default_factory=list)  # the cockpit's hand-eye at the start
+    _warned_drift: bool = False
 
     # -- bookkeeping -----------------------------------------------------------------------
     def say(self, text: str) -> None:
@@ -252,6 +264,7 @@ class OrbitCalibration:
         if not he:
             raise CockpitError("the cockpit has no hand-eye seed (no robot link?)")
         self.track = Transform.from_pose(he)
+        self.seed_pose = [float(v) for v in he]
         self.local = CalibrationSession(seed=HandEye.from_pose(he, source="cockpit-seed"))
         found = self.find_mark()
         self.say(
@@ -262,8 +275,9 @@ class OrbitCalibration:
         return found
 
     def _refresh_track(self) -> None:
-        """Once enough views are in, predict through the running solve instead of the seed."""
-        if self.local is None or len(self.local.views) < MIN_VIEWS_WITHOUT_MARK:
+        """Once enough views are in, predict through the running solve instead of the seed —
+        never through a solve that has wandered away from the seed."""
+        if self.local is None or len(self.local.views) < TRACK_AFTER_VIEWS:
             return
         try:
             res = self.local.solve()
@@ -271,8 +285,36 @@ class OrbitCalibration:
             return
         if res["rms_m"] > 0.03:
             return  # worse than the seed could be — keep predicting from what we had
+        why = self.far_from_seed(res["flange_to_color_pose"])
+        if why:
+            if not self._warned_drift:
+                self._warned_drift = True
+                self.say(f"running solve ignored for prediction: {why}")
+            return
         self.track = Transform.from_pose(res["flange_to_color_pose"])
         self.mark = list(res["mark_base"])
+
+    def far_from_seed(self, flange_to_color: Sequence[float]) -> str | None:
+        """Why ``flange_to_color`` can't be the camera on its bracket: how far it sits from the
+        seed, when that is more than :data:`MAX_SEED_SHIFT_M` / :data:`MAX_SEED_TURN_DEG`; None
+        when it is close enough."""
+        rel = pose_trans(pose_inv(self.seed_pose), [float(v) for v in flange_to_color])
+        shift = math.sqrt(sum(v * v for v in rel[:3]))
+        turn = math.degrees(math.sqrt(sum(v * v for v in rel[3:])))
+        if shift > MAX_SEED_SHIFT_M or turn > MAX_SEED_TURN_DEG:
+            return (
+                f"{shift * 1000:.0f} mm and {turn:.0f}° from the seed (a bracket can't be more than"
+                f" {MAX_SEED_SHIFT_M * 1000:.0f} mm / {MAX_SEED_TURN_DEG:.0f}° off)"
+            )
+        return None
+
+    def apply_blocked(self, result: dict) -> str | None:
+        """Why this solve must not go in force (None: it may): too few views, or far from the seed."""
+        views = int(result.get("views") or 0)
+        if views < MIN_APPLY_VIEWS:
+            return f"only {views} views (at least {MIN_APPLY_VIEWS} needed)"
+        pose = result.get("flange_to_color_pose")
+        return self.far_from_seed(pose) if pose else "no solve"
 
     def look(self, step: dict, K: dict, frame_wh: tuple[int, int]) -> dict:
         """One planned view: move, find the block by identity, click it in."""
@@ -337,7 +379,7 @@ class OrbitCalibration:
             result = self.cockpit.post("/api/cal/solve")
         return result, dropped
 
-    def run(self, *, apply: bool = False, reset: bool = True) -> dict:
+    def run(self, *, apply: bool = False, reset: bool = True, force_apply: bool = False) -> dict:
         st = self._state()
         if "REMOTE" not in (st.get("control_mode") or "REMOTE"):
             raise CockpitError("robot is in Local control — motion needs Remote")
@@ -409,12 +451,21 @@ class OrbitCalibration:
                 "warnings": result.get("warnings") or [],
             }
         )
-        if apply:
+        blocked = self.apply_blocked(result)
+        summary["apply_blocked"] = blocked
+        if apply and blocked and not force_apply:
+            summary["applied"] = False
+            self.say(
+                f"Apply refused: {blocked} — the cockpit keeps its current hand-eye (--force-apply overrides)"
+            )
+        elif apply:
             a = self.cockpit.post("/api/cal/apply", {"method": "orbit"})
             summary["applied"] = bool(a.get("ok"))
             summary["saved"] = a.get("saved")
             self.say(
-                "Applied" + (f", saved {a['saved']}" if a.get("saved") else "")
+                "Applied"
+                + (f", saved {a['saved']}" if a.get("saved") else "")
+                + (f" (forced past: {blocked})" if blocked else "")
                 if a.get("ok")
                 else f"Apply refused: {a.get('error')}"
             )
@@ -448,6 +499,11 @@ def add_calibrate_args(ap) -> None:
     ap.add_argument("--trim-mm", type=float, default=9.0, help="drop views with a residual above this")
     ap.add_argument("--velocity", type=float, default=0.08, help="move speed m/s (default 0.08)")
     ap.add_argument("--apply", action="store_true", help="apply + save the solve in the cockpit")
+    ap.add_argument(
+        "--force-apply",
+        action="store_true",
+        help=f"apply even a solve the guard refuses (under {MIN_APPLY_VIEWS} views, or far from the seed)",
+    )
     ap.add_argument("--no-reset", action="store_true", help="add to the cockpit's existing views")
     ap.add_argument(
         "--via-cockpit",
@@ -495,7 +551,7 @@ def run_calibrate(args) -> int:
     signal.signal(signal.SIGINT, _interrupt)
     signal.signal(signal.SIGTERM, _interrupt)
     try:
-        out = cal.run(apply=args.apply, reset=not args.no_reset)
+        out = cal.run(apply=args.apply, reset=not args.no_reset, force_apply=args.force_apply)
     except KeyboardInterrupt:
         cal.bail_out()
         return 130

@@ -20,7 +20,7 @@ final class TeachPosition2 implements TeachPosition.Teacher {
             public void onOk(PositionParameters position) {
                 double[] tcp = position.getPose().toArray(Length.Unit.M, Angle.Unit.RAD);
                 double[] off = position.getTCPOffset().toArray(Length.Unit.M, Angle.Unit.RAD);
-                done.taught(position.getJointPositions(), PoseMath.trans(tcp, PoseMath.inv(off)));
+                done.taught(position.getJointPositions(), tcp, PoseMath.trans(tcp, PoseMath.inv(off)));
             }
         });
     }

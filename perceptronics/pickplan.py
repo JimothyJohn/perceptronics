@@ -108,7 +108,7 @@ def clearance(
     room_m: float | None = None,
 ) -> dict:
     """Is there room for the open fingers beside ``rect``? With ``room_m`` the question is
-    the operator's own (the 3D Pick node, 0.8.0): that much clear space on each side of the
+    the operator's own (the Pounce node, 0.8.0): that much clear space on each side of the
     part along the grip axis, whatever the gripper — the zone starts at the part's edge and
     ``stroke_m`` / ``finger_t_m`` play no part. Otherwise: Each finger comes down just outside
     the open jaws, along the travel axis (across the object's short side), to
